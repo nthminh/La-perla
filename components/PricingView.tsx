@@ -525,16 +525,14 @@ export const PricingView: React.FC<PricingViewProps> = ({
 
   return (
     <div className="w-full max-w-4xl mx-auto p-4 md:p-6 pb-24">
-      <div className="flex items-center justify-center relative mb-8">
-          <h2 className="text-4xl font-serif text-charcoal">{t.pricingTitle}</h2>
-          
+      <div className="flex justify-end mb-4">
           {/* STAFF MODE TOGGLE BUTTON */}
           <button 
             onClick={() => isStaffMode ? setIsStaffMode(false) : setShowLoginModal(true)}
-            className={`absolute right-0 p-2 rounded-full transition-colors ${isStaffMode ? 'bg-gold-leaf text-white' : 'text-gray-300 hover:text-gold-leaf'}`}
+            className={`p-2 rounded-full transition-colors ${isStaffMode ? 'bg-gold-leaf text-white' : 'text-red-500 hover:text-red-600 bg-red-50'}`}
             title={isStaffMode ? "Exit Staff Mode" : "Staff Access"}
           >
-              <LockIcon className="w-5 h-5" />
+              <LockIcon className="w-6 h-6" />
           </button>
       </div>
       
