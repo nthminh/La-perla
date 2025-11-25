@@ -1,0 +1,5 @@
+{
+  "name": "La Perla Nail AI Stylist",
+  "description": "An AI-powered web application for La Perla salon customers to visualize new nail art designs on their own hands by uploading a photo. The app suggests styles and provides a full price list for salon services.",
+  "requestFramePermissions": []
+}
