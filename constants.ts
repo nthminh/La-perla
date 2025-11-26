@@ -155,6 +155,10 @@ export const PRICING_DATA: ServiceCategory[] = [
         { nameKey: 'extraService2', price: '$2' },
         { nameKey: 'extraService5', price: '$5' },
         { nameKey: 'extraService10', price: '$10' },
+        { nameKey: 'extraService20', price: '$20' },
+        { nameKey: 'extraService30', price: '$30' },
+        { nameKey: 'extraService40', price: '$40' },
+        { nameKey: 'extraService50', price: '$50' },
     ],
   },
 ];

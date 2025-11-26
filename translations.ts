@@ -1,4 +1,5 @@
 
+
 export interface Translation {
   name: string;
   flag: string;
@@ -350,7 +351,11 @@ const baseTranslations: Omit<Translation, 'name' | 'flag'> = {
     extraService1: "Add-on $1",
     extraService2: "Add-on $2",
     extraService5: "Add-on $5",
-    extraService10: "Add-on $10"
+    extraService10: "Add-on $10",
+    extraService20: "Add-on $20",
+    extraService30: "Add-on $30",
+    extraService40: "Add-on $40",
+    extraService50: "Add-on $50"
   },
   galleryImageNames: {
     blushGoldLines: "Blush & Gold Lines",
