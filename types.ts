@@ -37,3 +37,10 @@ export interface Transaction {
   items: TransactionItem[];
   discountPercentage?: number; // Added discount percentage tracking
 }
+
+export interface ActiveBill {
+  id: string;
+  customerName: string;
+  items: CartItem[];
+  discountPercentage: number;
+}

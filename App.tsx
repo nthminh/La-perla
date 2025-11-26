@@ -9,7 +9,7 @@ import { AdminView } from './components/AdminView';
 import PromotionsView from './components/PromotionsView';
 import { UploadIcon, SparklesIcon, PriceTagIcon, GalleryIcon, CameraIcon, DownloadIcon, BriefcaseIcon, CalendarIcon, GiftIcon, LaPerlaLogo, LockIcon } from './components/Icons';
 import { TRANSLATIONS, Translation } from './translations';
-import { CartItem } from './types';
+import { CartItem, ActiveBill } from './types';
 import { PRICING_DATA } from './constants';
 
 type View = 'stylist' | 'pricing' | 'gallery' | 'portfolio' | 'booking' | 'promotions' | 'admin';
@@ -222,10 +222,12 @@ const App: React.FC = () => {
 
   const [generationsToday, setGenerationsToday] = useState(0);
 
-  // --- LIFTED STATE FOR PRICING VIEW ---
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
-  const [customerName, setCustomerName] = useState('');
-  const [discountPercentage, setDiscountPercentage] = useState(0);
+  // --- REFACTORED STATE FOR MULTIPLE BILLS ---
+  const [activeBills, setActiveBills] = useState<ActiveBill[]>([
+    { id: '1', customerName: '', items: [], discountPercentage: 0 }
+  ]);
+  const [currentBillId, setCurrentBillId] = useState<string>('1');
+
   const [isBillOpen, setIsBillOpen] = useState(false);
   
   // Also lift accordion state so it doesn't reset when switching tabs
@@ -258,21 +260,27 @@ const App: React.FC = () => {
             const data = JSON.parse(json);
             
             if (data) {
-                // Restore Customer Name & Discount
-                if (data.c) setCustomerName(data.c);
-                if (data.d) setDiscountPercentage(Number(data.d));
-                
-                // Restore Items
-                if (Array.isArray(data.i)) {
-                    const restoredItems: CartItem[] = data.i.map((item: any) => ({
+                // When restoring from URL, we create a new standalone bill for it
+                // We do NOT overwrite existing bills
+                const restoredItems: CartItem[] = Array.isArray(data.i) 
+                    ? data.i.map((item: any) => ({
                          id: Math.random().toString(36).substr(2, 9),
                          nameKey: item.k,
                          price: Number(item.p),
                          quantity: Number(item.q),
                          staffName: item.s || undefined
-                    }));
-                    setCartItems(restoredItems);
-                }
+                    }))
+                    : [];
+
+                const newBill: ActiveBill = {
+                    id: `receipt-${Date.now()}`,
+                    customerName: data.c || '',
+                    items: restoredItems,
+                    discountPercentage: data.d ? Number(data.d) : 0
+                };
+
+                setActiveBills(prev => [...prev, newBill]);
+                setCurrentBillId(newBill.id);
 
                 // Trigger auto download
                 setAutoDownloadTrigger(true);
@@ -419,12 +427,10 @@ const App: React.FC = () => {
             {view === 'pricing' && (
               <PricingView 
                 t={t} 
-                cartItems={cartItems}
-                setCartItems={setCartItems}
-                customerName={customerName}
-                setCustomerName={setCustomerName}
-                discountPercentage={discountPercentage}
-                setDiscountPercentage={setDiscountPercentage}
+                activeBills={activeBills}
+                setActiveBills={setActiveBills}
+                currentBillId={currentBillId}
+                setCurrentBillId={setCurrentBillId}
                 isBillOpen={isBillOpen}
                 setIsBillOpen={setIsBillOpen}
                 openCategories={openCategories}

@@ -5,25 +5,22 @@ import { Translation } from '../translations';
 import { PlusIcon, MinusIcon, ReceiptIcon, XMarkIcon, LaPerlaLogo, ChevronDownIcon, DownloadIcon, LockIcon } from './Icons';
 import { saveTransaction } from '../storage';
 import { saveToGoogleSheets } from '../googleSheets';
-import { TransactionItem, CartItem } from '../types';
+import { TransactionItem, CartItem, ActiveBill } from '../types';
 
 interface PricingViewProps {
   t: Translation;
-  cartItems: CartItem[];
-  setCartItems: React.Dispatch<React.SetStateAction<CartItem[]>>;
-  customerName: string;
-  setCustomerName: (name: string) => void;
-  discountPercentage: number;
-  setDiscountPercentage: (val: number) => void;
+  // New Props for Multiple Bill Support
+  activeBills: ActiveBill[];
+  setActiveBills: React.Dispatch<React.SetStateAction<ActiveBill[]>>;
+  currentBillId: string;
+  setCurrentBillId: (id: string) => void;
+  
   isBillOpen: boolean;
   setIsBillOpen: (isOpen: boolean) => void;
-  // Lifted state for persisting UI
   openCategories: Record<string, boolean>;
   setOpenCategories: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
-  // Logic for immediate download from QR
   autoDownloadTrigger: boolean;
   onAutoDownloadComplete: () => void;
-  // Staff Mode Props
   isStaffMode: boolean;
   setIsStaffMode: (isStaff: boolean) => void;
 }
@@ -40,12 +37,10 @@ const STAFF_PIN = "1234";
 
 export const PricingView: React.FC<PricingViewProps> = ({ 
   t,
-  cartItems,
-  setCartItems,
-  customerName,
-  setCustomerName,
-  discountPercentage,
-  setDiscountPercentage,
+  activeBills,
+  setActiveBills,
+  currentBillId,
+  setCurrentBillId,
   isBillOpen,
   setIsBillOpen,
   openCategories,
@@ -70,6 +65,53 @@ export const PricingView: React.FC<PricingViewProps> = ({
   // Changed from single ID to array of IDs to support bulk editing from Bill view
   const [editingIds, setEditingIds] = useState<string[]>([]); 
 
+  // --- DERIVED STATE: CURRENT BILL ---
+  const currentBill = useMemo(() => {
+      return activeBills.find(b => b.id === currentBillId) || activeBills[0];
+  }, [activeBills, currentBillId]);
+
+  // Use convenience variables for the current bill's data
+  const cartItems = currentBill?.items || [];
+  const customerName = currentBill?.customerName || '';
+  const discountPercentage = currentBill?.discountPercentage || 0;
+
+  // --- HELPER TO UPDATE CURRENT BILL ---
+  const updateCurrentBill = (updates: Partial<ActiveBill>) => {
+      setActiveBills(prev => prev.map(bill => 
+          bill.id === currentBillId ? { ...bill, ...updates } : bill
+      ));
+  };
+
+  // --- NEW BILL MANAGEMENT ---
+  const handleAddNewBill = () => {
+      const newId = Date.now().toString();
+      const newBill: ActiveBill = {
+          id: newId,
+          customerName: '',
+          items: [],
+          discountPercentage: 0
+      };
+      setActiveBills(prev => [...prev, newBill]);
+      setCurrentBillId(newId);
+  };
+
+  const closeBill = (idToClose: string) => {
+      // Don't close if it's the last one, just clear it
+      if (activeBills.length === 1) {
+          updateCurrentBill({ items: [], customerName: '', discountPercentage: 0 });
+          return;
+      }
+
+      const newBills = activeBills.filter(b => b.id !== idToClose);
+      setActiveBills(newBills);
+      
+      // If we closed the currently selected bill, select the last available one
+      if (currentBillId === idToClose) {
+          setCurrentBillId(newBills[newBills.length - 1].id);
+      }
+  };
+
+
   // Function to extract a numeric price from string (e.g. "from $55" -> 55, "$10" -> 10)
   const parsePrice = (priceStr: string): number => {
     // Remove commas if any, then look for the first number
@@ -93,7 +135,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
       if (lastIndex !== -1) {
           const newItems = [...cartItems];
           newItems.splice(lastIndex, 1);
-          setCartItems(newItems);
+          updateCurrentBill({ items: newItems });
           
           if (newItems.length === 0) {
               setIsBillOpen(false);
@@ -122,11 +164,12 @@ export const PricingView: React.FC<PricingViewProps> = ({
 
       if (editingIds.length > 0) {
           // EDIT MODE: Update all items that match the IDs being edited
-          setCartItems(prev => prev.map(item => 
+          const updatedItems = cartItems.map(item => 
               editingIds.includes(item.id) 
                   ? { ...item, staffName: staffName } 
                   : item
-          ));
+          );
+          updateCurrentBill({ items: updatedItems });
       } else {
           // ADD MODE: Add new item
           const newItem: CartItem = {
@@ -136,7 +179,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
               quantity: 1, 
               staffName: staffName
           };
-          setCartItems(prev => [...prev, newItem]);
+          updateCurrentBill({ items: [...cartItems, newItem] });
       }
 
       setShowStaffModal(false);
@@ -168,16 +211,15 @@ export const PricingView: React.FC<PricingViewProps> = ({
 
   const handleRemoveGroup = (originalIds: string[]) => {
       if (!isStaffMode) return;
-      setCartItems(prev => prev.filter(item => !originalIds.includes(item.id)));
-      if (cartItems.length - originalIds.length <= 0) {
+      const newItems = cartItems.filter(item => !originalIds.includes(item.id));
+      updateCurrentBill({ items: newItems });
+      if (newItems.length <= 0) {
           setIsBillOpen(false);
       }
   };
 
-  const clearCart = () => {
-      setCartItems([]);
-      setDiscountPercentage(0);
-      setCustomerName(''); // Reset name
+  const clearCurrentCart = () => {
+      updateCurrentBill({ items: [], discountPercentage: 0, customerName: '' });
       setIsBillOpen(false);
   };
 
@@ -213,7 +255,6 @@ export const PricingView: React.FC<PricingViewProps> = ({
   };
 
   // GENERATE DYNAMIC SHARE LINK & QR CODE
-  // We compress the data to make the URL shorter for the QR code
   const getQrCodeUrl = () => {
       const minifiedItems = groupedCartItems.map(item => ({
           k: item.nameKey,
@@ -228,23 +269,19 @@ export const PricingView: React.FC<PricingViewProps> = ({
           i: minifiedItems
       };
 
-      // Encode: JSON -> URI Component -> Base64
       const json = JSON.stringify(data);
       const encoded = btoa(unescape(encodeURIComponent(json)));
       
-      // Use current window location (works for Vercel/Netlify/Localhost)
       const baseUrl = window.location.origin + window.location.pathname;
       const shareUrl = `${baseUrl}?receipt=${encoded}`;
 
-      // Generate QR via QuickChart API
       return `https://quickchart.io/qr?text=${encodeURIComponent(shareUrl)}&size=250&margin=1&ecLevel=L`;
   };
 
   const handleCompletePayment = async () => {
-    if (!isStaffMode) return; // double check
+    if (!isStaffMode) return; 
     setIsSaving(true);
     
-    // Convert CartItems back to TransactionItems (removing internal ID)
     const items: TransactionItem[] = cartItems.map(({ id, ...rest }) => rest);
 
     const transaction = {
@@ -255,15 +292,16 @@ export const PricingView: React.FC<PricingViewProps> = ({
       discountPercentage: discountPercentage
     };
 
-    // 1. Save locally (always works)
     saveTransaction(transaction);
-
-    // 2. Save to Google Sheets (Cloud)
-    // We attempt this, but even if it fails (offline), we proceed.
     await saveToGoogleSheets(transaction);
 
     setIsSaving(false);
-    clearCart();
+    
+    // Close this bill (remove from tabs)
+    closeBill(currentBillId);
+    
+    // Ensure bill modal is closed
+    setIsBillOpen(false);
   };
 
   const handleDownloadBill = async () => {
@@ -274,34 +312,27 @@ export const PricingView: React.FC<PricingViewProps> = ({
       const items = groupedCartItems;
       const now = new Date();
       
-      // A4 Portrait Configuration (Approx 150 DPI for good quality)
       const width = 1240; 
       const height = 1754; 
-      const padding = 80; // Margin
+      const padding = 80;
 
       canvas.width = width;
       canvas.height = height;
 
-      // Background
-      ctx.fillStyle = '#FFFFFF'; // Pure White
+      ctx.fillStyle = '#FFFFFF';
       ctx.fillRect(0, 0, width, height);
 
       // --- HEADER SECTION ---
-      
-      // 1. Date & Time (Top Right)
       ctx.textAlign = 'right';
       ctx.fillStyle = '#555555';
       ctx.font = '22px "Poppins", sans-serif';
       const dateY = padding + 50;
       
-      // Format: DD/MM/YYYY HH:MM
       const dateStr = now.toLocaleDateString();
       const timeStr = now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
       
       ctx.fillText(`Date: ${dateStr} ${timeStr}`, width - padding, dateY);
 
-      // --- QR CODE (Top Right, immediately below Date) ---
-      // This is the new position requested
       try {
           const qrUrl = getQrCodeUrl();
           const qrImg = new Image();
@@ -313,13 +344,12 @@ export const PricingView: React.FC<PricingViewProps> = ({
               qrImg.src = qrUrl;
           });
 
-          const qrSize = 120; // Slightly smaller to fit nicely
-          const qrX = width - padding - qrSize; // Align right
-          const qrY = dateY + 15; // 15px spacing below date line
+          const qrSize = 120;
+          const qrX = width - padding - qrSize;
+          const qrY = dateY + 15;
 
           ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
           
-          // Optional label under QR
           ctx.font = '10px "Poppins", sans-serif';
           ctx.fillStyle = '#999999';
           ctx.textAlign = 'center';
@@ -329,20 +359,15 @@ export const PricingView: React.FC<PricingViewProps> = ({
           console.error("Could not load QR code onto receipt", e);
       }
 
-      // 2. Shop Info (Top Left)
       ctx.textAlign = 'left';
-      
-      // Brand Name - GOLD COLOR
       ctx.fillStyle = '#D4AF37';
       ctx.font = 'bold 70px "Playfair Display", serif';
       ctx.fillText("LA PERLA", padding, padding + 50);
       
-      // Subtitle
       ctx.font = '28px "Poppins", sans-serif';
       ctx.fillStyle = '#666666';
       ctx.fillText("Nails & Beauty", padding, padding + 90);
 
-      // Address & Phone
       const infoStartY = padding + 150;
       const infoLineHeight = 35;
       ctx.fillStyle = '#333333';
@@ -351,23 +376,16 @@ export const PricingView: React.FC<PricingViewProps> = ({
       ctx.fillText("Plumpton NSW 2761", padding, infoStartY + infoLineHeight);
       ctx.fillText("Tel: (02) 9625 8194", padding, infoStartY + (infoLineHeight * 2));
 
-
-      // --- CUSTOMER NAME (CENTERED) ---
       if (customerName) {
           ctx.textAlign = 'center';
           ctx.font = 'bold 36px "Poppins", sans-serif';
           ctx.fillStyle = '#333333';
-          // Centered horizontally, slightly above the line
           ctx.fillText(customerName.toUpperCase(), width / 2, 335);
       }
 
-
-      // --- ITEMS SECTION ---
-      // Moved yellow line down to 360 to allow space for centered name
       let currentY = 360; 
 
-      // Header Line
-      ctx.strokeStyle = '#D4AF37'; // Gold
+      ctx.strokeStyle = '#D4AF37';
       ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.moveTo(padding, currentY);
@@ -376,7 +394,6 @@ export const PricingView: React.FC<PricingViewProps> = ({
 
       currentY += 50;
 
-      // Column Headers
       ctx.font = 'bold 24px "Poppins", sans-serif';
       ctx.fillStyle = '#333333';
       ctx.textAlign = 'left';
@@ -386,30 +403,24 @@ export const PricingView: React.FC<PricingViewProps> = ({
       
       currentY += 30;
 
-      // Items Loop
       ctx.font = '24px "Poppins", sans-serif';
       const rowHeight = 60;
       
       items.forEach((item, index) => {
-          // Zebra Striping (Alternating Background Color)
           if (index % 2 !== 0) {
-              ctx.fillStyle = '#f7f7f7'; // Very light gray for odd rows
-              // Draw rectangle for the full row width including padding area
+              ctx.fillStyle = '#f7f7f7';
               ctx.fillRect(padding - 10, currentY, width - (padding * 2) + 20, rowHeight);
           }
 
-          // Text Drawing
           ctx.textAlign = 'left';
           const serviceName = t.serviceNames[item.nameKey] || item.nameKey;
           const staffText = item.staffName ? ` (${item.staffName})` : '';
           const quantityText = item.quantity > 1 ? ` x${item.quantity}` : '';
           
           let displayName = `${serviceName}${staffText}${quantityText}`;
-          // Truncate if too long for A4 width (approx 65 chars)
           if (displayName.length > 70) displayName = displayName.substring(0, 67) + '...';
 
           ctx.fillStyle = '#333333';
-          // Adjust Y for text baseline within the row rect
           ctx.fillText(displayName, padding, currentY + 40);
           
           ctx.textAlign = 'right';
@@ -419,10 +430,8 @@ export const PricingView: React.FC<PricingViewProps> = ({
           currentY += rowHeight;
       });
 
-      // --- FOOTER SECTION ---
       currentY += 20;
       
-      // Dashed Separator
       ctx.strokeStyle = '#cccccc';
       ctx.lineWidth = 2;
       ctx.setLineDash([8, 8]);
@@ -434,61 +443,48 @@ export const PricingView: React.FC<PricingViewProps> = ({
 
       currentY += 60;
 
-      // Subtotal
       ctx.font = '24px "Poppins", sans-serif';
       ctx.fillStyle = '#666666';
       ctx.textAlign = 'left';
-      // Moved even further left (width - 650) to prevent ANY chance of overlapping with amounts
       ctx.fillText("Subtotal", width - 650, currentY); 
       ctx.textAlign = 'right';
       ctx.fillText(`$${cartTotal.toFixed(2)}`, width - padding, currentY);
 
-      // Discount (Highlighted)
       if (discountAmount > 0) {
           currentY += 50;
           ctx.font = 'bold 26px "Poppins", sans-serif';
-          ctx.fillStyle = '#DC2626'; // Red
+          ctx.fillStyle = '#DC2626';
           ctx.textAlign = 'left';
-          // Moved even further left (width - 650) to prevent ANY chance of overlapping with amounts
           ctx.fillText(`Discount (${discountPercentage}%)`, width - 650, currentY);
           ctx.textAlign = 'right';
           ctx.fillText(`-$${discountAmount.toFixed(2)}`, width - padding, currentY);
       }
 
-      // Total (Smaller & Moved Up)
-      // Moved up closer to discount/subtotal
       currentY += 50; 
       
-      // Background for Total
-      const totalBoxHeight = 100; // Smaller height
+      const totalBoxHeight = 100;
       ctx.fillStyle = '#F8F6F2';
       ctx.fillRect(width - 500, currentY, 500, totalBoxHeight);
 
-      // Text inside box (Vertically centered relative to the box)
       const textY = currentY + (totalBoxHeight / 2) + 12;
 
-      // UPDATED: Use Poppins (Sans-serif) for Total to make it easier to read numbers
       ctx.font = 'bold 40px "Poppins", sans-serif'; 
       ctx.fillStyle = '#333333';
       ctx.textAlign = 'left';
       ctx.fillText("Total", width - 460, textY);
       
       ctx.textAlign = 'right';
-      ctx.fillStyle = '#000000'; // Pure Black
+      ctx.fillStyle = '#000000';
       ctx.fillText(`$${finalTotal.toFixed(2)}`, width - padding - 20, textY);
 
-      // Thank you note
-      // Push to bottom area
       const footerY = height - 100;
       ctx.font = 'italic 20px "Poppins", sans-serif';
       ctx.fillStyle = '#888888';
       ctx.textAlign = 'center';
       ctx.fillText("Thank you for visiting La Perla!", width / 2, footerY);
 
-      // Generate Unique Filename
       const safeName = customerName.replace(/[^a-zA-Z0-9]/g, '_') || 'Customer';
       
-      // Format: YYYYMMDD_HHMMSS
       const year = now.getFullYear();
       const month = String(now.getMonth() + 1).padStart(2, '0');
       const day = String(now.getDate()).padStart(2, '0');
@@ -499,7 +495,6 @@ export const PricingView: React.FC<PricingViewProps> = ({
       const timestamp = `${year}${month}${day}_${hours}${minutes}${seconds}`;
       const filename = `${safeName}_${timestamp}.png`;
 
-      // Download Mechanism: Immediate Download
       const imageUrl = canvas.toDataURL('image/png');
       
       const link = document.createElement('a');
@@ -510,11 +505,8 @@ export const PricingView: React.FC<PricingViewProps> = ({
       document.body.removeChild(link);
   };
 
-  // EFFECT: Handle Auto Download from App (Scan QR)
   useEffect(() => {
     if (autoDownloadTrigger) {
-        // We use a small timeout to ensure the logic runs after render cycles if needed,
-        // though handleDownloadBill creates its own canvas so it's mostly independent.
         const runDownload = async () => {
              await handleDownloadBill();
              onAutoDownloadComplete();
@@ -525,7 +517,8 @@ export const PricingView: React.FC<PricingViewProps> = ({
 
   return (
     <div className="w-full max-w-4xl mx-auto p-4 md:p-6 pb-24">
-      <div className="flex justify-end mb-4">
+      <div className="flex justify-between items-center mb-4">
+          <div className="flex-1"></div>
           {/* STAFF MODE TOGGLE BUTTON */}
           <button 
             onClick={() => isStaffMode ? setIsStaffMode(false) : setShowLoginModal(true)}
@@ -535,11 +528,61 @@ export const PricingView: React.FC<PricingViewProps> = ({
               <LockIcon className="w-6 h-6" />
           </button>
       </div>
+
+      {/* --- MULTIPLE CUSTOMER TABS (Only visible in Staff Mode or if multiple bills exist) --- */}
+      {(isStaffMode || activeBills.length > 1) && (
+          <div className="flex items-center overflow-x-auto gap-2 mb-6 pb-2 custom-scrollbar no-scrollbar">
+              {activeBills.map((bill, index) => {
+                  const isActive = bill.id === currentBillId;
+                  // Calculate item count for this specific bill
+                  const itemCount = bill.items.reduce((s, i) => s + i.quantity, 0);
+                  const label = bill.customerName || `Customer ${index + 1}`;
+
+                  return (
+                      <div key={bill.id} className="relative group">
+                          <button
+                            onClick={() => setCurrentBillId(bill.id)}
+                            className={`flex flex-col items-start min-w-[120px] px-4 py-2 rounded-xl border transition-all ${
+                                isActive 
+                                    ? 'bg-gold-leaf text-white border-gold-leaf shadow-md scale-105' 
+                                    : 'bg-white text-charcoal border-dusty-rose/30 hover:bg-gray-50'
+                            }`}
+                          >
+                              <span className="font-bold text-sm truncate max-w-[100px]">{label}</span>
+                              <span className="text-xs opacity-80">{itemCount} items</span>
+                          </button>
+                          
+                          {/* Close Tab Button (Only for Staff) */}
+                          {isStaffMode && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); closeBill(bill.id); }}
+                                className={`absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm z-10`}
+                                title="Close Bill"
+                              >
+                                  <XMarkIcon className="w-3 h-3" />
+                              </button>
+                          )}
+                      </div>
+                  );
+              })}
+              
+              {/* Add New Customer Button */}
+              {isStaffMode && (
+                  <button
+                    onClick={handleAddNewBill}
+                    className="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-dusty-rose text-white rounded-full hover:bg-gold-leaf transition-colors shadow-sm ml-2"
+                    title="New Customer"
+                  >
+                      <PlusIcon className="w-6 h-6" />
+                  </button>
+              )}
+          </div>
+      )}
       
       <div className="space-y-4">
         {PRICING_DATA.map((category) => {
           const isOpen = openCategories[category.categoryKey];
-          // Count items in this category currently in cart
+          // Count items in this category currently in cart (of the ACTIVE bill)
           const itemsInCategory = cartItems.filter(item => 
               category.services.some(s => s.nameKey === item.nameKey)
           ).length;
@@ -645,7 +688,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
           <div className="fixed bottom-0 left-0 w-full p-4 z-40 animate-slide-up">
               <div className="max-w-3xl mx-auto bg-charcoal text-pearl-white rounded-full shadow-2xl p-3 flex justify-between items-center border border-gold-leaf/30 backdrop-blur-md bg-opacity-95">
                   <div className="flex flex-col px-4">
-                      <span className="text-xs text-gold-leaf font-medium uppercase tracking-wider">{t.total}</span>
+                      <span className="text-xs text-gold-leaf font-medium uppercase tracking-wider">{customerName || 'Guest'} - {t.total}</span>
                       <span className="text-xl font-bold">${finalTotal.toFixed(2)}</span>
                   </div>
                   <button 
@@ -660,7 +703,6 @@ export const PricingView: React.FC<PricingViewProps> = ({
       )}
 
       {/* Bill Modal */}
-      {/* Set Z-Index to 50 */}
       {isBillOpen && (
           <div className="fixed inset-0 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" style={{ zIndex: 50 }}>
               <div className="bg-pearl-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -687,7 +729,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
                                 type="text" 
                                 placeholder="Customer Name (Optional)" 
                                 value={customerName}
-                                onChange={(e) => setCustomerName(e.target.value)}
+                                onChange={(e) => updateCurrentBill({ customerName: e.target.value })}
                                 className="text-center bg-white/50 border border-dusty-rose/50 rounded-lg px-3 py-1.5 text-sm w-3/4 focus:outline-none focus:ring-1 focus:ring-gold-leaf placeholder-gray-500 text-charcoal"
                               />
                           ) : (
@@ -752,7 +794,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
                                   {isStaffMode ? (
                                       <select 
                                           value={discountPercentage}
-                                          onChange={(e) => setDiscountPercentage(Number(e.target.value))}
+                                          onChange={(e) => updateCurrentBill({ discountPercentage: Number(e.target.value) })}
                                           className="ml-2 p-1 rounded border border-dusty-rose text-sm bg-white outline-none focus:border-gold-leaf"
                                       >
                                           <option value={0}>0%</option>
@@ -777,11 +819,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
                               </div>
                           </div>
 
-                          {/* QR CODE SECTION (Only visible in Staff Mode or if generated) */}
-                          {/* Actually, it's nice to show it always so customers can scan from staff tablet if needed, 
-                              but user said "khách hàng hay bất cứ ai... xem được thôi chứ không thao tác".
-                              Showing QR in view mode is fine.
-                           */}
+                          {/* QR CODE SECTION */}
                           <div className="mt-6 flex flex-col items-center border-t border-gray-100 pt-4">
                               <p className="text-xs text-gray-400 uppercase font-bold tracking-widest mb-2">Scan to Download</p>
                               <div className="bg-white p-2 rounded-lg shadow-sm border border-gray-100">
