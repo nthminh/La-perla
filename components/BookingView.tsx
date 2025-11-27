@@ -1,12 +1,17 @@
+
 import React, { useState, useMemo } from 'react';
 import { Translation } from '../translations';
-import { PRICING_DATA } from '../constants';
+// Remove direct import
+// import { PRICING_DATA } from '../constants';
 import { generateBookingRequest } from '../gemini';
 import { SparklesIcon } from './Icons';
+import { ServiceCategory } from '../types';
 
 interface BookingViewProps {
   t: Translation;
   languageCode: string;
+  // Dynamic Pricing Data
+  pricingData: ServiceCategory[];
 }
 
 const today = new Date().toISOString().split('T')[0];
@@ -14,7 +19,7 @@ const today = new Date().toISOString().split('T')[0];
 // NOTE: Replace this with the actual salon's email address.
 const SALON_EMAIL_ADDRESS = 'nthminh2804@gmail.com,vivian.dinh191@gmail.com,jd@doav.com.au';
 
-export const BookingView: React.FC<BookingViewProps> = ({ t, languageCode }) => {
+export const BookingView: React.FC<BookingViewProps> = ({ t, languageCode, pricingData }) => {
   const [step, setStep] = useState(1);
   const [selectedServices, setSelectedServices] = useState<Record<string, boolean>>({});
   const [date, setDate] = useState(today);
@@ -48,7 +53,7 @@ export const BookingView: React.FC<BookingViewProps> = ({ t, languageCode }) => 
 
   const handleSubmitBooking = () => {
     if (validateStep()) {
-      const serviceNames = selectedServiceKeys.map(key => t.serviceNames[key as keyof typeof t.serviceNames]);
+      const serviceNames = selectedServiceKeys.map(key => t.serviceNames[key as keyof typeof t.serviceNames] || key);
       
       let timeSlotLabel = timeSlot;
       if (timeSlot === 'Morning') timeSlotLabel = t.timeMorning;
@@ -116,7 +121,7 @@ export const BookingView: React.FC<BookingViewProps> = ({ t, languageCode }) => 
           return;
       }
       setIsGeneratingNote(true);
-      const serviceNames = selectedServiceKeys.map(key => t.serviceNames[key as keyof typeof t.serviceNames]);
+      const serviceNames = selectedServiceKeys.map(key => t.serviceNames[key as keyof typeof t.serviceNames] || key);
       try {
           const generatedText = await generateBookingRequest(serviceNames, date, timeSlot, languageCode);
           setNotes(generatedText);
@@ -146,10 +151,10 @@ export const BookingView: React.FC<BookingViewProps> = ({ t, languageCode }) => 
         return (
           <div className="animate-fade-in">
             <h3 className="text-2xl font-serif text-charcoal mb-4">{t.step1Title}</h3>
-            {PRICING_DATA.map(category => (
+            {pricingData.map(category => (
               <div key={category.categoryKey} className="mb-4">
                  <details className="bg-pearl-white/50 rounded-lg p-3">
-                    <summary className="font-serif text-lg text-charcoal cursor-pointer list-item">{t.serviceCategories[category.categoryKey]}</summary>
+                    <summary className="font-serif text-lg text-charcoal cursor-pointer list-item">{t.serviceCategories[category.categoryKey] || category.categoryKey}</summary>
                     <div className="mt-2 pl-4 border-l-2 border-gold-leaf/50">
                         {category.services.map(service => (
                         <label key={service.nameKey} className="flex items-center p-2 hover:bg-blush-pink/50 rounded-md cursor-pointer">
@@ -159,7 +164,7 @@ export const BookingView: React.FC<BookingViewProps> = ({ t, languageCode }) => 
                             onChange={() => handleServiceToggle(service.nameKey)}
                             className="h-5 w-5 rounded border-dusty-rose text-gold-leaf focus:ring-gold-leaf"
                             />
-                            <span className="ml-3 text-charcoal/90">{t.serviceNames[service.nameKey]}</span>
+                            <span className="ml-3 text-charcoal/90">{service.displayName || t.serviceNames[service.nameKey] || service.nameKey}</span>
                             <span className="ml-auto font-medium text-gold-leaf">{service.price}</span>
                         </label>
                         ))}

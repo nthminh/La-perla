@@ -1,11 +1,11 @@
-
-import React, { useState, useMemo, useEffect } from 'react';
-import { PRICING_DATA, STAFF_LIST } from '../constants';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+// Remove direct import of constants
+// import { PRICING_DATA, STAFF_LIST } from '../constants';
 import { Translation } from '../translations';
-import { PlusIcon, MinusIcon, ReceiptIcon, XMarkIcon, LaPerlaLogo, ChevronDownIcon, DownloadIcon, LockIcon } from './Icons';
-import { saveTransaction } from '../storage';
-import { saveToGoogleSheets } from '../googleSheets';
-import { TransactionItem, CartItem, ActiveBill } from '../types';
+import { PlusIcon, MinusIcon, ReceiptIcon, XMarkIcon, LaPerlaLogo, ChevronDownIcon, DownloadIcon, LockIcon, PhoneIcon, BriefcaseIcon, ClockIcon, SparklesIcon, ChatIcon, UserIcon, GridIcon, ListBulletIcon } from './Icons';
+import { saveTransaction, searchCustomers, getTransactions } from '../services/storageService';
+import { saveToGoogleSheets } from '../services/googleSheetsService';
+import { TransactionItem, CartItem, ActiveBill, CustomerProfile, RecentServiceItem, WaitlistEntry, ServiceCategory, Transaction } from '../types';
 
 interface PricingViewProps {
   t: Translation;
@@ -23,6 +23,14 @@ interface PricingViewProps {
   onAutoDownloadComplete: () => void;
   isStaffMode: boolean;
   setIsStaffMode: (isStaff: boolean) => void;
+
+  // Waitlist Props
+  waitlist: WaitlistEntry[];
+  setWaitlist: (list: WaitlistEntry[]) => void;
+
+  // DYNAMIC DATA
+  staffList: string[];
+  pricingData: ServiceCategory[];
 }
 
 // Helper to generate unique ID for cart items
@@ -33,11 +41,49 @@ interface GroupedCartItem extends CartItem {
     originalIds: string[]; // Track original IDs for removal/editing
 }
 
-const STAFF_PIN = "1234";
+const STAFF_PIN = "999";
+
+// Search Icon Component locally to avoid extra file changes just for one icon if not present, 
+// though we usually import icons. Let's reuse existing if possible or define inline.
+const SearchIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+    </svg>
+);
+
+const PencilIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+    </svg>
+);
+
+const ArrowRightIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+    </svg>
+);
+
+const HistoryIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 2a10 10 0 0110 10v.5a.5.5 0 01-1 0V12a9 9 0 10-9 9 .5.5 0 010 1A10 10 0 1112 2z" />
+    </svg>
+);
+
+// Helper to calculate time ago
+const formatTimeAgo = (isoDate: string) => {
+    const diff = Date.now() - new Date(isoDate).getTime();
+    const minutes = Math.floor(diff / 60000);
+    if (minutes < 1) return 'Just now';
+    if (minutes < 60) return `${minutes} min ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ${minutes % 60}m ago`;
+    return new Date(isoDate).toLocaleDateString();
+};
 
 export const PricingView: React.FC<PricingViewProps> = ({ 
   t,
-  activeBills,
+  activeBills = [],
   setActiveBills,
   currentBillId,
   setCurrentBillId,
@@ -48,57 +94,185 @@ export const PricingView: React.FC<PricingViewProps> = ({
   autoDownloadTrigger,
   onAutoDownloadComplete,
   isStaffMode,
-  setIsStaffMode
+  setIsStaffMode,
+  waitlist = [],
+  setWaitlist,
+  // Props for data
+  staffList,
+  pricingData
 }) => {
   // Local UI state
   const [isSaving, setIsSaving] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [activeBillsViewMode, setActiveBillsViewMode] = useState<'row' | 'grid'>('row');
   
   // Staff Selection Modal State
   const [showStaffModal, setShowStaffModal] = useState(false);
-  const [pendingService, setPendingService] = useState<{nameKey: string, price: string} | null>(null);
+  const [pendingService, setPendingService] = useState<{nameKey: string, price: string, displayName?: string} | null>(null);
   
   // Staff Login Modal State
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [pinInput, setPinInput] = useState("");
   const [pinError, setPinError] = useState("");
 
+  // Customer Entry Modal State
+  const [showCustomerEntry, setShowCustomerEntry] = useState(false);
+  const [entryMode, setEntryMode] = useState<'new' | 'edit'>('new');
+  const [tempCustomerName, setTempCustomerName] = useState("");
+  const [tempCustomerPhone, setTempCustomerPhone] = useState("");
+  const [tempCustomerNotes, setTempCustomerNotes] = useState("");
+  
+  // Waitlist Modal State
+  const [showWaitlistModal, setShowWaitlistModal] = useState(false);
+  const [showWaitlistAddModal, setShowWaitlistAddModal] = useState(false);
+  const [tempReturnTime, setTempReturnTime] = useState(""); // For waitlist
+
+  // History State
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
+  const [viewingHistoryBill, setViewingHistoryBill] = useState<ActiveBill | null>(null);
+
+  // CRM / Autocomplete State
+  const [customerSuggestions, setCustomerSuggestions] = useState<CustomerProfile[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedCustomerHistory, setSelectedCustomerHistory] = useState<RecentServiceItem[]>([]);
+  
+  const suggestionsRef = useRef<HTMLDivElement>(null);
+  const entryModalRef = useRef<HTMLDivElement>(null);
+
   // Changed from single ID to array of IDs to support bulk editing from Bill view
   const [editingIds, setEditingIds] = useState<string[]>([]); 
 
   // --- DERIVED STATE: CURRENT BILL ---
   const currentBill = useMemo(() => {
-      return activeBills.find(b => b.id === currentBillId) || activeBills[0];
+      // Safety check: if activeBills is somehow not an array or empty or null
+      if (!activeBills || !Array.isArray(activeBills) || activeBills.length === 0) {
+          return { id: 'fallback', customerName: '', items: [], discountPercentage: 0 };
+      }
+      return activeBills.find(b => b && b.id === currentBillId) || activeBills[0] || { id: 'fallback', customerName: '', items: [], discountPercentage: 0 };
   }, [activeBills, currentBillId]);
 
   // Use convenience variables for the current bill's data
-  const cartItems = currentBill?.items || [];
-  const customerName = currentBill?.customerName || '';
-  const discountPercentage = currentBill?.discountPercentage || 0;
+  // If we are viewing a history bill, use that instead of currentBill
+  const targetBill = viewingHistoryBill || currentBill;
+
+  const cartItems = targetBill?.items || [];
+  const customerName = targetBill?.customerName || '';
+  const customerPhone = targetBill?.customerPhone || '';
+  const customerNotes = targetBill?.customerNotes || '';
+  const discountPercentage = targetBill?.discountPercentage || 0;
 
   // --- HELPER TO UPDATE CURRENT BILL ---
   const updateCurrentBill = (updates: Partial<ActiveBill>) => {
-      setActiveBills(prev => prev.map(bill => 
-          bill.id === currentBillId ? { ...bill, ...updates } : bill
-      ));
+      if (viewingHistoryBill) return; // Cannot edit history
+      setActiveBills(prev => {
+          if (!Array.isArray(prev)) return prev;
+          return prev.map(bill => bill.id === currentBillId ? { ...bill, ...updates } : bill);
+      });
+  };
+
+  // --- HISTORY LOGIC ---
+  const handleOpenHistory = () => {
+      const txs = getTransactions();
+      // Sort newest first and take last 30
+      const sorted = txs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 30);
+      setRecentTransactions(sorted);
+      setShowHistoryModal(true);
+  };
+
+  const handleViewHistoryItem = (tx: Transaction) => {
+      // Convert Transaction back to ActiveBill format for display
+      const bill: ActiveBill = {
+          id: tx.id,
+          customerName: tx.customerName || 'Guest',
+          customerPhone: tx.customerPhone,
+          customerNotes: tx.customerNotes,
+          // Map transaction items back to CartItems (needs fake IDs for UI keying)
+          items: tx.items.map(i => ({ ...i, id: Math.random().toString(36).substr(2, 9) })),
+          discountPercentage: tx.discountPercentage || 0
+      };
+      setViewingHistoryBill(bill);
+      setIsBillOpen(true); // Re-use the main bill modal
+      setShowHistoryModal(false);
+  };
+
+  const handleCloseBillModal = () => {
+      setIsBillOpen(false);
+      setViewingHistoryBill(null); // Reset history view mode
   };
 
   // --- NEW BILL MANAGEMENT ---
-  const handleAddNewBill = () => {
-      const newId = Date.now().toString();
-      const newBill: ActiveBill = {
-          id: newId,
-          customerName: '',
-          items: [],
-          discountPercentage: 0
-      };
-      setActiveBills(prev => [...prev, newBill]);
-      setCurrentBillId(newId);
+  const handleOpenNewCustomerModal = () => {
+      setEntryMode('new');
+      setTempCustomerName("");
+      setTempCustomerPhone("");
+      setTempCustomerNotes("");
+      setSelectedCustomerHistory([]);
+      setShowCustomerEntry(true);
+  };
+
+  const handleEditCurrentCustomer = () => {
+      if (viewingHistoryBill) return; // Read only
+      setEntryMode('edit');
+      setTempCustomerName(customerName);
+      setTempCustomerPhone(customerPhone);
+      setTempCustomerNotes(customerNotes);
+      // Try to find history for current customer if editing
+      if (customerName) {
+         const matches = searchCustomers(customerName);
+         // Exact match check
+         const exact = matches.find(c => c.normalizedName === customerName.toLowerCase().trim());
+         if (exact && exact.recentServices) {
+             setSelectedCustomerHistory(exact.recentServices);
+         } else {
+             setSelectedCustomerHistory([]);
+         }
+      } else {
+          setSelectedCustomerHistory([]);
+      }
+      setShowCustomerEntry(true);
+  };
+
+  const handleSaveCustomerEntry = () => {
+      if (entryMode === 'new') {
+          // SMART LOGIC: Check if this new customer is in the Waitlist
+          // If so, remove them from waitlist to avoid duplicates
+          const matchingWaitlistEntry = Array.isArray(waitlist) ? waitlist.find(w => 
+              w.customerName.toLowerCase() === tempCustomerName.toLowerCase().trim() ||
+              (tempCustomerPhone && w.customerPhone === tempCustomerPhone)
+          ) : undefined;
+          
+          if (matchingWaitlistEntry) {
+              const updatedList = waitlist.filter(w => w.id !== matchingWaitlistEntry.id);
+              setWaitlist(updatedList);
+          }
+
+          const newId = Date.now().toString();
+          const newBill: ActiveBill = {
+              id: newId,
+              customerName: tempCustomerName,
+              customerPhone: tempCustomerPhone,
+              customerNotes: tempCustomerNotes,
+              items: [],
+              discountPercentage: 0
+          };
+          setActiveBills(prev => Array.isArray(prev) ? [...prev, newBill] : [newBill]);
+          setCurrentBillId(newId);
+      } else {
+          // Edit mode
+          updateCurrentBill({
+              customerName: tempCustomerName,
+              customerPhone: tempCustomerPhone,
+              customerNotes: tempCustomerNotes
+          });
+      }
+      setShowCustomerEntry(false);
   };
 
   const closeBill = (idToClose: string) => {
       // Don't close if it's the last one, just clear it
-      if (activeBills.length === 1) {
-          updateCurrentBill({ items: [], customerName: '', discountPercentage: 0 });
+      if (activeBills.length <= 1) {
+          updateCurrentBill({ items: [], customerName: '', customerPhone: '', customerNotes: '', discountPercentage: 0 });
           return;
       }
 
@@ -106,7 +280,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
       setActiveBills(newBills);
       
       // If we closed the currently selected bill, select the last available one
-      if (currentBillId === idToClose) {
+      if (currentBillId === idToClose && newBills.length > 0) {
           setCurrentBillId(newBills[newBills.length - 1].id);
       }
   };
@@ -119,8 +293,8 @@ export const PricingView: React.FC<PricingViewProps> = ({
     return match ? parseFloat(match[0]) : 0;
   };
 
-  const handleAddClick = (service: {nameKey: string, price: string}) => {
-      if (!isStaffMode) return;
+  const handleAddClick = (service: {nameKey: string, price: string, displayName?: string}) => {
+      if (!isStaffMode || viewingHistoryBill) return;
       setPendingService(service);
       setEditingIds([]); // Mode: New Item (No IDs being edited)
       setShowStaffModal(true);
@@ -128,7 +302,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
 
   // Remove the LAST added instance of this service (Undo/Minus behavior)
   const handleMinusClick = (nameKey: string) => {
-      if (!isStaffMode) return;
+      if (!isStaffMode || viewingHistoryBill) return;
       // Find the index of the last item with this nameKey
       const lastIndex = cartItems.map(item => item.nameKey).lastIndexOf(nameKey);
       
@@ -145,16 +319,16 @@ export const PricingView: React.FC<PricingViewProps> = ({
 
   // 1. Edit from Main List (Single Item via Chip)
   const handleEditChip = (item: CartItem) => {
-      if (!isStaffMode) return;
-      setPendingService({ nameKey: item.nameKey, price: item.price.toString() }); 
+      if (!isStaffMode || viewingHistoryBill) return;
+      setPendingService({ nameKey: item.nameKey, price: item.price.toString(), displayName: item.displayName }); 
       setEditingIds([item.id]); // Edit specific single item
       setShowStaffModal(true);
   };
 
   // 2. Edit from Bill (Grouped Items)
   const handleEditItemStaff = (item: GroupedCartItem) => {
-      if (!isStaffMode) return;
-      setPendingService({ nameKey: item.nameKey, price: item.price.toString() });
+      if (!isStaffMode || viewingHistoryBill) return;
+      setPendingService({ nameKey: item.nameKey, price: item.price.toString(), displayName: item.displayName });
       setEditingIds(item.originalIds); // Edit ALL items in this group
       setShowStaffModal(true);
   };
@@ -177,7 +351,8 @@ export const PricingView: React.FC<PricingViewProps> = ({
               nameKey: pendingService.nameKey,
               price: parsePrice(pendingService.price),
               quantity: 1, 
-              staffName: staffName
+              staffName: staffName,
+              displayName: pendingService.displayName
           };
           updateCurrentBill({ items: [...cartItems, newItem] });
       }
@@ -191,6 +366,8 @@ export const PricingView: React.FC<PricingViewProps> = ({
   const groupedCartItems = useMemo(() => {
       const groups: Record<string, GroupedCartItem> = {};
       
+      if(!Array.isArray(cartItems)) return [];
+
       cartItems.forEach(item => {
           // Key by ServiceName + StaffName
           const key = `${item.nameKey}-${item.staffName || 'Unassigned'}`;
@@ -210,17 +387,12 @@ export const PricingView: React.FC<PricingViewProps> = ({
   }, [cartItems]);
 
   const handleRemoveGroup = (originalIds: string[]) => {
-      if (!isStaffMode) return;
+      if (!isStaffMode || viewingHistoryBill) return;
       const newItems = cartItems.filter(item => !originalIds.includes(item.id));
       updateCurrentBill({ items: newItems });
       if (newItems.length <= 0) {
           setIsBillOpen(false);
       }
-  };
-
-  const clearCurrentCart = () => {
-      updateCurrentBill({ items: [], discountPercentage: 0, customerName: '' });
-      setIsBillOpen(false);
   };
 
   const toggleCategory = (key: string) => {
@@ -231,6 +403,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
   };
 
   const cartTotal = useMemo(() => {
+    if(!Array.isArray(cartItems)) return 0;
     return cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   }, [cartItems]);
 
@@ -238,6 +411,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
   const finalTotal = cartTotal - discountAmount;
 
   const cartItemCount = useMemo(() => {
+      if(!Array.isArray(cartItems)) return 0;
       return cartItems.reduce((sum, item) => sum + item.quantity, 0);
   }, [cartItems]);
 
@@ -248,11 +422,72 @@ export const PricingView: React.FC<PricingViewProps> = ({
         setShowLoginModal(false);
         setPinInput("");
         setPinError("");
+        
+        // Auto trigger customer entry if current bill is empty
+        if (!customerName) {
+            handleEditCurrentCustomer(); // "Edit" the empty current one effectively acts as "fill details"
+        }
     } else {
         setPinError("Incorrect PIN");
         setPinInput("");
     }
   };
+  
+  // --- SEARCH FILTER LOGIC ---
+  const filteredPricingData = useMemo(() => {
+      if (!searchTerm) return pricingData;
+      
+      const lowerTerm = searchTerm.toLowerCase();
+      
+      return pricingData.map(category => {
+          // Check if category name matches
+          const categoryName = t.serviceCategories[category.categoryKey].toLowerCase();
+          const isCategoryMatch = categoryName.includes(lowerTerm);
+          
+          // Filter services within category
+          const filteredServices = category.services.filter(service => {
+              // Priority: Display Name (custom) -> Translation -> Key
+              const serviceName = service.displayName?.toLowerCase() || t.serviceNames[service.nameKey]?.toLowerCase() || service.nameKey.toLowerCase();
+              return serviceName.includes(lowerTerm);
+          });
+          
+          // Return the category if it matches OR if it has matching services
+          if (isCategoryMatch || filteredServices.length > 0) {
+              return {
+                  ...category,
+                  services: isCategoryMatch ? category.services : filteredServices
+              };
+          }
+          return null;
+      }).filter(Boolean) as ServiceCategory[];
+  }, [searchTerm, t, pricingData]);
+
+  // Auto-open categories when searching
+  useEffect(() => {
+      if (searchTerm) {
+          const newOpenState: Record<string, boolean> = {};
+          filteredPricingData.forEach(c => {
+              newOpenState[c.categoryKey] = true;
+          });
+          setOpenCategories(newOpenState);
+      }
+  }, [searchTerm, filteredPricingData]);
+
+  // Auto-open Customer Entry if in Staff Mode and unnamed (Immediate Prompt)
+  useEffect(() => {
+      if (isStaffMode && !customerName && Array.isArray(activeBills) && activeBills.length === 1 && cartItems.length === 0 && !showCustomerEntry) {
+         // Use a small timeout to allow render to settle, mostly for UX smoothness
+         const timer = setTimeout(() => {
+            // handleEditCurrentCustomer(); // Disabled default auto-popup to avoid annoyance, user can click name or +
+            // Re-enable based on user request "hỏi ngay tên"
+            if (!showLoginModal) { // Don't pop over login
+                 handleEditCurrentCustomer();
+            }
+         }, 500);
+         return () => clearTimeout(timer);
+      }
+  }, [isStaffMode]);
+
 
   // GENERATE DYNAMIC SHARE LINK & QR CODE
   const getQrCodeUrl = () => {
@@ -278,38 +513,33 @@ export const PricingView: React.FC<PricingViewProps> = ({
       return `https://quickchart.io/qr?text=${encodeURIComponent(shareUrl)}&size=250&margin=1&ecLevel=L`;
   };
 
-  const handleCompletePayment = async () => {
-    if (!isStaffMode) return; 
-    setIsSaving(true);
-    
-    const items: TransactionItem[] = cartItems.map(({ id, ...rest }) => rest);
-
-    const transaction = {
-      id: Date.now().toString(),
-      date: new Date().toISOString(),
-      total: finalTotal,
-      items: items,
-      discountPercentage: discountPercentage
-    };
-
-    saveTransaction(transaction);
-    await saveToGoogleSheets(transaction);
-
-    setIsSaving(false);
-    
-    // Close this bill (remove from tabs)
-    closeBill(currentBillId);
-    
-    // Ensure bill modal is closed
-    setIsBillOpen(false);
-  };
-
-  const handleDownloadBill = async () => {
+  // REFACTORED DOWNLOAD FUNCTION TO SUPPORT HISTORY REPRINT
+  const handleDownloadBill = async (billDataOverride?: ActiveBill) => {
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      const items = groupedCartItems;
+      // Determine which data to use: Override (History), Current State, or Fallback
+      const targetBill = billDataOverride || (viewingHistoryBill ? viewingHistoryBill : currentBill);
+      
+      // Calculate derived data for the target bill
+      const targetItems = targetBill.items || [];
+      
+      // Group items logic (replicated for target bill)
+      const groups: Record<string, GroupedCartItem> = {};
+      targetItems.forEach(item => {
+          const key = `${item.nameKey}-${item.staffName || 'Unassigned'}`;
+          if (!groups[key]) {
+              groups[key] = { ...item, quantity: 0, originalIds: [] };
+          }
+          groups[key].quantity += item.quantity;
+      });
+      const items = Object.values(groups);
+
+      const targetTotal = targetItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+      const targetDiscount = targetBill.discountPercentage || 0;
+      const targetDiscountAmount = (targetTotal * targetDiscount) / 100;
+      const targetFinalTotal = targetTotal - targetDiscountAmount;
       const now = new Date();
       
       const width = 1240; 
@@ -376,11 +606,11 @@ export const PricingView: React.FC<PricingViewProps> = ({
       ctx.fillText("Plumpton NSW 2761", padding, infoStartY + infoLineHeight);
       ctx.fillText("Tel: (02) 9625 8194", padding, infoStartY + (infoLineHeight * 2));
 
-      if (customerName) {
+      if (targetBill.customerName) {
           ctx.textAlign = 'center';
           ctx.font = 'bold 36px "Poppins", sans-serif';
           ctx.fillStyle = '#333333';
-          ctx.fillText(customerName.toUpperCase(), width / 2, 335);
+          ctx.fillText(targetBill.customerName.toUpperCase(), width / 2, 335);
       }
 
       let currentY = 360; 
@@ -413,7 +643,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
           }
 
           ctx.textAlign = 'left';
-          const serviceName = t.serviceNames[item.nameKey] || item.nameKey;
+          const serviceName = item.displayName || t.serviceNames[item.nameKey] || item.nameKey;
           const staffText = item.staffName ? ` (${item.staffName})` : '';
           const quantityText = item.quantity > 1 ? ` x${item.quantity}` : '';
           
@@ -448,16 +678,16 @@ export const PricingView: React.FC<PricingViewProps> = ({
       ctx.textAlign = 'left';
       ctx.fillText("Subtotal", width - 650, currentY); 
       ctx.textAlign = 'right';
-      ctx.fillText(`$${cartTotal.toFixed(2)}`, width - padding, currentY);
+      ctx.fillText(`$${targetTotal.toFixed(2)}`, width - padding, currentY);
 
-      if (discountAmount > 0) {
+      if (targetDiscountAmount > 0) {
           currentY += 50;
           ctx.font = 'bold 26px "Poppins", sans-serif';
           ctx.fillStyle = '#DC2626';
           ctx.textAlign = 'left';
-          ctx.fillText(`Discount (${discountPercentage}%)`, width - 650, currentY);
+          ctx.fillText(`Discount (${targetDiscount}%)`, width - 650, currentY);
           ctx.textAlign = 'right';
-          ctx.fillText(`-$${discountAmount.toFixed(2)}`, width - padding, currentY);
+          ctx.fillText(`-$${targetDiscountAmount.toFixed(2)}`, width - padding, currentY);
       }
 
       currentY += 50; 
@@ -475,7 +705,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
       
       ctx.textAlign = 'right';
       ctx.fillStyle = '#000000';
-      ctx.fillText(`$${finalTotal.toFixed(2)}`, width - padding - 20, textY);
+      ctx.fillText(`$${targetFinalTotal.toFixed(2)}`, width - padding - 20, textY);
 
       const footerY = height - 100;
       ctx.font = 'italic 20px "Poppins", sans-serif';
@@ -483,7 +713,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
       ctx.textAlign = 'center';
       ctx.fillText("Thank you for visiting La Perla!", width / 2, footerY);
 
-      const safeName = customerName.replace(/[^a-zA-Z0-9]/g, '_') || 'Customer';
+      const safeName = (targetBill.customerName || 'Customer').replace(/[^a-zA-Z0-9]/g, '_');
       
       const year = now.getFullYear();
       const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -515,77 +745,348 @@ export const PricingView: React.FC<PricingViewProps> = ({
     }
   }, [autoDownloadTrigger]);
 
+  const handleCompletePayment = async () => {
+    if (!isStaffMode || viewingHistoryBill) return; 
+    setIsSaving(true);
+    
+    const items: TransactionItem[] = cartItems.map(({ id, ...rest }) => rest);
+
+    const transaction = {
+      id: Date.now().toString(),
+      date: new Date().toISOString(),
+      total: finalTotal,
+      items: items,
+      discountPercentage: discountPercentage,
+      customerName: customerName,
+      customerPhone: customerPhone,
+      customerNotes: customerNotes
+    };
+
+    saveTransaction(transaction);
+    await saveToGoogleSheets(transaction);
+
+    setIsSaving(false);
+    
+    // Close this bill (remove from tabs)
+    closeBill(currentBillId);
+    
+    // Ensure bill modal is closed
+    setIsBillOpen(false);
+  };
+
+  // --- CRM / AUTOCOMPLETE LOGIC FOR MODAL ---
+  const handleTempNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const val = e.target.value;
+      setTempCustomerName(val);
+      
+      // Auto-populate on Exact Match (Case-Insensitive)
+      const matches = searchCustomers(val);
+      const exactMatch = matches.find(c => c.normalizedName === val.toLowerCase().trim());
+      
+      if (exactMatch) {
+          setTempCustomerPhone(exactMatch.phone);
+          setTempCustomerNotes(exactMatch.notes);
+          if (exactMatch.recentServices && exactMatch.recentServices.length > 0) {
+              setSelectedCustomerHistory(exactMatch.recentServices);
+          } else {
+              setSelectedCustomerHistory([]);
+          }
+      } else if (val.length >= 2) {
+          setCustomerSuggestions(matches);
+          setShowSuggestions(matches.length > 0);
+          // Only clear if we are definitely typing a new name and not just a substring of existing
+          if (!exactMatch) setSelectedCustomerHistory([]);
+      } else {
+          setShowSuggestions(false);
+          setSelectedCustomerHistory([]);
+      }
+  };
+
+  const handleSelectCustomerSuggestion = (customer: CustomerProfile) => {
+      setTempCustomerName(customer.name);
+      setTempCustomerPhone(customer.phone);
+      setTempCustomerNotes(customer.notes);
+      
+      // Load History
+      if (customer.recentServices && customer.recentServices.length > 0) {
+          setSelectedCustomerHistory(customer.recentServices);
+      } else {
+          setSelectedCustomerHistory([]);
+      }
+
+      setShowSuggestions(false);
+  };
+
+  // Click outside to close suggestions
+  useEffect(() => {
+      const handleClickOutside = (event: MouseEvent) => {
+          if (entryModalRef.current && !entryModalRef.current.contains(event.target as Node)) {
+              // Clicked outside modal content? No, this is for suggestions dropdown inside modal
+          }
+          if (suggestionsRef.current && !suggestionsRef.current.contains(event.target as Node)) {
+              setShowSuggestions(false);
+          }
+      };
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => {
+          document.removeEventListener("mousedown", handleClickOutside);
+      };
+  }, []);
+
+  // --- WAITLIST LOGIC ---
+
+  const handleAddToWaitlist = () => {
+      const newEntry: WaitlistEntry = {
+          id: Date.now().toString(),
+          customerName: tempCustomerName,
+          customerPhone: tempCustomerPhone,
+          notes: tempCustomerNotes || tempReturnTime, // Store basic note or return time
+          addedTime: new Date().toISOString(),
+          estimatedReturnTime: tempReturnTime,
+          status: 'waiting'
+      };
+      const updatedList = Array.isArray(waitlist) ? [...waitlist, newEntry] : [newEntry];
+      setWaitlist(updatedList);
+      
+      // Close the entry modal fully
+      setShowWaitlistAddModal(false);
+      setShowCustomerEntry(false); 
+      
+      // Re-open the list modal so user sees the new entry
+      setShowWaitlistModal(true);
+  };
+
+  const handleRemoveFromWaitlist = (id: string) => {
+      const updatedList = Array.isArray(waitlist) ? waitlist.filter(w => w.id !== id) : [];
+      setWaitlist(updatedList);
+  };
+
+  const handleCheckInFromWaitlist = (entry: WaitlistEntry) => {
+      // 1. Create new Active Bill
+      const newId = Date.now().toString();
+      const newBill: ActiveBill = {
+          id: newId,
+          customerName: entry.customerName,
+          customerPhone: entry.customerPhone,
+          customerNotes: entry.notes + (entry.estimatedReturnTime ? ` (Return: ${entry.estimatedReturnTime})` : ''),
+          items: [],
+          discountPercentage: 0
+      };
+      setActiveBills(prev => Array.isArray(prev) ? [...prev, newBill] : [newBill]);
+      setCurrentBillId(newId);
+
+      // 2. Remove from Waitlist
+      handleRemoveFromWaitlist(entry.id);
+      
+      // 3. Close Modal
+      setShowWaitlistModal(false);
+  };
+
+  // SEND SMS LOGIC
+  const handleSendSMS = (entry: WaitlistEntry, type: 'ready' | 'soon') => {
+      if (!entry.customerPhone) return;
+      
+      // Use ready template for both, or distinct if needed. 
+      // User requested specific text which is in smsTemplateReady
+      const template = t.smsTemplateReady; 
+      const body = template.replace('{name}', entry.customerName);
+      
+      // Standard SMS URI Scheme
+      const smsUrl = `sms:${entry.customerPhone}?body=${encodeURIComponent(body)}`;
+      window.location.href = smsUrl;
+      
+      // Update status to notified
+      const updatedList = waitlist.map(w => w.id === entry.id ? { ...w, status: 'notified' as const } : w);
+      setWaitlist(updatedList);
+  };
+
+  // If activeBills is dangerously empty or malformed, render safe fallback
+  if (!activeBills || !Array.isArray(activeBills) || activeBills.length === 0) {
+      return (
+          <div className="w-full max-w-4xl mx-auto p-4 md:p-6 pb-24 text-center">
+               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gold-leaf mx-auto mb-4"></div>
+               <p className="text-gray-500">Loading billing data...</p>
+               {/* Add a safety button if stuck */}
+               <button 
+                  onClick={() => setActiveBills([{ id: '1', customerName: '', items: [], discountPercentage: 0 }])}
+                  className="mt-4 text-xs text-blue-500 underline"
+               >
+                   Force Reset Bill
+               </button>
+          </div>
+      );
+  }
+
   return (
     <div className="w-full max-w-4xl mx-auto p-4 md:p-6 pb-24">
-      <div className="flex justify-between items-center mb-4">
-          <div className="flex-1"></div>
+      
+      {/* --- MULTIPLE CUSTOMER TABS (Only visible in Staff Mode or if multiple bills exist) --- */}
+      {(isStaffMode || (Array.isArray(activeBills) && activeBills.length > 1)) && (
+          <div className="mb-4">
+              <div className="flex justify-between items-center mb-2 px-1">
+                  <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+                      Active Orders ({activeBills.length})
+                  </span>
+                  <button 
+                    onClick={() => setActiveBillsViewMode(prev => prev === 'row' ? 'grid' : 'row')}
+                    className="p-1 rounded hover:bg-gray-100 text-gray-500 transition-colors"
+                    title="Toggle View"
+                  >
+                      {activeBillsViewMode === 'row' ? <GridIcon className="w-5 h-5" /> : <ListBulletIcon className="w-5 h-5" />}
+                  </button>
+              </div>
+
+              <div className={`
+                  ${activeBillsViewMode === 'row' 
+                      ? 'flex items-center overflow-x-auto gap-2 pb-2 custom-scrollbar' // Removed no-scrollbar
+                      : 'grid grid-cols-2 md:grid-cols-4 gap-3'
+                  }
+              `}>
+                  {Array.isArray(activeBills) && activeBills.map((bill, index) => {
+                      if (!bill) return null;
+                      const isActive = bill.id === currentBillId;
+                      // Calculate item count for this specific bill
+                      const itemCount = (bill.items || []).reduce((s, i) => s + i.quantity, 0);
+                      const label = bill.customerName || `Customer ${index + 1}`;
+                      const isEmpty = !bill.customerName;
+
+                      return (
+                          <div key={bill.id} className={`relative group ${activeBillsViewMode === 'grid' ? 'w-full' : ''}`}>
+                              <button
+                                onClick={() => {
+                                    setCurrentBillId(bill.id);
+                                    if (isActive && isStaffMode) {
+                                        handleEditCurrentCustomer(); // Click active tab to edit info
+                                    }
+                                }}
+                                className={`flex flex-col items-start px-4 py-2 rounded-xl border transition-all w-full ${
+                                    activeBillsViewMode === 'row' ? 'min-w-[120px]' : ''
+                                } ${
+                                    isActive 
+                                        ? 'bg-gold-leaf text-white border-gold-leaf shadow-md'
+                                        : 'bg-white text-charcoal border-dusty-rose/30 hover:bg-gray-50'
+                                }`}
+                              >
+                                  <div className="flex items-center gap-2 w-full">
+                                      {/* Remove truncate from active tab so name shows fully */}
+                                      <span className={`font-bold text-left ${isActive && activeBillsViewMode === 'row' ? 'text-base whitespace-nowrap' : 'text-sm truncate flex-1'} ${isEmpty ? 'italic opacity-70' : ''}`}>
+                                          {isEmpty ? 'Tap to Name' : label}
+                                      </span>
+                                      {isStaffMode && isActive && <PencilIcon className="opacity-50 flex-shrink-0 w-4 h-4" />}
+                                  </div>
+                                  <span className="text-xs opacity-80">{itemCount} items</span>
+                              </button>
+                              
+                              {/* Close Tab Button (Only for Staff) */}
+                              {isStaffMode && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); closeBill(bill.id); }}
+                                    className={`absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm z-10`}
+                                    title="Close Bill"
+                                  >
+                                      <XMarkIcon className="w-3 h-3" />
+                                  </button>
+                              )}
+                          </div>
+                      );
+                  })}
+                  
+                  {/* Add New Customer Button */}
+                  {isStaffMode && (
+                      <button
+                        onClick={handleOpenNewCustomerModal}
+                        className={`flex-shrink-0 flex items-center justify-center bg-dusty-rose text-white rounded-full hover:bg-gold-leaf transition-colors shadow-sm ${
+                            activeBillsViewMode === 'row' ? 'w-10 h-10 ml-2' : 'w-full h-12 rounded-xl'
+                        }`}
+                        title="New Customer"
+                      >
+                          <PlusIcon className="w-6 h-6" />
+                      </button>
+                  )}
+              </div>
+          </div>
+      )}
+
+      <div className="flex justify-between items-center mb-4 gap-4">
+          {/* SEARCH BAR */}
+          <div className="flex-1 relative">
+              <input 
+                type="text" 
+                placeholder="Search service..." 
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 rounded-full border border-dusty-rose/30 bg-white/80 focus:ring-2 focus:ring-gold-leaf focus:outline-none shadow-sm text-charcoal"
+              />
+              <SearchIcon className="absolute left-3 top-2.5 w-5 h-5 text-gray-400" />
+              {searchTerm && (
+                  <button 
+                    onClick={() => setSearchTerm("")}
+                    className="absolute right-3 top-2.5 text-gray-400 hover:text-red-500"
+                  >
+                      <XMarkIcon className="w-4 h-4" />
+                  </button>
+              )}
+          </div>
+
+          {/* HISTORY BUTTON (Staff Only) */}
+          {isStaffMode && (
+             <button 
+                onClick={handleOpenHistory}
+                className="relative p-2 rounded-full transition-colors flex-shrink-0 bg-white border border-dusty-rose/30 text-charcoal hover:text-gold-leaf hover:border-gold-leaf shadow-sm"
+                title="Recent Bills"
+             >
+                 <ReceiptIcon className="w-6 h-6" />
+             </button>
+          )}
+
+          {/* WAITLIST BUTTON (Staff Only) */}
+          {isStaffMode && (
+             <button 
+                onClick={() => setShowWaitlistModal(true)}
+                className="relative p-2 rounded-full transition-colors flex-shrink-0 bg-white border border-dusty-rose/30 text-charcoal hover:text-gold-leaf hover:border-gold-leaf shadow-sm"
+                title="Waitlist"
+             >
+                 <ClockIcon className="w-6 h-6" />
+                 {Array.isArray(waitlist) && waitlist.length > 0 && (
+                     <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold w-5 h-5 flex items-center justify-center rounded-full animate-bounce">
+                         {waitlist.length}
+                     </span>
+                 )}
+             </button>
+          )}
+
           {/* STAFF MODE TOGGLE BUTTON */}
           <button 
             onClick={() => isStaffMode ? setIsStaffMode(false) : setShowLoginModal(true)}
-            className={`p-2 rounded-full transition-colors ${isStaffMode ? 'bg-gold-leaf text-white' : 'text-red-500 hover:text-red-600 bg-red-50'}`}
+            className={`p-2 rounded-full transition-colors flex-shrink-0 ${isStaffMode ? 'bg-gold-leaf text-white' : 'text-red-500 hover:text-red-600 bg-red-50'}`}
             title={isStaffMode ? "Exit Staff Mode" : "Staff Access"}
           >
               <LockIcon className="w-6 h-6" />
           </button>
       </div>
-
-      {/* --- MULTIPLE CUSTOMER TABS (Only visible in Staff Mode or if multiple bills exist) --- */}
-      {(isStaffMode || activeBills.length > 1) && (
-          <div className="flex items-center overflow-x-auto gap-2 mb-6 pb-2 custom-scrollbar no-scrollbar">
-              {activeBills.map((bill, index) => {
-                  const isActive = bill.id === currentBillId;
-                  // Calculate item count for this specific bill
-                  const itemCount = bill.items.reduce((s, i) => s + i.quantity, 0);
-                  const label = bill.customerName || `Customer ${index + 1}`;
-
-                  return (
-                      <div key={bill.id} className="relative group">
-                          <button
-                            onClick={() => setCurrentBillId(bill.id)}
-                            className={`flex flex-col items-start min-w-[120px] px-4 py-2 rounded-xl border transition-all ${
-                                isActive 
-                                    ? 'bg-gold-leaf text-white border-gold-leaf shadow-md scale-105' 
-                                    : 'bg-white text-charcoal border-dusty-rose/30 hover:bg-gray-50'
-                            }`}
-                          >
-                              <span className="font-bold text-sm truncate max-w-[100px]">{label}</span>
-                              <span className="text-xs opacity-80">{itemCount} items</span>
-                          </button>
-                          
-                          {/* Close Tab Button (Only for Staff) */}
-                          {isStaffMode && (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); closeBill(bill.id); }}
-                                className={`absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm z-10`}
-                                title="Close Bill"
-                              >
-                                  <XMarkIcon className="w-3 h-3" />
-                              </button>
-                          )}
-                      </div>
-                  );
-              })}
-              
-              {/* Add New Customer Button */}
-              {isStaffMode && (
-                  <button
-                    onClick={handleAddNewBill}
-                    className="flex-shrink-0 w-10 h-10 flex items-center justify-center bg-dusty-rose text-white rounded-full hover:bg-gold-leaf transition-colors shadow-sm ml-2"
-                    title="New Customer"
-                  >
-                      <PlusIcon className="w-6 h-6" />
-                  </button>
-              )}
-          </div>
-      )}
       
       <div className="space-y-4">
-        {PRICING_DATA.map((category) => {
+        {filteredPricingData.length === 0 ? (
+            <div className="text-center py-10 opacity-60">
+                <p className="text-xl">No services found for "{searchTerm}"</p>
+                <button 
+                    onClick={() => setSearchTerm("")}
+                    className="mt-2 text-gold-leaf hover:underline font-bold"
+                >
+                    Clear Search
+                </button>
+            </div>
+        ) : (
+        filteredPricingData.map((category) => {
           const isOpen = openCategories[category.categoryKey];
           // Count items in this category currently in cart (of the ACTIVE bill)
-          const itemsInCategory = cartItems.filter(item => 
+          const itemsInCategory = Array.isArray(cartItems) ? cartItems.filter(item => 
               category.services.some(s => s.nameKey === item.nameKey)
-          ).length;
+          ).length : 0;
+          
+          // Use dynamic category name if stored, otherwise translation
+          const categoryName = t.serviceCategories[category.categoryKey] || category.categoryKey;
+          const Icon = category.icon || SparklesIcon;
 
           return (
             <div key={category.categoryKey} className="bg-pearl-white/80 backdrop-blur-sm rounded-2xl shadow-md border border-gold-leaf/20 overflow-hidden">
@@ -595,9 +1096,9 @@ export const PricingView: React.FC<PricingViewProps> = ({
                 className="w-full p-4 md:p-6 flex items-center justify-between hover:bg-white/50 transition-colors outline-none"
               >
                 <div className="flex items-center">
-                  <category.icon className="w-8 h-8 text-gold-leaf mr-4" />
+                  <Icon className="w-8 h-8 text-gold-leaf mr-4" />
                   <h3 className="text-xl md:text-2xl font-serif text-charcoal text-left">
-                      {t.serviceCategories[category.categoryKey]}
+                      {categoryName}
                       {itemsInCategory > 0 && !isOpen && (
                           <span className="ml-3 text-sm bg-gold-leaf text-white px-2 py-0.5 rounded-full font-sans align-middle">
                               {itemsInCategory}
@@ -613,21 +1114,24 @@ export const PricingView: React.FC<PricingViewProps> = ({
                   <div className="px-4 pb-4 md:px-6 md:pb-6 animate-fade-in border-t border-dusty-rose/20 pt-2">
                     <ul className="divide-y divide-dusty-rose/50">
                         {category.services.map((service, index) => {
-                        const countInCart = cartItems.filter(i => i.nameKey === service.nameKey).length;
+                        const countInCart = Array.isArray(cartItems) ? cartItems.filter(i => i.nameKey === service.nameKey).length : 0;
                         
                         // Active items specifically for this service row to display chips
-                        const activeItemsForService = cartItems.filter(i => i.nameKey === service.nameKey);
+                        const activeItemsForService = Array.isArray(cartItems) ? cartItems.filter(i => i.nameKey === service.nameKey) : [];
+
+                        // Use custom displayName if available, fallback to translation, fallback to key
+                        const displayServiceName = service.displayName || t.serviceNames[service.nameKey] || service.nameKey;
 
                         return (
                             <li key={service.nameKey} className="py-3 font-sans">
                                 <div className="flex justify-between items-center">
                                     <div className="flex-grow pr-4">
-                                        <span className="text-charcoal/90 block md:inline">{index + 1}. {t.serviceNames[service.nameKey]}</span>
+                                        <span className="text-charcoal/90 block md:inline">{index + 1}. {displayServiceName}</span>
                                         <span className="font-medium text-gold-leaf text-sm md:text-base block md:float-right md:ml-4">{service.price}</span>
                                     </div>
                                     
                                     {/* CONTROLS: Only show Add/Minus buttons if in STAFF MODE */}
-                                    {isStaffMode && (
+                                    {isStaffMode && !viewingHistoryBill && (
                                         <div className="flex items-center gap-2">
                                             {countInCart > 0 && (
                                                 <>
@@ -663,8 +1167,8 @@ export const PricingView: React.FC<PricingViewProps> = ({
                                                 {/* Edit Chip: Only active in Staff Mode */}
                                                 <button 
                                                     onClick={() => handleEditChip(item)}
-                                                    disabled={!isStaffMode}
-                                                    className={`font-semibold flex items-center gap-1 ${isStaffMode ? 'hover:text-gold-leaf hover:underline cursor-pointer' : 'cursor-default'}`}
+                                                    disabled={!isStaffMode || !!viewingHistoryBill}
+                                                    className={`font-semibold flex items-center gap-1 ${isStaffMode && !viewingHistoryBill ? 'hover:text-gold-leaf hover:underline cursor-pointer' : 'cursor-default'}`}
                                                 >
                                                     {item.staffName || 'No Staff'} 
                                                 </button>
@@ -680,7 +1184,8 @@ export const PricingView: React.FC<PricingViewProps> = ({
               )}
             </div>
           );
-        })}
+        })
+        )}
       </div>
 
       {/* Floating Bottom Bar - Show if items exist (Staff created or QR loaded) */}
@@ -708,9 +1213,14 @@ export const PricingView: React.FC<PricingViewProps> = ({
               <div className="bg-pearl-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
                   
                   {/* Receipt Header */}
-                  <div className="bg-blush-pink p-6 text-center border-b border-dusty-rose/30 relative">
+                  <div className={`p-6 text-center border-b border-dusty-rose/30 relative ${viewingHistoryBill ? 'bg-gray-200' : 'bg-blush-pink'}`}>
+                      {viewingHistoryBill && (
+                          <div className="absolute top-0 left-0 right-0 bg-charcoal text-white text-[10px] uppercase font-bold py-1 tracking-widest">
+                              Historical Receipt (Read Only)
+                          </div>
+                      )}
                       <button 
-                        onClick={() => setIsBillOpen(false)}
+                        onClick={handleCloseBillModal}
                         className="absolute top-4 right-4 text-charcoal/60 hover:text-charcoal transition-colors"
                       >
                           <XMarkIcon className="w-6 h-6" />
@@ -721,22 +1231,20 @@ export const PricingView: React.FC<PricingViewProps> = ({
                       <h3 className="text-xl font-serif text-charcoal font-bold uppercase tracking-widest">
                           {customerName ? `${customerName}'s Bill` : t.billTitle}
                       </h3>
+                      <p className="text-sm text-charcoal/60 font-sans mt-2">{t.billDate}: {viewingHistoryBill ? new Date().toLocaleDateString() : new Date().toLocaleDateString()}</p>
                       
-                      {/* Customer Name Input - ReadOnly if View Mode */}
-                      <div className="mt-3">
-                          {isStaffMode ? (
-                              <input 
-                                type="text" 
-                                placeholder="Customer Name (Optional)" 
-                                value={customerName}
-                                onChange={(e) => updateCurrentBill({ customerName: e.target.value })}
-                                className="text-center bg-white/50 border border-dusty-rose/50 rounded-lg px-3 py-1.5 text-sm w-3/4 focus:outline-none focus:ring-1 focus:ring-gold-leaf placeholder-gray-500 text-charcoal"
-                              />
-                          ) : (
-                              customerName && <p className="font-bold text-lg font-sans">{customerName}</p>
-                          )}
-                      </div>
-                      <p className="text-sm text-charcoal/60 font-sans mt-2">{t.billDate}: {new Date().toLocaleDateString()}</p>
+                      {/* Short Customer Info */}
+                      {customerName && (
+                          <div className="mt-2 text-sm text-charcoal/80 flex flex-col items-center">
+                              <span className="font-bold">{customerName}</span>
+                              {customerPhone && <span>{customerPhone}</span>}
+                              {isStaffMode && !viewingHistoryBill && (
+                                <button onClick={() => { setIsBillOpen(false); handleEditCurrentCustomer(); }} className="text-xs text-gold-leaf hover:underline mt-1">
+                                    Edit Details
+                                </button>
+                              )}
+                          </div>
+                      )}
                   </div>
 
                   {/* Receipt Items */}
@@ -745,7 +1253,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
                           <span className="flex-grow">{t.item}</span>
                           <span className="w-12 text-center">{t.qty}</span>
                           <span className="w-20 text-right">{t.price}</span>
-                          {isStaffMode && <span className="w-8"></span>}
+                          {isStaffMode && !viewingHistoryBill && <span className="w-8"></span>}
                       </div>
                       
                       <ul className="space-y-3">
@@ -753,14 +1261,14 @@ export const PricingView: React.FC<PricingViewProps> = ({
                                   <li key={`${item.nameKey}-${item.staffName}`} className="flex items-start group">
                                       {/* Only allow edit click if Staff Mode */}
                                       <div 
-                                        className={`flex-grow pr-2 ${isStaffMode ? 'cursor-pointer' : 'cursor-default'}`} 
-                                        onClick={() => isStaffMode && handleEditItemStaff(item)}
+                                        className={`flex-grow pr-2 ${isStaffMode && !viewingHistoryBill ? 'cursor-pointer' : 'cursor-default'}`} 
+                                        onClick={() => isStaffMode && !viewingHistoryBill && handleEditItemStaff(item)}
                                       >
-                                          <p className={`font-semibold ${isStaffMode ? 'group-hover:text-gold-leaf' : ''} transition-colors`}>{t.serviceNames[item.nameKey]}</p>
+                                          <p className={`font-semibold ${isStaffMode && !viewingHistoryBill ? 'group-hover:text-gold-leaf' : ''} transition-colors`}>{item.displayName || t.serviceNames[item.nameKey] || item.nameKey}</p>
                                           {item.staffName && (
                                               <p className="text-xs text-charcoal/60 italic flex items-center gap-1">
                                                   Stylist: {item.staffName} 
-                                                  {isStaffMode && <span className="opacity-0 group-hover:opacity-100 text-gold-leaf text-[10px] bg-gold-leaf/10 px-1 rounded">EDIT</span>}
+                                                  {isStaffMode && !viewingHistoryBill && <span className="opacity-0 group-hover:opacity-100 text-gold-leaf text-[10px] bg-gold-leaf/10 px-1 rounded">EDIT</span>}
                                               </p>
                                           )}
                                       </div>
@@ -768,7 +1276,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
                                       <div className="w-20 text-right font-bold pt-1">${(item.price * item.quantity).toFixed(2)}</div>
                                       
                                       {/* Only show Remove button if Staff Mode */}
-                                      {isStaffMode && (
+                                      {isStaffMode && !viewingHistoryBill && (
                                           <button 
                                             onClick={() => handleRemoveGroup(item.originalIds)}
                                             className="w-8 flex justify-end text-gray-400 hover:text-red-500 pt-1"
@@ -791,7 +1299,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
                           <div className="flex justify-between items-center mb-4 text-charcoal/80">
                               <span className="flex items-center gap-2">
                                   {t.discountLabel}
-                                  {isStaffMode ? (
+                                  {isStaffMode && !viewingHistoryBill ? (
                                       <select 
                                           value={discountPercentage}
                                           onChange={(e) => updateCurrentBill({ discountPercentage: Number(e.target.value) })}
@@ -820,34 +1328,37 @@ export const PricingView: React.FC<PricingViewProps> = ({
                           </div>
 
                           {/* QR CODE SECTION */}
-                          <div className="mt-6 flex flex-col items-center border-t border-gray-100 pt-4">
-                              <p className="text-xs text-gray-400 uppercase font-bold tracking-widest mb-2">Scan to Download</p>
-                              <div className="bg-white p-2 rounded-lg shadow-sm border border-gray-100">
-                                  <img 
-                                      src={getQrCodeUrl()} 
-                                      alt="Scan for Receipt" 
-                                      className="w-32 h-32 object-contain"
-                                      loading="lazy"
-                                  />
+                          {!viewingHistoryBill && (
+                              <div className="mt-6 flex flex-col items-center border-t border-gray-100 pt-4">
+                                  <p className="text-xs text-gray-400 uppercase font-bold tracking-widest mb-2">Scan to Download</p>
+                                  <div className="bg-white p-2 rounded-lg shadow-sm border border-gray-100">
+                                      <img 
+                                          src={getQrCodeUrl()} 
+                                          alt="Scan for Receipt" 
+                                          className="w-32 h-32 object-contain"
+                                          loading="lazy"
+                                      />
+                                  </div>
                               </div>
-                          </div>
+                          )}
                       </div>
                   </div>
 
                   {/* Receipt Footer */}
                   <div className="bg-pearl-white p-6 border-t border-dusty-rose/30 text-center">
-                      <p className="text-sm text-gold-leaf font-bold mb-4">{t.showToCashier}</p>
+                      {!viewingHistoryBill && <p className="text-sm text-gold-leaf font-bold mb-4">{t.showToCashier}</p>}
+                      
                       <div className="grid grid-cols-1 gap-3">
                           <button 
-                            onClick={handleDownloadBill}
+                            onClick={() => handleDownloadBill()}
                             className="w-full py-3 rounded-xl border border-charcoal/20 text-charcoal font-medium hover:bg-charcoal hover:text-white transition-colors flex items-center justify-center gap-2"
                           >
                               <DownloadIcon className="w-5 h-5" />
-                              {t.downloadBill}
+                              {viewingHistoryBill ? 'Reprint / Download' : t.downloadBill}
                           </button>
                           
                           {/* COMPLETE PAYMENT: Only Show in Staff Mode */}
-                          {isStaffMode && (
+                          {isStaffMode && !viewingHistoryBill && (
                               <button 
                                 onClick={handleCompletePayment}
                                 disabled={isSaving}
@@ -862,6 +1373,301 @@ export const PricingView: React.FC<PricingViewProps> = ({
           </div>
       )}
 
+      {/* --- HISTORY LIST MODAL --- */}
+      {showHistoryModal && (
+        <div className="fixed inset-0 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" style={{ zIndex: 100 }}>
+            <div className="bg-pearl-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+                 <div className="bg-blush-pink p-4 flex justify-between items-center border-b border-dusty-rose/30">
+                     <h3 className="text-xl font-serif font-bold text-charcoal flex items-center gap-2">
+                        <ReceiptIcon className="w-6 h-6 text-gold-leaf" />
+                        Recent Bills
+                     </h3>
+                     <button onClick={() => setShowHistoryModal(false)} className="text-charcoal/60 hover:text-charcoal">
+                         <XMarkIcon className="w-6 h-6" />
+                     </button>
+                 </div>
+                 
+                 <div className="p-4 overflow-y-auto flex-grow bg-white custom-scrollbar">
+                     {recentTransactions.length === 0 ? (
+                         <div className="text-center py-10 opacity-50">
+                             <ReceiptIcon className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                             <p>No recent history found.</p>
+                         </div>
+                     ) : (
+                         <ul className="space-y-3">
+                             {recentTransactions.map((tx) => (
+                                 <li 
+                                    key={tx.id} 
+                                    onClick={() => handleViewHistoryItem(tx)}
+                                    className="bg-white border border-gray-100 hover:border-gold-leaf hover:bg-gray-50 rounded-xl p-3 shadow-sm transition-all cursor-pointer group"
+                                 >
+                                     <div className="flex justify-between items-start">
+                                         <div>
+                                             <span className="font-bold text-charcoal flex items-center gap-2">
+                                                 {tx.customerName || 'Guest'}
+                                             </span>
+                                             <div className="text-xs text-gray-400 font-mono mt-1">
+                                                {formatTimeAgo(tx.date)}
+                                             </div>
+                                             <div className="text-xs text-gray-500 mt-1">
+                                                 {tx.items.length} items
+                                             </div>
+                                         </div>
+                                         <div className="text-right">
+                                             <span className="block font-bold text-green-600 text-lg">${tx.total.toFixed(2)}</span>
+                                             <span className="text-xs text-gold-leaf opacity-0 group-hover:opacity-100 transition-opacity font-bold">REPRINT</span>
+                                         </div>
+                                     </div>
+                                 </li>
+                             ))}
+                         </ul>
+                     )}
+                 </div>
+            </div>
+        </div>
+      )}
+
+      {/* --- CUSTOMER ENTRY MODAL --- */}
+      {showCustomerEntry && isStaffMode && (
+         <div className="fixed inset-0 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in" style={{ zIndex: 110 }}>
+              <div className="bg-pearl-white w-full max-w-sm rounded-2xl shadow-2xl flex flex-col max-h-[90vh] relative" ref={entryModalRef}>
+                  {/* Close button positioned absolutely relative to the modal container */}
+                  <button onClick={() => setShowCustomerEntry(false)} className="absolute top-4 right-4 text-charcoal/50 hover:text-charcoal z-20">
+                      <XMarkIcon className="w-6 h-6" />
+                  </button>
+
+                  <div className="p-6 overflow-y-auto custom-scrollbar">
+                      
+                      <div className="text-center mb-6 mt-2">
+                          <div className="mx-auto w-12 h-12 bg-blush-pink rounded-full flex items-center justify-center mb-3">
+                              <UserIcon className="w-6 h-6 text-gold-leaf" />
+                          </div>
+                          <h3 className="text-xl font-serif font-bold text-charcoal">
+                              {entryMode === 'new' ? 'New Customer' : 'Customer Info'}
+                          </h3>
+                          <p className="text-sm text-charcoal/60">Enter details to start the order</p>
+                      </div>
+
+                      <div className="space-y-4">
+                            {/* NAME + AUTOCOMPLETE */}
+                            <div className="relative">
+                                <label className="block text-xs font-bold text-charcoal/70 mb-1 uppercase">Name</label>
+                                <input 
+                                    type="text" 
+                                    placeholder="Search or Enter Name" 
+                                    value={tempCustomerName}
+                                    onChange={handleTempNameChange}
+                                    // Forced charcoal text color
+                                    className="w-full p-3 border border-dusty-rose/50 rounded-xl bg-white text-charcoal focus:ring-2 focus:ring-gold-leaf outline-none font-bold text-lg placeholder:text-gray-400"
+                                    autoFocus
+                                />
+                                {showSuggestions && (
+                                    <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-xl border border-gold-leaf/20 z-50 max-h-40 overflow-y-auto text-left" ref={suggestionsRef}>
+                                        {customerSuggestions.map(cust => (
+                                            <button
+                                                key={cust.id}
+                                                onClick={() => handleSelectCustomerSuggestion(cust)}
+                                                className="w-full px-4 py-3 text-sm text-charcoal hover:bg-gold-leaf/10 border-b border-gray-100 last:border-0 flex justify-between items-center group"
+                                            >
+                                                <span className="font-bold group-hover:text-gold-leaf">{cust.name}</span>
+                                                <span className="text-xs text-gray-500">{cust.phone}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* PHONE */}
+                            <div>
+                                 <label className="block text-xs font-bold text-charcoal/70 mb-1 uppercase">Phone Number</label>
+                                 <div className="relative">
+                                    <PhoneIcon className="absolute left-3 top-3.5 w-5 h-5 text-gray-400" />
+                                    <input 
+                                        type="tel" 
+                                        placeholder="04xx xxx xxx" 
+                                        value={tempCustomerPhone}
+                                        onChange={(e) => setTempCustomerPhone(e.target.value)}
+                                        // Forced charcoal text color
+                                        className="w-full pl-10 pr-3 py-3 border border-dusty-rose/50 rounded-xl bg-white text-charcoal focus:ring-2 focus:ring-gold-leaf outline-none placeholder:text-gray-400"
+                                    />
+                                 </div>
+                            </div>
+
+                            {/* NOTES */}
+                            <div>
+                                 <label className="block text-xs font-bold text-charcoal/70 mb-1 uppercase">Notes</label>
+                                 <div className="relative">
+                                    <BriefcaseIcon className="absolute left-3 top-3.5 w-5 h-5 text-gray-400" />
+                                    <input 
+                                        type="text" 
+                                        placeholder="Preferences, allergies..." 
+                                        value={tempCustomerNotes}
+                                        onChange={(e) => setTempCustomerNotes(e.target.value)}
+                                        // Forced charcoal text color
+                                        className="w-full pl-10 pr-3 py-3 border border-dusty-rose/50 rounded-xl bg-white text-charcoal focus:ring-2 focus:ring-gold-leaf outline-none placeholder:text-gray-400"
+                                    />
+                                 </div>
+                            </div>
+                            
+                            {/* WAITLIST SPECIAL INPUT (IF ADDING VIA WAITLIST BUTTON) */}
+                            {showWaitlistAddModal && (
+                                 <div>
+                                     <label className="block text-xs font-bold text-charcoal/70 mb-1 uppercase text-gold-leaf">Return Time</label>
+                                     <div className="relative">
+                                        <ClockIcon className="absolute left-3 top-3.5 w-5 h-5 text-gold-leaf" />
+                                        <input 
+                                            type="text" 
+                                            placeholder="e.g., 30 mins, 2:00 PM" 
+                                            value={tempReturnTime}
+                                            onChange={(e) => setTempReturnTime(e.target.value)}
+                                            // Forced charcoal text color
+                                            className="w-full pl-10 pr-3 py-3 border-2 border-gold-leaf/50 rounded-xl bg-white text-charcoal focus:ring-2 focus:ring-gold-leaf outline-none placeholder:text-gray-400"
+                                        />
+                                     </div>
+                                 </div>
+                            )}
+
+                            {/* RECENT SERVICES HISTORY (NEW TABLE FORMAT) */}
+                            {selectedCustomerHistory.length > 0 && (
+                                <div className="bg-gray-50 p-3 rounded-xl border border-gray-200">
+                                    <label className="flex items-center text-xs font-bold text-charcoal/70 mb-2 uppercase gap-1">
+                                        <ClockIcon className="w-3 h-3" /> Recent Services
+                                    </label>
+                                    <div className="max-h-32 overflow-y-auto custom-scrollbar">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead className="text-[10px] text-gray-500 uppercase tracking-wide bg-gray-100 sticky top-0">
+                                                <tr>
+                                                    <th className="p-2 font-semibold">Date</th>
+                                                    <th className="p-2 font-semibold">Service</th>
+                                                    <th className="p-2 font-semibold text-right">Price</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="text-xs text-charcoal">
+                                                {selectedCustomerHistory.map((item, idx) => (
+                                                    <tr key={idx} className="border-b border-gray-100 last:border-0 hover:bg-white transition-colors">
+                                                        <td className="p-2 whitespace-nowrap text-gray-500">
+                                                            {new Date(item.date).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}
+                                                        </td>
+                                                        <td className="p-2 font-medium">
+                                                            {t.serviceNames[item.nameKey] || item.nameKey}
+                                                        </td>
+                                                        <td className="p-2 text-right">
+                                                            ${item.price}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+                      </div>
+
+                      <div className="mt-6">
+                          <button 
+                            onClick={showWaitlistAddModal ? handleAddToWaitlist : handleSaveCustomerEntry}
+                            className="w-full py-3 bg-gold-leaf text-white font-bold rounded-xl shadow-md hover:bg-charcoal transition-all transform active:scale-95"
+                          >
+                              {showWaitlistAddModal ? 'Add to Waitlist' : (entryMode === 'new' ? 'Start Order' : 'Update Info')}
+                          </button>
+                      </div>
+                  </div>
+              </div>
+         </div>
+      )}
+
+      {/* --- WAITLIST LIST MODAL --- */}
+      {showWaitlistModal && (
+        <div className="fixed inset-0 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" style={{ zIndex: 100 }}>
+            <div className="bg-pearl-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+                 <div className="bg-blush-pink p-4 flex justify-between items-center border-b border-dusty-rose/30">
+                     <h3 className="text-xl font-serif font-bold text-charcoal flex items-center gap-2">
+                        <ClockIcon className="w-6 h-6 text-gold-leaf" />
+                        Waitlist ({Array.isArray(waitlist) ? waitlist.length : 0})
+                     </h3>
+                     <button onClick={() => setShowWaitlistModal(false)} className="text-charcoal/60 hover:text-charcoal">
+                         <XMarkIcon className="w-6 h-6" />
+                     </button>
+                 </div>
+                 
+                 <div className="p-4 overflow-y-auto flex-grow bg-white">
+                     {!Array.isArray(waitlist) || waitlist.length === 0 ? (
+                         <div className="text-center py-10 opacity-50">
+                             <ClockIcon className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                             <p>No customers waiting.</p>
+                         </div>
+                     ) : (
+                         <ul className="space-y-3">
+                             {waitlist.map((entry, idx) => (
+                                 <li key={entry.id} className={`bg-white border rounded-xl p-3 shadow-sm transition-colors ${entry.status === 'notified' ? 'border-green-200 bg-green-50' : 'border-gray-100 hover:border-gold-leaf/30'}`}>
+                                     <div className="flex justify-between items-start mb-2">
+                                         <div>
+                                             <span className="font-bold text-lg text-charcoal flex items-center gap-2">
+                                                 {entry.customerName}
+                                                 {entry.status === 'notified' && <span className="text-[10px] bg-green-500 text-white px-2 rounded-full">NOTIFIED</span>}
+                                             </span>
+                                             <div className="flex gap-2 mt-1">
+                                                <span className="text-xs text-gray-400 font-mono">
+                                                    {formatTimeAgo(entry.addedTime)}
+                                                </span>
+                                                {entry.estimatedReturnTime && (
+                                                    <span className="inline-block bg-yellow-100 text-yellow-800 text-xs px-2 py-0.5 rounded-full font-bold">
+                                                        Return: {entry.estimatedReturnTime}
+                                                    </span>
+                                                )}
+                                             </div>
+                                         </div>
+                                         <button onClick={() => handleRemoveFromWaitlist(entry.id)} className="text-gray-400 hover:text-red-500">
+                                             <XMarkIcon className="w-4 h-4" />
+                                         </button>
+                                     </div>
+                                     
+                                     <div className="flex items-center justify-between mt-3 gap-2">
+                                         {/* SMS BUTTON - CONSOLIDATED */}
+                                         <button 
+                                            onClick={() => handleSendSMS(entry, 'ready')}
+                                            className="px-4 py-2 bg-gold-leaf/10 text-gold-leaf border border-gold-leaf/30 rounded-lg hover:bg-gold-leaf hover:text-white transition-colors flex items-center gap-2 group"
+                                            title="Send SMS to call back"
+                                         >
+                                             <ChatIcon className="w-4 h-4 group-hover:animate-pulse" />
+                                             <span className="font-bold text-xs">SMS Customer</span>
+                                         </button>
+
+                                         <button 
+                                            onClick={() => handleCheckInFromWaitlist(entry)}
+                                            className="flex-1 py-2 bg-green-100 text-green-800 border border-green-200 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-green-200 transition-colors text-sm"
+                                         >
+                                             Start <ArrowRightIcon className="w-4 h-4" />
+                                         </button>
+                                     </div>
+                                 </li>
+                             ))}
+                         </ul>
+                     )}
+                 </div>
+
+                 <div className="p-4 bg-gray-50 border-t border-gray-200">
+                     <button 
+                        onClick={() => {
+                            setEntryMode('new');
+                            setTempCustomerName("");
+                            setTempCustomerPhone("");
+                            setTempCustomerNotes("");
+                            setTempReturnTime("");
+                            setShowWaitlistAddModal(true);
+                            setShowCustomerEntry(true);
+                            setShowWaitlistModal(false); // Close list to show add modal
+                        }}
+                        className="w-full py-3 bg-charcoal text-white font-bold rounded-xl shadow hover:bg-gray-800 transition-colors flex items-center justify-center gap-2"
+                     >
+                         <PlusIcon className="w-5 h-5" />
+                         Add Customer to Waitlist
+                     </button>
+                 </div>
+            </div>
+        </div>
+      )}
+
       {/* Staff Selection Modal - Only accessible in Staff Mode anyway */}
       {showStaffModal && pendingService && isStaffMode && (
         <div className="fixed inset-0 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" style={{ zIndex: 100 }}>
@@ -873,10 +1679,10 @@ export const PricingView: React.FC<PricingViewProps> = ({
                      <h3 className="text-lg font-serif font-bold text-charcoal">
                          {editingIds.length > 0 ? "Change Stylist" : "Select Stylist"}
                      </h3>
-                     <p className="text-sm text-charcoal/70">{t.serviceNames[pendingService.nameKey]}</p>
+                     <p className="text-sm text-charcoal/70">{pendingService.displayName || t.serviceNames[pendingService.nameKey]}</p>
                  </div>
                  <div className="p-4 overflow-y-auto grid grid-cols-2 gap-3">
-                     {STAFF_LIST.map(staff => (
+                     {staffList.map(staff => (
                          <button
                             key={staff}
                             onClick={() => handleStaffSelect(staff)}
@@ -900,7 +1706,8 @@ export const PricingView: React.FC<PricingViewProps> = ({
                       placeholder="Enter PIN" 
                       value={pinInput}
                       onChange={(e) => setPinInput(e.target.value)}
-                      className="w-full p-3 text-center text-xl tracking-widest border border-dusty-rose/50 rounded-xl mb-4 focus:ring-2 focus:ring-gold-leaf outline-none"
+                      // Forced charcoal text color
+                      className="w-full p-3 text-center text-xl tracking-widest border border-dusty-rose/50 rounded-xl mb-4 focus:ring-2 focus:ring-gold-leaf outline-none bg-white text-charcoal placeholder:text-gray-400"
                       autoFocus
                   />
                   {pinError && <p className="text-red-500 text-sm mb-4">{pinError}</p>}

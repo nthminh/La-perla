@@ -1,5 +1,8 @@
 
 
+
+
+
 export interface Translation {
   name: string;
   flag: string;
@@ -135,6 +138,19 @@ export interface Translation {
   vsPrevious: string;
   revenue: string;
   orders: string;
+  kioskWelcome: string;
+  kioskSubtitle: string;
+  kioskNameLabel: string;
+  kioskPhoneLabel: string;
+  kioskReturnTimeLabel: string;
+  kioskReturnTimePlaceholder: string;
+  kioskJoinButton: string;
+  kioskSuccessTitle: string;
+  kioskSuccessMessage: string;
+  smsTemplateReady: string;
+  smsTemplateSoon: string;
+  enterKioskMode: string;
+  exitKioskMode: string;
 }
 
 const baseTranslations: Omit<Translation, 'name' | 'flag'> = {
@@ -267,6 +283,19 @@ const baseTranslations: Omit<Translation, 'name' | 'flag'> = {
   vsPrevious: "vs previous period",
   revenue: "Revenue",
   orders: "Orders",
+  kioskWelcome: "Welcome to La Perla",
+  kioskSubtitle: "We are currently busy. Please join our waitlist and we'll text you when your seat is ready.",
+  kioskNameLabel: "Your Name",
+  kioskPhoneLabel: "Mobile Number",
+  kioskReturnTimeLabel: "I can return at / in",
+  kioskReturnTimePlaceholder: "e.g., 15 mins, 2:30 PM",
+  kioskJoinButton: "Join Waitlist",
+  kioskSuccessTitle: "You're on the list!",
+  kioskSuccessMessage: "Thank you, {name}. We will contact you shortly.",
+  smsTemplateReady: "Hi {name}, Please come back to have your nails done. Could you reply if you are coming or not so we can let other people on the list come earlier. Thank you, La Perla Nails Plumton.",
+  smsTemplateSoon: "Hi {name}, this is La Perla. Your seat will be ready in about 10-15 mins.",
+  enterKioskMode: "Enter Kiosk Mode",
+  exitKioskMode: "Exit Kiosk",
   serviceCategories: {
     nails: "Nails",
     ladiesWaxing: "Ladies Waxing",

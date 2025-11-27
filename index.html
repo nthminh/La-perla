@@ -2,13 +2,34 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>La Perla Nail AI Stylist</title>
+    
+    <!-- PWA Settings -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#F8F6F2">
+    
+    <!-- iOS Support -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="La Perla">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2933/2933116.png">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Poppins:wght@300;400;500&display=swap" rel="stylesheet">
     <style>
+      /* Hide scrollbar for Chrome, Safari and Opera */
+      .no-scrollbar::-webkit-scrollbar {
+          display: none;
+      }
+      /* Hide scrollbar for IE, Edge and Firefox */
+      .no-scrollbar {
+          -ms-overflow-style: none;  /* IE and Edge */
+          scrollbar-width: none;  /* Firefox */
+      }
+      
       @keyframes fade-in-up {
         0% {
           opacity: 0;
@@ -35,6 +56,35 @@
       }
       .animate-slide-up {
         animation: slide-up 0.3s ease-out;
+      }
+      
+      /* Print Styles for Thermal Receipt */
+      @media print {
+          @page {
+              margin: 0;
+              size: auto;
+          }
+          body * {
+              visibility: hidden;
+          }
+          #root {
+              display: none;
+          }
+          .printable-area, .printable-area * {
+              visibility: visible;
+          }
+          .printable-area {
+              position: absolute;
+              left: 0;
+              top: 0;
+              width: 100%;
+              margin: 0;
+              padding: 0;
+          }
+          /* Hide non-essential elements inside receipt when printing */
+          .no-print {
+              display: none !important;
+          }
       }
     </style>
     <script>
@@ -64,7 +114,8 @@
     "react/": "https://aistudiocdn.com/react@^19.2.0/",
     "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
     "vite": "https://aistudiocdn.com/vite@^7.2.4",
-    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1"
+    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
+    "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/"
   }
 }
 </script>

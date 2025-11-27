@@ -7,7 +7,7 @@ export const SALON_EMAIL_ADDRESS = 'nthminh2804@gmail.com,vivian.dinh191@gmail.c
 
 // PASTE YOUR GOOGLE APPS SCRIPT WEB APP URL HERE AFTER DEPLOYMENT
 // Example: 'https://script.google.com/macros/s/AKfycbx.../exec'
-export const GOOGLE_SHEETS_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbz4M4UYlgyt1_0UzJ18HMbXuldwsSsQXyVOVtBBVfRdBSMUZT7Mlpm3Jbr5CCEgxO1e6Q/exec'; 
+export const GOOGLE_SHEETS_WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbwZjUCXBA94rTTYJmXCMUMg1FmZwmAAQTSYH-UmKUE8rq_RUIOTenWB7BBsFcT8ed0yiA/exec'; 
 
 // PASTE YOUR GOOGLE SHEET EDIT URL HERE
 export const GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1BvTONsBqv7aJT0eOFD2umlxsfMAReX8Q3Gbzd9N_4M8/edit?usp=sharing';

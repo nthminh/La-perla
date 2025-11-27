@@ -1,5 +1,5 @@
 
-import { Transaction, TransactionItem } from '../types';
+import { Transaction, TransactionItem, ActiveBill, WaitlistEntry } from '../types';
 import { GOOGLE_SHEETS_WEBAPP_URL, PRICING_DATA } from '../constants';
 
 /**
@@ -32,6 +32,9 @@ export const saveToGoogleSheets = async (transaction: Transaction): Promise<bool
     time: new Date(transaction.date).toLocaleTimeString(),
     total: transaction.total,
     items: itemsString,
+    customerName: transaction.customerName || '',
+    customerPhone: transaction.customerPhone || '',
+    customerNotes: transaction.customerNotes || ''
   };
 
   try {
@@ -41,7 +44,7 @@ export const saveToGoogleSheets = async (transaction: Transaction): Promise<bool
       method: 'POST',
       mode: 'no-cors', 
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'text/plain', // Changed to text/plain to avoid preflight issues, GAS handles it fine
       },
       body: JSON.stringify(data),
     });
@@ -60,7 +63,9 @@ export const fetchGoogleSheetsData = async (): Promise<Transaction[]> => {
     if (!GOOGLE_SHEETS_WEBAPP_URL) return [];
 
     try {
-        const response = await fetch(GOOGLE_SHEETS_WEBAPP_URL);
+        // Add cache buster
+        const url = `${GOOGLE_SHEETS_WEBAPP_URL}?_t=${Date.now()}`;
+        const response = await fetch(url);
         const rawData = await response.json();
 
         // Pre-calculate a price lookup map from PRICING_DATA to fix the $0 issue
@@ -73,9 +78,7 @@ export const fetchGoogleSheetsData = async (): Promise<Transaction[]> => {
             });
         });
 
-        // rawData is an array of arrays: [[id, date, time, total, items], ...]
-        // We assume row 0 might be headers if user followed instructions, or data.
-        // Let's filter out rows that don't look like data (e.g. headers string 'ID')
+        // rawData is an array of arrays: [[id, date, time, total, items, name, phone, notes], ...]
         
         const transactions: Transaction[] = rawData
             .filter((row: any[]) => row[0] !== 'ID' && row.length >= 5)
@@ -107,26 +110,19 @@ export const fetchGoogleSheetsData = async (): Promise<Transaction[]> => {
                 }
 
                 // Parse Date Robustly
-                // Handle formats: MM/DD/YYYY (Sheet default in some locales) OR DD/MM/YYYY (Australian/Vietnam style)
                 const dateStr = String(row[1]); 
                 let dateObj = new Date(dateStr);
 
-                // If date is invalid or likely parsed incorrectly (e.g. browser thinks 25/11 is MM/DD and fails), parse manually
                 if (isNaN(dateObj.getTime()) || dateStr.includes('/')) {
                     const parts = dateStr.split(/[/-]/);
                     if (parts.length === 3) {
-                        // Assume DD/MM/YYYY if first part > 12, otherwise ambiguous but prioritize standard ISO or local.
-                        // Simple robust strategy: try parsing as DD/MM/YYYY if basic parsing fails
                         const d = parseInt(parts[0], 10);
                         const m = parseInt(parts[1], 10);
                         const y = parseInt(parts[2], 10);
                         
-                        // Reconstruct as YYYY-MM-DD for safe parsing
                         if (d > 12) {
-                             // Definitely DD/MM/YYYY
                              dateObj = new Date(`${y}-${m}-${d}`);
                         } else {
-                             // Could be either, but if new Date(dateStr) failed earlier, try swapping
                              if (isNaN(dateObj.getTime())) {
                                  dateObj = new Date(`${y}-${m}-${d}`);
                              }
@@ -134,17 +130,24 @@ export const fetchGoogleSheetsData = async (): Promise<Transaction[]> => {
                     }
                 }
 
-                // Final fallback
                 if (isNaN(dateObj.getTime())) {
                     dateObj = new Date();
                 }
+
+                // Extract new CRM fields (columns 5, 6, 7)
+                const customerName = row[5] ? String(row[5]) : '';
+                const customerPhone = row[6] ? String(row[6]) : '';
+                const customerNotes = row[7] ? String(row[7]) : '';
                 
                 return {
                     id: String(row[0]),
                     date: dateObj.toISOString(),
                     total: Number(row[3]) || 0,
                     items: items,
-                    discountPercentage: discountPercentage
+                    discountPercentage: discountPercentage,
+                    customerName: customerName,
+                    customerPhone: customerPhone,
+                    customerNotes: customerNotes
                 };
             });
 
@@ -152,5 +155,63 @@ export const fetchGoogleSheetsData = async (): Promise<Transaction[]> => {
     } catch (error) {
         console.error("Failed to fetch from Google Sheets:", error);
         return [];
+    }
+};
+
+/**
+ * Saves the current system state (Active Bills & Waitlist) to Google Apps Script Properties.
+ * This allows real-time syncing between devices.
+ */
+export const saveSystemState = async (activeBills: ActiveBill[], waitlist: WaitlistEntry[]): Promise<boolean> => {
+    if (!GOOGLE_SHEETS_WEBAPP_URL) return false;
+
+    // Append ?type=saveState to the URL
+    const url = `${GOOGLE_SHEETS_WEBAPP_URL}?type=saveState`;
+
+    const payload = {
+        activeBills,
+        waitlist,
+        timestamp: Date.now()
+    };
+
+    try {
+        await fetch(url, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: {
+                'Content-Type': 'text/plain', // Use text/plain to avoid preflight OPTIONS requests issues
+            },
+            body: JSON.stringify(payload),
+        });
+        return true;
+    } catch (error) {
+        console.error("Error syncing state to cloud:", error);
+        return false;
+    }
+};
+
+/**
+ * Fetches the current system state from Google Apps Script.
+ */
+export const fetchSystemState = async (): Promise<{activeBills: ActiveBill[], waitlist: WaitlistEntry[]} | null> => {
+    if (!GOOGLE_SHEETS_WEBAPP_URL) return null;
+
+    // IMPORTANT: Add cache buster timestamp to prevent browser from returning stale data
+    const url = `${GOOGLE_SHEETS_WEBAPP_URL}?type=getState&_t=${Date.now()}`;
+
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data && (data.activeBills || data.waitlist)) {
+            return {
+                activeBills: data.activeBills || [],
+                waitlist: data.waitlist || []
+            };
+        }
+        return null;
+    } catch (error) {
+        // Suppress error log for polling to keep console clean
+        return null;
     }
 };

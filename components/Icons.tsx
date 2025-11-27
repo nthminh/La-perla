@@ -29,7 +29,7 @@ export const SparklesIcon = ({ className = "w-6 h-6" }: { className?: string }) 
 
 
 export const NailPolishIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9v-2h2v2zm2 0h-2v-2h2v2zm2 0h-2v-2h2v2zm2-4h-2V8h2v4zm-4-4h-2V4h2v4z" transform="scale(0.8) translate(3,3)" />
         <path d="M13.29,7.71a1,1,0,0,0-1.41,0L9.41,10.17a1,1,0,0,0,0,1.41L12,14l2.59-2.59a1,1,0,0,0,0-1.41Z" fill="currentColor"/>
         <path d="M15,2H9A2,2,0,0,0,7,4v5a1,1,0,0,0,1,1H16a1,1,0,0,0,1-1V4A2,2,0,0,0,15,2Z" />
@@ -38,14 +38,14 @@ export const NailPolishIcon = ({ className = "w-6 h-6" }: { className?: string }
 
 
 export const ScissorIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M6 8.5c0-1.38 1.12-2.5 2.5-2.5S11 7.12 11 8.5s-1.12 2.5-2.5 2.5S6 9.88 6 8.5zm12 0c0-1.38 1.12-2.5 2.5-2.5S23 7.12 23 8.5s-1.12 2.5-2.5 2.5S18 9.88 18 8.5z" />
         <path strokeLinecap="round" strokeLinejoin="round" d="M8.5 11L3 21m15.5-10L21 21M12 12l5.5-7.5M12 12L6.5 4.5" />
     </svg>
 );
 
 export const ShampooIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M15 3h-2a2 2 0 00-2 2v2h4V5a2 2 0 00-2-2z" />
         <path strokeLinecap="round" strokeLinejoin="round" d="M8 9.05A6 6 0 0118 9v9a2 2 0 01-2 2H8a2 2 0 01-2-2V9a6 6 0 012 .05z" />
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 12v3" />
@@ -53,7 +53,7 @@ export const ShampooIcon = ({ className = "w-6 h-6" }: { className?: string }) =
 );
 
 export const PriceTagIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3H5a2 2 0 00-2 2v2m14-4h2a2 2 0 012 2v2m-4 14h-2a2 2 0 01-2-2v-2M3 17v-2a2 2 0 012-2h2" />
         <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 18.657l-5.657-5.657a1 1 0 00-1.414 0l-5.657 5.657a1 1 0 000 1.414l5.657 5.657a1 1 0 001.414 0l5.657-5.657a1 1 0 000-1.414z" transform="rotate(-45 12 12)" />
         <circle cx="12" cy="12" r="3" />
@@ -61,7 +61,7 @@ export const PriceTagIcon = ({ className = "w-6 h-6" }: { className?: string }) 
 );
 
 export const GalleryIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
     </svg>
 );
@@ -173,6 +173,24 @@ export const ChartIcon = ({ className = "w-6 h-6" }: { className?: string }) => 
     </svg>
 );
 
+export const ChatIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+    </svg>
+);
+
+export const GridIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+    </svg>
+);
+
+export const ListBulletIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+    </svg>
+);
+
 
 export const LaPerlaLogo = ({ className = "w-64" }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 120" className={className} aria-label="La Perla">
@@ -227,5 +245,11 @@ export const EyeDropperIcon = ({ className = "w-6 h-6" }: { className?: string }
     <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M19.4 4.6a2 2 0 010 2.8l-1.4 1.4-2.8-2.8 1.4-1.4a2 2 0 012.8 0zM14.5 5.5l2.8 2.8L7.6 18H4.8v-2.8L14.5 5.5z" />
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 16l-3 3m7-7l-3 3" />
+    </svg>
+);
+
+export const UserIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
     </svg>
 );
