@@ -1,3 +1,4 @@
+
 import React, { Component, useState, useRef, useEffect, ErrorInfo, ReactNode } from 'react';
 import { generateNailArt } from './gemini';
 import { PricingView } from './components/PricingView';
@@ -6,27 +7,39 @@ import { PortfolioView } from './components/PortfolioView';
 import { BookingView } from './components/BookingView';
 import { AdminView } from './components/AdminView';
 import { KioskView } from './components/KioskView';
+import { EntryGate } from './components/EntryGate'; 
+import { StaffPortalView } from './components/StaffPortalView'; 
+import { ArtistsView } from './components/ArtistsView'; 
 import PromotionsView from './components/PromotionsView';
-import { UploadIcon, SparklesIcon, PriceTagIcon, GalleryIcon, CameraIcon, DownloadIcon, BriefcaseIcon, CalendarIcon, GiftIcon, LaPerlaLogo, LockIcon } from './components/Icons';
+import { ChatWidget } from './components/ChatWidget'; // IMPORT CHAT WIDGET
+import { UploadIcon, SparklesIcon, PriceTagIcon, GalleryIcon, CameraIcon, DownloadIcon, BriefcaseIcon, CalendarIcon, GiftIcon, LaPerlaLogo, LockIcon, UsersIcon, CloudCheckIcon, CloudSyncIcon, CloudErrorIcon, XMarkIcon } from './components/Icons';
 import { TRANSLATIONS, Translation } from './translations';
-import { CartItem, ActiveBill, WaitlistEntry, ServiceCategory } from './types';
-import { PRICING_DATA as DEFAULT_PRICING, STAFF_LIST as DEFAULT_STAFF } from './constants';
+import { CartItem, ActiveBill, WaitlistEntry, ServiceCategory, StaffProfile, Review, BookingRequest, GlobalPayrollSettings, Transaction } from './types';
+import { PRICING_DATA as DEFAULT_PRICING, DEFAULT_STAFF_PROFILES, DEFAULT_GLOBAL_PAYROLL } from './constants';
 import { fetchGoogleSheetsData } from './services/googleSheetsService';
 import { 
-    syncCustomersFromHistory, 
     getWaitlist, 
     saveWaitlist,
+    getBookings,
+    saveBookings,
     getActiveBills,
     saveActiveBills,
     getCurrentBillId,
-    saveCurrentBillId
+    saveCurrentBillId,
+    getCurrentUser,
+    saveCurrentUser,
+    clearCurrentUser,
+    getTransactions
 } from './services/storageService';
-import { subscribeToSystemState, saveSystemStateToFirebase, subscribeToSettings } from './services/firebaseService';
+import { subscribeToSystemState, subscribeToSettings, updateStaffPresence, saveSettingsToFirebase, saveTransactionToFirebase, fetchTransactionsOnce } from './services/firebaseService';
 import { clearFirebaseConfigLocally } from './services/firebaseConfig';
+import { SoundManager } from './utils/sound';
 
-type View = 'stylist' | 'pricing' | 'gallery' | 'portfolio' | 'booking' | 'promotions' | 'admin' | 'kiosk';
+type View = 'stylist' | 'pricing' | 'gallery' | 'portfolio' | 'booking' | 'promotions' | 'admin' | 'kiosk' | 'portal' | 'team';
+type AppMode = 'gate' | 'app'; 
 
 const DAILY_LIMIT = 10;
+const IDLE_TIMEOUT_MS = 60 * 60 * 1000; // 60 Minutes
 
 // --- ERROR BOUNDARY COMPONENT ---
 interface ErrorBoundaryProps {
@@ -38,7 +51,7 @@ interface ErrorBoundaryState {
     error: Error | null;
 }
 
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
     state: ErrorBoundaryState = {
         hasError: false,
         error: null
@@ -53,10 +66,10 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
     }
 
     handleReset = () => {
-        // Clear everything that might cause a crash loop
         clearFirebaseConfigLocally();
         localStorage.removeItem('la_perla_active_bills');
         localStorage.removeItem('la_perla_current_bill_id');
+        localStorage.removeItem('la_perla_current_user');
         window.location.reload();
     }
 
@@ -86,11 +99,12 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
             );
         }
 
-        return this.props.children || null;
+        // Use type assertion to avoid TS error 'Property props does not exist'
+        return (this as any).props.children || null;
     }
 }
 
-// Moved component outside of App to prevent re-mounting on every render
+// NavButton Component
 const NavButton: React.FC<{
   view: View;
   icon: React.ReactNode;
@@ -99,7 +113,10 @@ const NavButton: React.FC<{
   onClick: (view: View) => void;
 }> = ({ view, icon, label, currentView, onClick }) => (
   <button
-    onClick={() => onClick(view)}
+    onClick={() => {
+        SoundManager.playTap();
+        onClick(view);
+    }}
     className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all duration-300 font-sans text-sm md:text-base flex-shrink-0 ${
       currentView === view
         ? 'bg-gold-leaf text-white shadow-md'
@@ -111,8 +128,8 @@ const NavButton: React.FC<{
   </button>
 );
 
+// Stylist View Component
 const StylistView: React.FC<any> = (props) => {
-    // Simplified wrapper for cleaner App file, imports handled above
     const { 
         t, stylePrompt, setStylePrompt, userImage, generatedImage, isLoading, error, 
         fileInputRef, cameraInputRef, handleFileChange, triggerFileSelect, triggerCameraSelect, 
@@ -140,7 +157,7 @@ const StylistView: React.FC<any> = (props) => {
                           value={stylePrompt}
                           onChange={(e) => setStylePrompt(e.target.value)}
                           placeholder={t.customPromptPlaceholder}
-                          className="w-full p-3 border-2 border-dusty-rose/50 rounded-xl bg-pearl-white/80 focus:ring-2 focus:ring-gold-leaf focus:border-gold-leaf transition-shadow duration-300 shadow-inner resize-none font-sans"
+                          className="w-full p-3 border-2 border-dusty-rose/50 rounded-xl bg-white text-charcoal focus:ring-2 focus:ring-gold-leaf focus:border-gold-leaf transition-shadow duration-300 shadow-inner resize-none font-sans"
                           rows={3}
                           disabled={limitReached}
                       />
@@ -246,9 +263,10 @@ const StylistView: React.FC<any> = (props) => {
     );
 };
 
-// Extracted Main App Logic to keep code clean
+// Main App Logic
 const MainApp: React.FC = () => {
-  const [view, setView] = useState<View>('stylist');
+  const [appMode, setAppMode] = useState<AppMode>('gate'); 
+  const [view, setView] = useState<View>('pricing'); 
   const [userImage, setUserImage] = useState<string | null>(null);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -261,22 +279,25 @@ const MainApp: React.FC = () => {
 
   const [generationsToday, setGenerationsToday] = useState(0);
 
-  // --- DYNAMIC SETTINGS STATE ---
-  const [staffList, setStaffList] = useState<string[]>(DEFAULT_STAFF);
+  // Dynamic Settings
+  const [staffList, setStaffList] = useState<StaffProfile[]>(DEFAULT_STAFF_PROFILES);
   const [pricingData, setPricingData] = useState<ServiceCategory[]>(DEFAULT_PRICING);
+  const [globalPayroll, setGlobalPayroll] = useState<GlobalPayrollSettings>(DEFAULT_GLOBAL_PAYROLL);
 
-  // --- REFACTORED STATE FOR MULTIPLE BILLS ---
-  // Initialize from LocalStorage first to survive refreshes
+  // Active Bills State - Default to EMPTY ARRAY to fix "Tap to Name" issue
   const [activeBills, setActiveBills] = useState<ActiveBill[]>(() => {
     try {
         const saved = getActiveBills();
         return Array.isArray(saved) && saved.length > 0 
             ? saved 
-            : [{ id: '1', customerName: '', items: [], discountPercentage: 0 }];
+            : []; 
     } catch {
-        return [{ id: '1', customerName: '', items: [], discountPercentage: 0 }];
+        return []; 
     }
   });
+
+  // Client-Side Customer Cache for Kiosk Recognition
+  const [customerLookupData, setCustomerLookupData] = useState<Transaction[]>([]);
 
   const [currentBillId, setCurrentBillId] = useState<string>(() => {
       try {
@@ -285,9 +306,9 @@ const MainApp: React.FC = () => {
         if (savedId && Array.isArray(savedBills) && savedBills.some(b => b.id === savedId)) {
             return savedId;
         }
-        return Array.isArray(savedBills) && savedBills.length > 0 ? savedBills[0].id : '1';
+        return Array.isArray(savedBills) && savedBills.length > 0 ? savedBills[0].id : '';
       } catch {
-        return '1';
+        return '';
       }
   });
 
@@ -295,41 +316,177 @@ const MainApp: React.FC = () => {
   
   // Waitlist State
   const [waitlist, setWaitlist] = useState<WaitlistEntry[]>([]);
+  
+  // Booking State
+  const [bookings, setBookings] = useState<BookingRequest[]>([]);
+  
+  // Active Staff State
+  const [activeStaffIds, setActiveStaffIds] = useState<string[]>([]);
 
-  // Real-time Sync Logic
+  // --- SAFETY LOCK STATE (CRITICAL) ---
+  const [isSystemReady, setIsSystemReady] = useState(false);
+  
   const lastSyncedState = useRef<string>("");
-  const [isConnected, setIsConnected] = useState(false); // Connection Indicator
+  const [isConnected, setIsConnected] = useState(false);
 
-  // Also lift accordion state so it doesn't reset when switching tabs
-  // Using ref or re-calc logic for default pricing
+  // --- AUTO SYNC STATE ---
+  const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error'>('synced');
+
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({
       [DEFAULT_PRICING[0].categoryKey]: true
   });
 
-  // State to trigger immediate download without showing bill UI
   const [autoDownloadTrigger, setAutoDownloadTrigger] = useState(false);
 
-  // --- STAFF MODE STATE ---
-  // Default is FALSE (Customer/View Only Mode)
-  const [isStaffMode, setIsStaffMode] = useState(false);
+  // --- UPDATE MANAGEMENT ---
+  const localAppVersion = useRef<number>(0);
+  const lastInteractionTime = useRef<number>(Date.now());
 
-  // Force English Translation
+  // Staff User State
+  const [currentUser, setCurrentUser] = useState<StaffProfile | null>(() => {
+      return getCurrentUser();
+  });
+
+  useEffect(() => {
+    const user = getCurrentUser();
+    if (user) {
+        setAppMode('app');
+        updateStaffPresence(user.id, true);
+    }
+  }, []);
+
+  // --- IDLE TIMER (PERIODIC AUTO-REFRESH) ---
+  useEffect(() => {
+      const updateInteraction = () => {
+          lastInteractionTime.current = Date.now();
+      };
+
+      // Listen for any user activity
+      window.addEventListener('mousemove', updateInteraction);
+      window.addEventListener('touchstart', updateInteraction);
+      window.addEventListener('keydown', updateInteraction);
+      window.addEventListener('click', updateInteraction);
+
+      // Check for idleness every 60 seconds
+      const idleCheckInterval = setInterval(() => {
+          const timeSinceInteraction = Date.now() - lastInteractionTime.current;
+          // If idle for more than 1 hour (IDLE_TIMEOUT_MS) and NOT waiting for payment
+          if (timeSinceInteraction > IDLE_TIMEOUT_MS && !isBillOpen) {
+              console.log("App idle for too long. Auto-refreshing for health check.");
+              window.location.reload();
+          }
+      }, 60000);
+
+      return () => {
+          window.removeEventListener('mousemove', updateInteraction);
+          window.removeEventListener('touchstart', updateInteraction);
+          window.removeEventListener('keydown', updateInteraction);
+          window.removeEventListener('click', updateInteraction);
+          clearInterval(idleCheckInterval);
+      };
+  }, [isBillOpen]);
+
+  // --- UPDATED: REFRESH DATA FOR KIOSK RECOGNITION (TĂNG GIỚI HẠN) ---
+  useEffect(() => {
+      const fetchLookup = async () => {
+          // 1. Get Local Data (Fastest)
+          const localTxs = getTransactions();
+          setCustomerLookupData(localTxs);
+
+          // 2. Fetch Cloud Data (Deep history for VIP check)
+          // Tăng lên 1000 bản ghi để đảm bảo tìm thấy gói Membership cũ
+          if (!isGuest) {
+              const cloudTxs = await fetchTransactionsOnce(1000); 
+              if (cloudTxs && cloudTxs.length > 0) {
+                  setCustomerLookupData(cloudTxs);
+              }
+          }
+      };
+
+      // Refresh history data whenever we are in Kiosk mode or switcher views
+      fetchLookup();
+  }, [isGuest, view]);
+
+  const handleLogin = (user: StaffProfile) => {
+      SoundManager.playSuccess();
+      setCurrentUser(user);
+      saveCurrentUser(user);
+      setAppMode('app');
+      updateStaffPresence(user.id, true);
+  };
+
+  const handleLogout = () => {
+      if (currentUser) {
+          updateStaffPresence(currentUser.id, false);
+      }
+      setCurrentUser(null);
+      clearCurrentUser();
+      setAppMode('gate'); 
+      setView('pricing'); 
+  };
+
+  const handleClientEnter = () => {
+      SoundManager.playTap();
+      setCurrentUser(null);
+      clearCurrentUser();
+      setAppMode('app');
+  };
+
+  const handleUpdateStaffProfile = (updatedProfile: StaffProfile) => {
+      const updatedList = staffList.map(s => s.id === updatedProfile.id ? updatedProfile : s);
+      setStaffList(updatedList);
+      
+      if (currentUser && currentUser.id === updatedProfile.id) {
+          setCurrentUser(updatedProfile);
+          saveCurrentUser(updatedProfile);
+      }
+      saveSettingsToFirebase(updatedList, pricingData, globalPayroll);
+  };
+
+  const handleStaffReview = (staffId: string, reviewData: { rating: number, badges: string[], comment?: string, customerName?: string }) => {
+      const updatedList = staffList.map(staff => {
+          if (staff.id === staffId) {
+              const currentReviews = staff.reviews || [];
+              const newReview: Review = {
+                  id: Date.now().toString(),
+                  rating: reviewData.rating,
+                  badges: reviewData.badges,
+                  comment: reviewData.comment,
+                  customerName: reviewData.customerName,
+                  date: new Date().toISOString()
+              };
+              const newReviews = [newReview, ...currentReviews];
+              const sum = newReviews.reduce((acc, r) => acc + r.rating, 0);
+              const avg = sum / newReviews.length;
+              return { ...staff, reviews: newReviews, rating: avg };
+          }
+          return staff;
+      });
+      setStaffList(updatedList);
+      saveSettingsToFirebase(updatedList, pricingData, globalPayroll);
+      alert("Thank you for your feedback!");
+  };
+  
+  const handleSubmitBooking = (bookingData: BookingRequest) => {
+      const newBookings = [bookingData, ...bookings];
+      setBookings(newBookings);
+  };
+  
+  const handleUpdateBookingStatus = (id: string, status: 'pending' | 'confirmed' | 'cancelled') => {
+      const updatedBookings = bookings.map(b => b.id === id ? { ...b, status } : b);
+      setBookings(updatedBookings);
+  };
+
+  const handleDeleteBooking = (id: string) => {
+      const newBookings = bookings.filter(b => b.id !== id);
+      setBookings(newBookings);
+  };
+
   const t = TRANSLATIONS.en;
 
-  // --- INITIAL DATA LOAD & SYNC ---
+  // --- INITIAL LOAD & BACKGROUND SYNC ---
   useEffect(() => {
-     // 1. Sync Customers from Google Sheets (Background Process - keep this for history)
-     const syncData = async () => {
-         try {
-             const transactions = await fetchGoogleSheetsData();
-             syncCustomersFromHistory(transactions);
-         } catch (e) {
-             console.error("Background sync failed", e);
-         }
-     };
-     syncData();
-
-     // 2. Load Usage Limits
+     // Load Daily Limit
      const savedData = localStorage.getItem('laPerlaUsage');
      if (savedData) {
         try {
@@ -345,66 +502,123 @@ const MainApp: React.FC = () => {
         }
     }
 
-    // 3. Load Local Waitlist (Fallback)
+    // Load Local Data (Fallback)
     try {
         const savedWaitlist = getWaitlist();
-        if (Array.isArray(savedWaitlist) && savedWaitlist.length > 0) {
-            setWaitlist(savedWaitlist);
-        }
+        if (Array.isArray(savedWaitlist) && savedWaitlist.length > 0) setWaitlist(savedWaitlist);
+        const savedBookings = getBookings();
+        if (Array.isArray(savedBookings) && savedBookings.length > 0) setBookings(savedBookings);
     } catch {}
   }, []);
 
-  // --- FIREBASE REAL-TIME SUBSCRIPTIONS ---
+  // --- BACKGROUND SYNC JOB ---
   useEffect(() => {
-      // Don't subscribe if guest
       if (isGuest) return;
 
-      // 1. Subscribe to System State (Bills/Waitlist)
+      const runSync = async () => {
+          setSyncStatus('syncing');
+          try {
+              const localTxs = getTransactions();
+              if (localTxs.length === 0) {
+                  setSyncStatus('synced');
+                  return;
+              }
+
+              // Only sync transactions from last 48 hours to save bandwidth
+              const twoDaysAgo = new Date();
+              twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+              const recentTxs = localTxs.filter(tx => new Date(tx.date) > twoDaysAgo);
+
+              let hasError = false;
+              for (const tx of recentTxs) {
+                  // Idempotent write: overwrites with same data if exists, harmless but safe
+                  const result = await saveTransactionToFirebase(tx);
+                  if (!result.success) hasError = true;
+              }
+
+              if (hasError) setSyncStatus('error');
+              else setSyncStatus('synced');
+
+          } catch (e) {
+              console.error("Auto Sync Failed", e);
+              setSyncStatus('error');
+          }
+      };
+
+      // Run immediately on load (after system ready)
+      if (isSystemReady) runSync();
+
+      // Run every 5 minutes (300,000 ms)
+      const intervalId = setInterval(runSync, 300000); 
+
+      return () => clearInterval(intervalId);
+  }, [isSystemReady, isGuest]);
+
+
+  // --- FIREBASE SUBSCRIPTIONS (READ) ---
+  useEffect(() => {
+      if (isGuest) {
+          setIsSystemReady(true);
+          return;
+      }
+
+      // 1. Subscribe to System State
       const unsubState = subscribeToSystemState((cloudState) => {
           setIsConnected(true);
+          setIsSystemReady(true);
           
-          const cloudJson = JSON.stringify({ activeBills: cloudState.activeBills, waitlist: cloudState.waitlist });
-          // Check against current state in ref to avoid loops
+          // --- VERSION CONTROL CHECK ---
+          if (cloudState.appVersion) {
+              if (localAppVersion.current === 0) {
+                  // Initialize local version on first load
+                  localAppVersion.current = cloudState.appVersion;
+              } else if (cloudState.appVersion > localAppVersion.current) {
+                  // New version detected! Force reload.
+                  console.log("New version detected from Firebase. Reloading...");
+                  window.location.reload();
+                  return; // Stop further processing
+              }
+          }
+
+          const cloudJson = JSON.stringify({ activeBills: cloudState.activeBills, waitlist: cloudState.waitlist, bookings: cloudState.bookings });
+          
           if (cloudJson !== lastSyncedState.current) {
                lastSyncedState.current = cloudJson;
                
-               // If cloud has data, update local state
-               if (cloudState.activeBills && Array.isArray(cloudState.activeBills) && cloudState.activeBills.length > 0) {
+               if (cloudState.activeBills && Array.isArray(cloudState.activeBills)) {
                    setActiveBills(cloudState.activeBills);
-                   
-                   // Ensure we have a valid selected ID
+                   // If current ID is invalid/missing, set to first one or empty
                    const currentExists = cloudState.activeBills.find(b => b.id === currentBillId);
                    if (!currentExists) {
-                       setCurrentBillId(cloudState.activeBills[0].id);
+                       setCurrentBillId(cloudState.activeBills.length > 0 ? cloudState.activeBills[0].id : '');
                    }
+               } else {
+                   setActiveBills([]);
+                   setCurrentBillId('');
                }
-               
-               if (cloudState.waitlist && Array.isArray(cloudState.waitlist)) {
-                   setWaitlist(cloudState.waitlist);
-               }
+
+               if (cloudState.waitlist && Array.isArray(cloudState.waitlist)) setWaitlist(cloudState.waitlist);
+               if (cloudState.bookings && Array.isArray(cloudState.bookings)) setBookings(cloudState.bookings);
           }
+          if (cloudState.activeStaffIds) setActiveStaffIds(cloudState.activeStaffIds);
       });
 
-      // 2. Subscribe to Settings (Staff/Menu)
+      // 2. Subscribe to Settings
       const unsubSettings = subscribeToSettings((settings) => {
            if (settings) {
-                // Update Staff List
-                if (settings.staffList && settings.staffList.length > 0) {
-                    setStaffList(settings.staffList);
-                }
+                if (settings.staffList && settings.staffList.length > 0) setStaffList(settings.staffList);
+                else setStaffList(DEFAULT_STAFF_PROFILES);
 
-                // Update Pricing Data (Merge with Icons)
                 if (settings.pricingData && settings.pricingData.length > 0) {
                     const mergedPricing = settings.pricingData.map(cloudCat => {
-                        // Find original default category to get the correct Icon Component
                         const defaultCat = DEFAULT_PRICING.find(d => d.categoryKey === cloudCat.categoryKey);
-                        return {
-                            ...cloudCat,
-                            // Fallback to SparklesIcon if category not found or icon missing
-                            icon: defaultCat ? defaultCat.icon : SparklesIcon 
-                        };
+                        return { ...cloudCat, icon: defaultCat ? defaultCat.icon : SparklesIcon };
                     });
                     setPricingData(mergedPricing);
+                }
+                
+                if (settings.globalPayroll) {
+                    setGlobalPayroll(settings.globalPayroll);
                 }
            }
       });
@@ -416,42 +630,55 @@ const MainApp: React.FC = () => {
   }, [currentBillId, isGuest]); 
 
 
-  // --- AUTO-SAVE SYSTEM STATE (FIREBASE & LOCAL) ---
+  // --- FIREBASE WRITE (SAVE) ---
   useEffect(() => {
-      const currentJson = JSON.stringify({ activeBills, waitlist });
+      // *** CRITICAL SAFETY CHECK ***
+      // If system is not ready (haven't fetched from cloud yet), DO NOT SAVE.
+      // This prevents overwriting cloud data with empty local state on fresh load.
+      if (!isSystemReady || isGuest) return;
 
-      // LOCAL PERSISTENCE
+      const currentJson = JSON.stringify({ activeBills, waitlist, bookings });
+
       saveActiveBills(activeBills);
       saveCurrentBillId(currentBillId);
       saveWaitlist(waitlist);
+      saveBookings(bookings);
       
-      // CLOUD PERSISTENCE
-      if (currentJson !== lastSyncedState.current && !isGuest) {
+      if (currentJson !== lastSyncedState.current) {
           const handler = setTimeout(() => {
-              saveSystemStateToFirebase(activeBills, waitlist).then(success => {
-                  if(success) setIsConnected(true);
-              });
+              // saveSystemStateToFirebase(activeBills, waitlist, bookings).then(success => {
+              //    if(success) setIsConnected(true);
+              // });
               lastSyncedState.current = currentJson;
           }, 500); 
 
           return () => clearTimeout(handler);
       }
-  }, [activeBills, waitlist, currentBillId, isGuest]);
+  }, [activeBills, waitlist, bookings, currentBillId, isGuest, isSystemReady]);
 
 
   useEffect(() => {
-    // Check URL for receipt data
+    // Receipt Loading (Guest Mode)
     const params = new URLSearchParams(window.location.search);
     const receiptData = params.get('receipt');
 
     if (receiptData) {
-        setIsGuest(true); // Enable Guest Mode
+        setIsGuest(true);
+        // Manual session clear to avoid calling handleLogout (which sets 'gate')
+        const existingUser = getCurrentUser();
+        if (existingUser) {
+            updateStaffPresence(existingUser.id, false);
+        }
+        setCurrentUser(null);
+        clearCurrentUser();
+        
+        // Force App mode (skip entry gate)
+        setAppMode('app'); 
         setView('pricing');
-        setIsStaffMode(false);
+        
         try {
             const json = decodeURIComponent(escape(atob(receiptData)));
             const data = JSON.parse(json);
-            
             if (data) {
                 const restoredItems: CartItem[] = Array.isArray(data.i) 
                     ? data.i.map((item: any) => ({
@@ -460,19 +687,15 @@ const MainApp: React.FC = () => {
                          price: Number(item.p),
                          quantity: Number(item.q),
                          staffName: item.s || undefined
-                    }))
-                    : [];
-
+                    })) : [];
                 const newBill: ActiveBill = {
                     id: `receipt-${Date.now()}`,
                     customerName: data.c || '',
                     items: restoredItems,
                     discountPercentage: data.d ? Number(data.d) : 0
                 };
-
                 setActiveBills(prev => [...prev, newBill]);
                 setCurrentBillId(newBill.id);
-                // Trigger auto download prompt logic, but maybe we just want to show the bill
                 setIsBillOpen(true); 
             }
         } catch (e) {
@@ -499,7 +722,6 @@ const MainApp: React.FC = () => {
       setGeneratedImage(null);
       setError(null);
       setIsLoading(true);
-
       try {
         const base64Image = await generateNailArt(file, stylePrompt);
         setGeneratedImage(`data:image/png;base64,${base64Image}`);
@@ -526,7 +748,6 @@ const MainApp: React.FC = () => {
     }
   };
 
-
   const reset = () => {
     setUserImage(null);
     setGeneratedImage(null);
@@ -534,50 +755,107 @@ const MainApp: React.FC = () => {
     setStylePrompt('');
   };
 
-  // If Kiosk View is active, render it exclusively
+  // --- LOADING SCREEN (SAFETY LOCK) ---
+  if (!isSystemReady && !isGuest) {
+      return (
+          <div className="min-h-screen bg-pearl-white flex flex-col items-center justify-center p-6 text-center">
+              <div className="animate-pulse">
+                  <LaPerlaLogo className="w-64 mb-8" />
+              </div>
+              <div className="w-12 h-12 border-4 border-dusty-rose border-t-gold-leaf rounded-full animate-spin mb-4"></div>
+              <h2 className="text-xl font-serif text-charcoal font-bold">Synchronizing System Data...</h2>
+              <p className="text-sm text-gray-500 mt-2">Please wait while we secure your connection.</p>
+          </div>
+      );
+  }
+
+  // If Kiosk View is active
   if (view === 'kiosk') {
       return (
           <KioskView 
             t={t}
             waitlist={waitlist}
             setWaitlist={updateWaitlist}
-            onExit={() => setView('pricing')} // Return to main app
+            onExit={() => setView('pricing')} 
+            pricingData={pricingData}
+            bookings={bookings}
+            activeBills={activeBills}
+            pastTransactions={customerLookupData} // Pass history to Kiosk
           />
       );
   }
 
+  if (view === 'portal' && currentUser) {
+      return (
+          <StaffPortalView 
+            t={t}
+            currentUser={currentUser}
+            onUpdateProfile={handleUpdateStaffProfile}
+            onExit={() => setView('pricing')}
+            globalPayroll={globalPayroll}
+            pricingData={pricingData}
+          />
+      );
+  }
+
+  if (appMode === 'gate') {
+      return (
+          <EntryGate 
+            onClientEnter={handleClientEnter}
+            onStaffLogin={handleLogin}
+            staffList={staffList}
+          />
+      );
+  }
+
+  // Main App Render
   return (
     <div className="min-h-screen bg-pearl-white flex flex-col font-sans">
-      
-      {/* HEADER: Hide if Guest (Optional, usually we want to keep header for branding) */}
+      {/* WINDOW CONTROLS - Added to simulate native app frame */}
+      <div className="w-full h-8 flex justify-end items-center bg-pearl-white select-none print:hidden z-[1000]" style={{ WebkitAppRegion: 'drag' } as any}>
+         <div className="flex h-full" style={{ WebkitAppRegion: 'no-drag' } as any}>
+            {/* Close */}
+            <button 
+                className="w-12 h-full flex items-center justify-center text-charcoal hover:bg-red-500 hover:text-white transition-colors focus:outline-none"
+                onClick={() => { try { window.close() } catch(e){} }}
+            >
+                <XMarkIcon className="w-4 h-4" />
+            </button>
+         </div>
+      </div>
+
       {!isGuest && (
       <header className="w-full bg-pearl-white shadow-sm border-b border-gold-leaf/20 sticky top-0 z-50">
-        {/* Removed 'flex justify-center' to avoid constraining mobile width */}
         <div className="max-w-7xl mx-auto py-3 md:py-4 relative">
-            
-             {/* Desktop Navigation - Centered with Absolute Right Admin Button */}
             <div className="hidden md:flex justify-center items-center px-4 relative">
                 <div className="flex gap-3">
+                    <NavButton view="pricing" icon={<PriceTagIcon className="w-5 h-5"/>} label={t.navPriceList} currentView={view} onClick={setView} />
+                    <NavButton view="team" icon={<UsersIcon className="w-5 h-5"/>} label={t.navTeam} currentView={view} onClick={setView} />
                     <NavButton view="stylist" icon={<SparklesIcon className="w-5 h-5"/>} label={t.navAiStylist} currentView={view} onClick={setView} />
                     <NavButton view="gallery" icon={<GalleryIcon className="w-5 h-5"/>} label={t.navGallery} currentView={view} onClick={setView} />
-                    <NavButton view="pricing" icon={<PriceTagIcon className="w-5 h-5"/>} label={t.navPriceList} currentView={view} onClick={setView} />
                     <NavButton view="portfolio" icon={<CameraIcon className="w-5 h-5"/>} label={t.navPortfolio} currentView={view} onClick={setView} />
                     <NavButton view="booking" icon={<CalendarIcon className="w-5 h-5"/>} label={t.navBooking} currentView={view} onClick={setView} />
                     <NavButton view="promotions" icon={<GiftIcon className="w-5 h-5 text-red-400"/>} label={t.navPromotions} currentView={view} onClick={setView} />
                 </div>
-                
-                {/* Admin Lock Button (Desktop) - Positioned Absolute Right */}
-                <div className="absolute right-0 flex gap-2">
-                    {/* Only show Kiosk button if already in staff mode to avoid clutter, or let Admin access it */}
+                <div className="absolute right-0 flex gap-2 items-center">
+                    {/* Cloud Status Indicator */}
+                    <div className="mr-2" title={`Cloud Sync: ${syncStatus === 'synced' ? 'Online' : syncStatus === 'syncing' ? 'Syncing' : 'Error'}`}>
+                        {syncStatus === 'synced' && <CloudCheckIcon className="w-6 h-6 text-green-500" />}
+                        {syncStatus === 'syncing' && <CloudSyncIcon className="w-6 h-6 text-yellow-500 animate-spin" />}
+                        {syncStatus === 'error' && <CloudErrorIcon className="w-6 h-6 text-red-500 animate-pulse" />}
+                    </div>
+
+                    {currentUser && (
+                        <button 
+                            onClick={() => { SoundManager.playTap(); setView('kiosk'); }}
+                            className="p-2 text-gray-400 hover:text-gold-leaf transition-colors rounded-full hover:bg-gray-50"
+                            title={t.enterKioskMode}
+                        >
+                            <span className="font-serif font-bold text-xs border border-current px-2 py-0.5 rounded">Kiosk</span>
+                        </button>
+                    )}
                     <button 
-                        onClick={() => setView('kiosk')}
-                        className="p-2 text-gray-400 hover:text-gold-leaf transition-colors rounded-full hover:bg-gray-50"
-                        title={t.enterKioskMode}
-                    >
-                        <span className="font-serif font-bold text-xs border border-current px-2 py-0.5 rounded">Kiosk</span>
-                    </button>
-                    <button 
-                        onClick={() => setView('admin')}
+                        onClick={() => { SoundManager.playTap(); setView('admin'); }}
                         className="p-2 text-gray-400 hover:text-gold-leaf transition-colors rounded-full hover:bg-gray-50"
                         title={t.adminLogin}
                     >
@@ -586,45 +864,41 @@ const MainApp: React.FC = () => {
                 </div>
             </div>
 
-             {/* Mobile Navigation Toggle - Full Menu with Horizontal Scroll */}
-             {/* Added w-full and removed constraint to ensure scrolling works */}
             <div className="md:hidden flex items-center gap-3 overflow-x-auto pb-2 pt-1 w-full no-scrollbar px-4">
-                 <button onClick={() => setView('stylist')} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all ${view === 'stylist' ? 'bg-gold-leaf text-white' : 'bg-white text-charcoal border border-dusty-rose/30'}`}>
-                    <SparklesIcon className="w-5 h-5"/>
-                    <span className="text-sm font-medium whitespace-nowrap">{t.navAiStylist}</span>
-                 </button>
-                 
-                 <button onClick={() => setView('gallery')} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all ${view === 'gallery' ? 'bg-gold-leaf text-white' : 'bg-white text-charcoal border border-dusty-rose/30'}`}>
-                    <GalleryIcon className="w-5 h-5"/>
-                    <span className="text-sm font-medium whitespace-nowrap">{t.navGallery}</span>
-                 </button>
-
-                 <button onClick={() => setView('pricing')} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all ${view === 'pricing' ? 'bg-gold-leaf text-white' : 'bg-white text-charcoal border border-dusty-rose/30'}`}>
+                 <button onClick={() => { SoundManager.playTap(); setView('pricing'); }} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all ${view === 'pricing' ? 'bg-gold-leaf text-white' : 'bg-white text-charcoal border border-dusty-rose/30'}`}>
                     <PriceTagIcon className="w-5 h-5"/>
                     <span className="text-sm font-medium whitespace-nowrap">{t.navPriceList}</span>
                  </button>
-
-                 <button onClick={() => setView('portfolio')} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all ${view === 'portfolio' ? 'bg-gold-leaf text-white' : 'bg-white text-charcoal border border-dusty-rose/30'}`}>
+                 <button onClick={() => { SoundManager.playTap(); setView('team'); }} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all ${view === 'team' ? 'bg-gold-leaf text-white' : 'bg-white text-charcoal border border-dusty-rose/30'}`}>
+                    <UsersIcon className="w-5 h-5"/>
+                    <span className="text-sm font-medium whitespace-nowrap">{t.navTeam}</span>
+                 </button>
+                 <button onClick={() => { SoundManager.playTap(); setView('stylist'); }} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all ${view === 'stylist' ? 'bg-gold-leaf text-white' : 'bg-white text-charcoal border border-dusty-rose/30'}`}>
+                    <SparklesIcon className="w-5 h-5"/>
+                    <span className="text-sm font-medium whitespace-nowrap">{t.navAiStylist}</span>
+                 </button>
+                 <button onClick={() => { SoundManager.playTap(); setView('gallery'); }} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all ${view === 'gallery' ? 'bg-gold-leaf text-white' : 'bg-white text-charcoal border border-dusty-rose/30'}`}>
+                    <GalleryIcon className="w-5 h-5"/>
+                    <span className="text-sm font-medium whitespace-nowrap">{t.navGallery}</span>
+                 </button>
+                 <button onClick={() => { SoundManager.playTap(); setView('portfolio'); }} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all ${view === 'portfolio' ? 'bg-gold-leaf text-white' : 'bg-white text-charcoal border border-dusty-rose/30'}`}>
                     <CameraIcon className="w-5 h-5"/>
                     <span className="text-sm font-medium whitespace-nowrap">{t.navPortfolio}</span>
                  </button>
-
-                 <button onClick={() => setView('booking')} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all ${view === 'booking' ? 'bg-gold-leaf text-white' : 'bg-white text-charcoal border border-dusty-rose/30'}`}>
+                 <button onClick={() => { SoundManager.playTap(); setView('booking'); }} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all ${view === 'booking' ? 'bg-gold-leaf text-white' : 'bg-white text-charcoal border border-dusty-rose/30'}`}>
                     <CalendarIcon className="w-5 h-5"/>
                     <span className="text-sm font-medium whitespace-nowrap">{t.navBooking}</span>
                  </button>
-
-                 <button onClick={() => setView('promotions')} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all ${view === 'promotions' ? 'bg-gold-leaf text-white' : 'bg-white text-charcoal border border-dusty-rose/30'}`}>
+                 <button onClick={() => { SoundManager.playTap(); setView('promotions'); }} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all ${view === 'promotions' ? 'bg-gold-leaf text-white' : 'bg-white text-charcoal border border-dusty-rose/30'}`}>
                     <GiftIcon className="w-5 h-5"/>
                     <span className="text-sm font-medium whitespace-nowrap">{t.navPromotions}</span>
                  </button>
-
-                 <button onClick={() => setView('kiosk')} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all bg-white text-charcoal border border-dusty-rose/30`}>
-                    <span className="font-serif font-bold">Kiosk</span>
-                 </button>
-
-                 {/* Admin Button (Mobile) - Added to end of list */}
-                 <button onClick={() => setView('admin')} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all ${view === 'admin' ? 'bg-charcoal text-white' : 'bg-gray-100 text-gray-500 border border-gray-200'}`}>
+                 {currentUser && (
+                    <button onClick={() => { SoundManager.playTap(); setView('kiosk'); }} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all bg-white text-charcoal border border-dusty-rose/30`}>
+                        <span className="font-serif font-bold">Kiosk</span>
+                    </button>
+                 )}
+                 <button onClick={() => { SoundManager.playTap(); setView('admin'); }} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all ${view === 'admin' ? 'bg-charcoal text-white' : 'bg-gray-100 text-gray-500 border border-gray-200'}`}>
                     <LockIcon className="w-5 h-5"/>
                     <span className="text-sm font-medium whitespace-nowrap">{t.adminLogin}</span>
                  </button>
@@ -654,6 +928,15 @@ const MainApp: React.FC = () => {
                 dailyLimit={DAILY_LIMIT}
             />
         )}
+        {view === 'team' && (
+            <ArtistsView 
+                t={t}
+                staffList={staffList}
+                onStaffReview={handleStaffReview}
+                currentUser={currentUser}
+                onOpenPortal={() => setView('portal')}
+            />
+        )}
         {view === 'pricing' && (
             <PricingView 
                 t={t} 
@@ -667,13 +950,16 @@ const MainApp: React.FC = () => {
                 setOpenCategories={setOpenCategories}
                 autoDownloadTrigger={autoDownloadTrigger}
                 onAutoDownloadComplete={() => setAutoDownloadTrigger(false)}
-                isStaffMode={isStaffMode}
-                setIsStaffMode={setIsStaffMode}
+                currentUser={currentUser}
+                onLogin={handleLogin}
+                onLogout={handleLogout}
                 waitlist={waitlist}
                 setWaitlist={updateWaitlist}
-                // DYNAMIC DATA PROPS
                 staffList={staffList}
                 pricingData={pricingData}
+                activeStaffIds={activeStaffIds}
+                onStaffReview={handleStaffReview}
+                isReceiptMode={isGuest}
             />
         )}
         {view === 'gallery' && (
@@ -692,6 +978,7 @@ const MainApp: React.FC = () => {
                 t={t} 
                 languageCode="en"
                 pricingData={pricingData}
+                onSubmitBooking={handleSubmitBooking}
             />
         )}
         {view === 'promotions' && <PromotionsView t={t} />}
@@ -699,16 +986,39 @@ const MainApp: React.FC = () => {
              <AdminView 
                 t={t} 
                 onLogout={() => {
-                    // When logging out from admin, just switch view
                     setView('stylist'); 
                 }}
                 staffList={staffList}
                 pricingData={pricingData}
+                bookings={bookings}
+                onUpdateBookingStatus={handleUpdateBookingStatus}
+                onDeleteBooking={handleDeleteBooking}
+                globalPayroll={globalPayroll}
+                onUpdateGlobalPayroll={setGlobalPayroll}
+                onSaveSettings={(staff, pricing, payroll) => {
+                    // Update local state first to feel fast
+                    setStaffList(staff);
+                    setPricingData(pricing);
+                    setGlobalPayroll(payroll);
+                    // Then save to cloud
+                    saveSettingsToFirebase(staff, pricing, payroll).then(success => {
+                        if(success) alert("Settings saved successfully!");
+                        else alert("Error saving settings. Check connection.");
+                    });
+                }}
             />
         )}
       </main>
       
-      {/* Footer */}
+      {/* Chat Widget - Only show if NOT in Kiosk/Admin/Gate modes to keep those clean */}
+      {!isGuest && appMode === 'app' && view !== 'admin' && view !== 'portal' && (
+          <ChatWidget 
+              t={t}
+              pricingData={pricingData}
+              staffList={staffList}
+          />
+      )}
+
       <footer className="bg-pearl-white text-center p-6 border-t border-gold-leaf/20 mt-auto">
          <p className="text-charcoal/60 text-sm font-sans">
             {t.footerText.replace('{year}', new Date().getFullYear().toString())}

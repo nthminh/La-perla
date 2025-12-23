@@ -1,11 +1,13 @@
 
-import { Transaction, CustomerProfile, RecentServiceItem, WaitlistEntry, ActiveBill } from '../types';
+import { Transaction, CustomerProfile, RecentServiceItem, WaitlistEntry, ActiveBill, StaffProfile, BookingRequest } from '../types';
 
 const STORAGE_KEY = 'la_perla_transactions';
 const CUSTOMERS_KEY = 'la_perla_customers';
 const WAITLIST_KEY = 'la_perla_waitlist';
+const BOOKINGS_KEY = 'la_perla_bookings';
 const ACTIVE_BILLS_KEY = 'la_perla_active_bills';
 const CURRENT_BILL_ID_KEY = 'la_perla_current_bill_id';
+const CURRENT_USER_KEY = 'la_perla_current_user';
 
 export const saveTransaction = (transaction: Transaction): void => {
   try {
@@ -31,8 +33,36 @@ export const getTransactions = (): Transaction[] => {
   }
 };
 
+export const deleteLocalTransaction = (id: string): void => {
+    try {
+        const existingData = localStorage.getItem(STORAGE_KEY);
+        if (existingData) {
+            const transactions: Transaction[] = JSON.parse(existingData);
+            const updated = transactions.filter(t => t.id !== id);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        }
+    } catch (error) {
+        console.error("Failed to delete local transaction", error);
+    }
+};
+
 export const clearTransactions = (): void => {
   localStorage.removeItem(STORAGE_KEY);
+};
+
+// NEW: Prune old transactions locally (Keep data NEWER than cutoffDate)
+export const pruneOldLocalTransactions = (cutoffDate: Date): void => {
+    try {
+        const existingData = localStorage.getItem(STORAGE_KEY);
+        if (existingData) {
+            const transactions: Transaction[] = JSON.parse(existingData);
+            // Keep transactions that are NEWER than the cutoff date
+            const kept = transactions.filter(t => new Date(t.date) >= cutoffDate);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(kept));
+        }
+    } catch (error) {
+        console.error("Failed to prune local transactions", error);
+    }
 };
 
 // --- WAITLIST FUNCTIONS ---
@@ -51,6 +81,26 @@ export const getWaitlist = (): WaitlistEntry[] => {
         return data ? JSON.parse(data) : [];
     } catch (error) {
         console.error("Failed to load waitlist", error);
+        return [];
+    }
+};
+
+// --- BOOKINGS FUNCTIONS ---
+
+export const saveBookings = (bookings: BookingRequest[]): void => {
+    try {
+        localStorage.setItem(BOOKINGS_KEY, JSON.stringify(bookings));
+    } catch (error) {
+        console.error("Failed to save bookings", error);
+    }
+};
+
+export const getBookings = (): BookingRequest[] => {
+    try {
+        const data = localStorage.getItem(BOOKINGS_KEY);
+        return data ? JSON.parse(data) : [];
+    } catch (error) {
+        console.error("Failed to load bookings", error);
         return [];
     }
 };
@@ -87,6 +137,29 @@ export const getCurrentBillId = (): string | null => {
     return localStorage.getItem(CURRENT_BILL_ID_KEY);
 };
 
+// --- SESSION / AUTH FUNCTIONS ---
+
+export const saveCurrentUser = (user: StaffProfile): void => {
+    try {
+        localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(user));
+    } catch (error) {
+        console.error("Failed to save session", error);
+    }
+};
+
+export const getCurrentUser = (): StaffProfile | null => {
+    try {
+        const data = localStorage.getItem(CURRENT_USER_KEY);
+        return data ? JSON.parse(data) : null;
+    } catch (error) {
+        return null;
+    }
+};
+
+export const clearCurrentUser = (): void => {
+    localStorage.removeItem(CURRENT_USER_KEY);
+};
+
 // --- CRM / CUSTOMER FUNCTIONS ---
 
 /**
@@ -110,12 +183,30 @@ const saveCustomerFromTransaction = (transaction: Transaction): void => {
             price: i.price
         }));
 
+        // Detect Yearly Membership purchase to update VIP status
+        const purchasedMembership = transaction.items.some(i => 
+            i.nameKey.toLowerCase().includes('yearlymembership') || 
+            (i.displayName && i.displayName.toLowerCase().includes('yearly membership'))
+        );
+
+        let membershipExpiry: string | undefined = undefined;
+        if (purchasedMembership) {
+            const expiry = new Date(transaction.date);
+            expiry.setFullYear(expiry.getFullYear() + 1);
+            membershipExpiry = expiry.toISOString();
+        }
+
         if (existingIndex >= 0) {
             // Update existing
             const customer = customers[existingIndex];
             customer.visitCount += 1;
             customer.totalSpent += transaction.total;
             
+            // Update membership if purchased
+            if (membershipExpiry) {
+                customer.membershipExpiry = membershipExpiry;
+            }
+
             // Only update lastVisit if the new transaction is actually newer (or same date)
             if (new Date(transaction.date) >= new Date(customer.lastVisit)) {
                  customer.lastVisit = transaction.date;
@@ -141,7 +232,8 @@ const saveCustomerFromTransaction = (transaction: Transaction): void => {
                 lastVisit: transaction.date,
                 visitCount: 1,
                 totalSpent: transaction.total,
-                recentServices: newServiceItems.slice(0, 10)
+                recentServices: newServiceItems.slice(0, 10),
+                membershipExpiry: membershipExpiry
             };
             customers.push(newCustomer);
         }
@@ -150,121 +242,6 @@ const saveCustomerFromTransaction = (transaction: Transaction): void => {
 
     } catch (error) {
         console.error("Failed to save customer profile", error);
-    }
-};
-
-/**
- * Batch processes a list of transactions (e.g., from Google Sheets) 
- * to build/update the local customer database.
- * This ensures data persistence across devices/sessions.
- */
-export const syncCustomersFromHistory = (transactions: Transaction[]): void => {
-    if (!transactions || transactions.length === 0) return;
-
-    try {
-        const existingData = localStorage.getItem(CUSTOMERS_KEY);
-        // Load existing map
-        const customers: CustomerProfile[] = existingData ? JSON.parse(existingData) : [];
-        const customerMap = new Map<string, CustomerProfile>();
-        customers.forEach(c => customerMap.set(c.normalizedName, c));
-
-        // Group transactions by normalized customer name
-        const transactionsByCustomer: Record<string, Transaction[]> = {};
-        
-        transactions.forEach(tr => {
-            if (!tr.customerName) return;
-            const norm = tr.customerName.trim().toLowerCase();
-            if (!transactionsByCustomer[norm]) {
-                transactionsByCustomer[norm] = [];
-            }
-            transactionsByCustomer[norm].push(tr);
-        });
-
-        let updatesMade = false;
-
-        // Process each customer group
-        Object.entries(transactionsByCustomer).forEach(([normName, userTrans]) => {
-            // Sort user transactions: Newest First
-            userTrans.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-            // Latest transaction determines basic info
-            const latestTr = userTrans[0];
-            
-            // Calculate aggregations
-            const visitCount = userTrans.length;
-            const totalSpent = userTrans.reduce((sum, t) => sum + t.total, 0);
-
-            // Aggregate recent services (flatten all items from newest to oldest)
-            const allServices: RecentServiceItem[] = [];
-            userTrans.forEach(tr => {
-                tr.items.forEach(item => {
-                    allServices.push({
-                        nameKey: item.nameKey,
-                        date: tr.date,
-                        price: item.price
-                    });
-                });
-            });
-            const recentServices = allServices.slice(0, 10);
-
-            let customer = customerMap.get(normName);
-
-            if (!customer) {
-                // New Customer from History
-                customer = {
-                    id: `imported-${Date.now()}-${Math.random()}`,
-                    name: latestTr.customerName!.trim(),
-                    normalizedName: normName,
-                    phone: latestTr.customerPhone || '',
-                    notes: latestTr.customerNotes || '',
-                    lastVisit: latestTr.date,
-                    visitCount,
-                    totalSpent,
-                    recentServices
-                };
-                customerMap.set(normName, customer);
-                updatesMade = true;
-            } else {
-                // Existing Customer - Update metrics if history provides more data
-                
-                let changed = false;
-                
-                // Update Phone/Notes if the sheet has newer data or missing data
-                if (new Date(latestTr.date) >= new Date(customer.lastVisit)) {
-                    customer.lastVisit = latestTr.date;
-                    if (latestTr.customerPhone) { customer.phone = latestTr.customerPhone; changed = true; }
-                    if (latestTr.customerNotes) { customer.notes = latestTr.customerNotes; changed = true; }
-                }
-
-                // Merge/Overwrite recent services with the historical view
-                if (recentServices.length > 0) {
-                     // Check if actually different to avoid unnecessary writes
-                     const oldJson = JSON.stringify(customer.recentServices);
-                     const newJson = JSON.stringify(recentServices);
-                     if (oldJson !== newJson) {
-                         customer.recentServices = recentServices;
-                         changed = true;
-                     }
-                }
-                
-                // Optional: Update visit counts if history seems larger
-                if (visitCount > customer.visitCount) {
-                    customer.visitCount = visitCount;
-                    customer.totalSpent = totalSpent;
-                    changed = true;
-                }
-
-                if (changed) updatesMade = true;
-            }
-        });
-
-        if (updatesMade) {
-            localStorage.setItem(CUSTOMERS_KEY, JSON.stringify(Array.from(customerMap.values())));
-            console.log("Customer database synced from Google Sheets history.");
-        }
-
-    } catch (error) {
-        console.error("Failed to sync customers from history", error);
     }
 };
 

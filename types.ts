@@ -1,3 +1,4 @@
+
 // FIX: Import React to use React.ComponentType
 import React from 'react';
 
@@ -19,11 +20,52 @@ export interface GalleryItem {
   src: string;
 }
 
+export interface Review {
+  id: string;
+  rating: number; // 1-5
+  badges?: string[]; // e.g., "Creative", "Gentle"
+  comment?: string; // New: Customer comment
+  customerName?: string; // New: Customer name
+  date: string;
+}
+
+// Global settings for targets (applies to all staff)
+export interface GlobalPayrollSettings {
+    defaultTarget: number;   // Standard Revenue Target
+    customTargets: Record<string, number>; // Key: "Monday", "Tuesday", etc. Value: Target Amount
+    gpsRequired?: boolean; // New: Require GPS check for payment completion
+}
+
+export interface PayrollConfig {
+    enabled: boolean;
+    baseSalary: number;      // Daily Base Salary (Guaranteed)
+    bonusRate: number;       // % Bonus on revenue ABOVE target (e.g. 20 for 20%)
+    // Targets are now removed from here and use GlobalPayrollSettings
+}
+
+export interface StaffProfile {
+  id: string;
+  name: string;
+  password?: string; // Optional (e.g. for legacy or external data), but used for login
+  avatar?: string; // Base64 image string
+  
+  // Artist Spotlight Fields
+  bio?: string;
+  specialties?: string[]; // e.g. ["3D Art", "Ombre", "Cuticle Care"]
+  portfolio?: string[]; // Array of Base64 image strings
+  reviews?: Review[];
+  rating?: number; // Calculated average 0-5
+  
+  // New Payroll Config
+  payroll?: PayrollConfig;
+}
+
 export interface TransactionItem {
   nameKey: string;
   price: number;
   quantity: number;
-  staffName?: string; // Added staffName property
+  staffName?: string; // Legacy support
+  staffId?: string; // Added to link specifically to a staff profile
   displayName?: string; // Added displayName to support custom names and fixes PricingView error
 }
 
@@ -41,6 +83,8 @@ export interface Transaction {
   customerName?: string;
   customerPhone?: string;
   customerNotes?: string;
+  // Conflict Resolution
+  lastUpdated?: number; // Epoch timestamp of the last edit
 }
 
 export interface ActiveBill {
@@ -50,6 +94,10 @@ export interface ActiveBill {
   customerNotes?: string;
   items: CartItem[];
   discountPercentage: number;
+  date?: string; // Optional: ISO string for historical bills
+  createdByStaffId?: string; // New: Track who started the bill to prevent it disappearing on rename
+  ticketNumber?: string; // New: Queue Ticket Number (e.g. #A01)
+  isVip?: boolean; // New: Flag to identify VIP customers in real-time
 }
 
 export interface WaitlistEntry {
@@ -60,6 +108,22 @@ export interface WaitlistEntry {
   addedTime: string; // ISO string
   estimatedReturnTime: string; // e.g. "14:30" or "30 mins"
   status?: 'waiting' | 'notified' | 'served'; // Track status
+  selectedServices?: string[]; // List of service names selected by customer
+  smsSentBy?: string; // Track which staff sent the SMS
+  ticketNumber?: string; // New: Queue Ticket Number (e.g. #W05)
+  isVip?: boolean; // New: Persist VIP status in waitlist
+}
+
+export interface BookingRequest {
+  id: string;
+  customerName: string;
+  customerPhone: string;
+  services: string[]; // List of service names
+  date: string; // YYYY-MM-DD
+  timeSlot: string;
+  notes?: string;
+  status: 'pending' | 'confirmed' | 'cancelled';
+  createdAt: string;
 }
 
 export interface RecentServiceItem {
@@ -78,9 +142,25 @@ export interface CustomerProfile {
   visitCount: number;
   totalSpent: number;
   recentServices?: RecentServiceItem[]; // List of last ~10 service items details
+  membershipExpiry?: string; // New: ISO date for Yearly Membership expiry
+}
+
+export interface AdminPasswords {
+    master: string;  // Full access
+    manager: string; // Shop Manager (Restricted)
 }
 
 export interface AppSettings {
-    staffList: string[];
+    staffList: StaffProfile[]; 
     pricingData: ServiceCategory[];
+    globalPayroll?: GlobalPayrollSettings; 
+    knowledgeBase?: string;
+    adminPasswords?: AdminPasswords; // New: Store passwords in settings
+}
+
+export interface SettingsSnapshot {
+    id: string;
+    timestamp: number;
+    data: AppSettings;
+    restoredFrom?: string; // ID of the snapshot used if this was a restore
 }

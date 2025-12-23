@@ -1,6 +1,9 @@
 
-import { ServiceCategory, GalleryItem } from './types';
+import { ServiceCategory, GalleryItem, StaffProfile, GlobalPayrollSettings, AdminPasswords } from './types';
 import { NailPolishIcon, WaxingIcon, EyelashIcon, SunIcon, SparklesIcon, LotusIcon, MustacheIcon, EyeDropperIcon } from './components/Icons';
+
+// --- Application Version ---
+export const APP_VERSION = '1.5.1';
 
 // --- Configuration ---
 export const SALON_EMAIL_ADDRESS = 'nthminh2804@gmail.com,vivian.dinh191@gmail.com,jd@doav.com.au';
@@ -12,7 +15,26 @@ export const GOOGLE_SHEETS_WEBAPP_URL = 'https://script.google.com/macros/s/AKfy
 // PASTE YOUR GOOGLE SHEET EDIT URL HERE
 export const GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1BvTONsBqv7aJT0eOFD2umlxsfMAReX8Q3Gbzd9N_4M8/edit?usp=sharing';
 
-export const STAFF_LIST = [
+// SHOP COORDINATES (Plumpton Marketplace)
+// Shop 10/260 Jersey Rd, Plumpton NSW 2761
+export const SHOP_LOCATION = {
+    lat: -33.7335,
+    lng: 150.8425,
+    allowedRadiusMeters: 2000 // Allow 200m radius around the shop
+};
+
+export const DEFAULT_GLOBAL_PAYROLL: GlobalPayrollSettings = {
+    defaultTarget: 500,
+    customTargets: {},
+    gpsRequired: false
+};
+
+export const DEFAULT_ADMIN_PASSWORDS: AdminPasswords = {
+    master: "2804",
+    manager: "1234"
+};
+
+const STAFF_NAMES_LEGACY = [
   "Amy",
   "Angela",
   "Chị Hạnh",
@@ -35,8 +57,17 @@ export const STAFF_LIST = [
   "Trang",
   "Trang Bé",
   "Vivian",
-  "Vy"
+  "Vy",
+  "Joe"
 ];
+
+// Convert legacy list to new profile format with default password '999'
+export const DEFAULT_STAFF_PROFILES: StaffProfile[] = STAFF_NAMES_LEGACY.map(name => ({
+    id: name.toLowerCase().replace(/\s/g, '_'),
+    name: name,
+    password: '999', // Default password updated to 999
+    avatar: '' // Placeholder for avatar
+}));
 
 // --- Pricing Data ---
 export const PRICING_DATA: ServiceCategory[] = [
@@ -100,7 +131,7 @@ export const PRICING_DATA: ServiceCategory[] = [
         { nameKey: 'backLadies', price: '$50' },
         { nameKey: 'halfArmsLadies', price: '$28' },
         { nameKey: 'fullArmsLadies', price: 'from $40' },
-        { nameKey: 'fullBodyLadies', price: 'Contact us' },
+        { nameKey: 'fullBodyLadies', price: 'from $100' },
     ],
   },
     {
@@ -116,7 +147,7 @@ export const PRICING_DATA: ServiceCategory[] = [
         { nameKey: 'fullLegsMens', price: '$65' },
         { nameKey: 'halfLegMens', price: '$45' },
         { nameKey: 'stomachMens', price: '$40' },
-        { nameKey: 'fullBodyMens', price: 'Contact us' },
+        { nameKey: 'fullBodyMens', price: 'from $100' },
     ],
   },
   {

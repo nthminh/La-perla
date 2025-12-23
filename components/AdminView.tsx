@@ -1,923 +1,758 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Translation } from '../translations';
-import { getTransactions } from '../services/storageService';
-import { fetchGoogleSheetsData } from '../services/googleSheetsService';
-import { Transaction, ServiceCategory } from '../types';
-import { ChartIcon, LockIcon, ReceiptIcon, DownloadIcon, LaPerlaLogo, PlusIcon, XMarkIcon, ChevronDownIcon } from './Icons';
-import { GOOGLE_SHEETS_WEBAPP_URL, GOOGLE_SHEET_URL } from '../constants'; 
-import { isFirebaseConfigured, validateConnection, saveFirebaseConfigLocally, parseConfigString, ParsedConfig, clearFirebaseConfigLocally, DEFAULT_CONFIG } from '../services/firebaseConfig';
-import { saveSettingsToFirebase } from '../services/firebaseService';
+import { getTransactions, clearTransactions, deleteLocalTransaction } from '../services/storageService';
+import { 
+    subscribeToTransactions, 
+    updateTransactionInFirebase, 
+    deleteTransactionFromFirebase, 
+    pruneOldTransactionsFromFirebase, 
+    saveTransactionToFirebase, 
+    fetchTransactionsOnce,
+    triggerClientUpdate,
+    fetchTransactionsByDateRange
+} from '../services/firebaseService';
+import { Transaction, ServiceCategory, StaffProfile, BookingRequest, PayrollConfig, GlobalPayrollSettings, AdminPasswords } from '../types';
+import { 
+    ChartIcon, LockIcon, ReceiptIcon, DownloadIcon, LaPerlaLogo, PlusIcon, XMarkIcon, 
+    ChevronDownIcon, CameraIcon, UploadIcon, UserIcon, PencilIcon, CalendarIcon, 
+    PhoneIcon, ClockIcon, TrashIcon, StarIcon, ListBulletIcon, CloudSyncIcon, UsersIcon, BriefcaseIcon, SparklesIcon, MapPinIcon, SearchIcon, GiftIcon, ChatIcon
+} from './Icons'; 
+import { 
+    isFirebaseConfigured, 
+    validateConnection, 
+    saveFirebaseConfigLocally, 
+    parseConfigString, 
+    ParsedConfig 
+} from '../services/firebaseConfig';
+import { CustomerCRMView } from './CustomerCRMView';
+import { MarketingView } from './MarketingView'; // New Component
+import { DEFAULT_ADMIN_PASSWORDS } from '../constants';
+import { compressImage } from '../utils/imageCompression'; 
+
+const DAYS_OF_WEEK = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+// --- CRITICAL: SYDNEY TIMEZONE HELPERS ---
+const getSydneyDateStr = (isoDate: string) => {
+    try {
+        return new Date(isoDate).toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+    } catch (e) {
+        return isoDate.split('T')[0]; 
+    }
+};
+
+const getSydneyDayName = (isoDate: string) => {
+    try {
+        return new Date(isoDate).toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney', weekday: 'long' });
+    } catch (e) {
+        return "";
+    }
+};
+
+const getSydneyToday = () => {
+    return new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+};
 
 interface AdminViewProps {
-  t: Translation;
-  onLogout: () => void;
-  // DYNAMIC DATA
-  staffList: string[];
-  pricingData: ServiceCategory[];
+    t: Translation;
+    onLogout: () => void;
+    staffList: StaffProfile[];
+    pricingData: ServiceCategory[];
+    bookings?: BookingRequest[];
+    onUpdateBookingStatus?: (id: string, status: 'pending' | 'confirmed' | 'cancelled') => void;
+    onDeleteBooking?: (id: string) => void;
+    globalPayroll?: GlobalPayrollSettings;
+    onUpdateGlobalPayroll?: (settings: GlobalPayrollSettings) => void;
+    onSaveSettings?: (staff: StaffProfile[], pricing: ServiceCategory[], payroll: GlobalPayrollSettings, knowledgeBase: string, adminPasswords: AdminPasswords) => Promise<void>;
+    knowledgeBase?: string;
+    adminRole?: 'master' | 'manager' | null;
+    adminPasswords?: AdminPasswords;
 }
 
-// SECURITY: Use Salted Base64 to obfuscate PIN in source code.
-const HASHED_PIN = "TGFQZXJsYVNhbHQyODA0";
+export const AdminView: React.FC<AdminViewProps> = ({ 
+    t, onLogout, staffList, pricingData, bookings = [], onUpdateBookingStatus, onDeleteBooking,
+    globalPayroll = { defaultTarget: 0, customTargets: {}, gpsRequired: false }, onUpdateGlobalPayroll, onSaveSettings,
+    knowledgeBase = "", adminRole, adminPasswords = DEFAULT_ADMIN_PASSWORDS
+}) => {
+    // Data State
+    const [localTransactions, setLocalTransactions] = useState<Transaction[]>([]);
+    const [sheetTransactions, setSheetTransactions] = useState<Transaction[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [isCloudConnected, setIsCloudConnected] = useState(false);
+    const [syncMessage, setSyncMessage] = useState("");
+    const [isSyncing, setIsSyncing] = useState(false);
+    
+    // Mode State: 'live' listens to recent 500, 'history' means user loaded a custom range
+    const [dataMode, setDataMode] = useState<'live' | 'history'>('live');
 
-// HELPER: Get local date string in YYYY-MM-DD format
-const getLocalISODate = (date: Date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-};
+    // View State
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'bookings' | 'customers' | 'marketing' | 'settings' | 'menu'>('dashboard');
 
-// HELPER: Subtract days from a date string (YYYY-MM-DD)
-const subtractDays = (dateStr: string, days: number): string => {
-    const date = new Date(dateStr);
-    date.setDate(date.getDate() - days);
-    return getLocalISODate(date);
-};
+    // Filter State
+    const [startDate, setStartDate] = useState(getSydneyToday());
+    const [endDate, setEndDate] = useState(getSydneyToday());
+    const [selectedStylistId, setSelectedStylistId] = useState<string>('all');
 
-// HELPER: Calculate day difference between two YYYY-MM-DD strings
-const getDayDifference = (start: string, end: string): number => {
-    const d1 = new Date(start);
-    const d2 = new Date(end);
-    const diffTime = Math.abs(d2.getTime() - d1.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-    return diffDays === 0 ? 1 : diffDays + 1; // Inclusive count (e.g., Today to Today is 1 day span)
-};
+    // ... Setup State ...
+    const [pasteInput, setPasteInput] = useState('');
+    const [config, setConfig] = useState<ParsedConfig>({ apiKey: '', projectId: '', databaseURL: '' });
+    const [setupError, setSetupError] = useState('');
+    const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'fail'>('idle');
+    const [testMessage, setTestMessage] = useState('');
 
-export const AdminView: React.FC<AdminViewProps> = ({ t, onLogout, staffList, pricingData }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [pin, setPin] = useState('');
-  const [error, setError] = useState('');
-  const [isChecking, setIsChecking] = useState(false);
-  
-  // Data State
-  const [localTransactions, setLocalTransactions] = useState<Transaction[]>([]);
-  const [sheetTransactions, setSheetTransactions] = useState<Transaction[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+    // ... Menu & Staff Editing State ...
+    const [editStaffList, setEditStaffList] = useState<StaffProfile[]>([]);
+    const [editPricingData, setEditPricingData] = useState<ServiceCategory[]>([]);
+    const [editGlobalPayroll, setEditGlobalPayroll] = useState<GlobalPayrollSettings>(globalPayroll);
+    const [editKnowledgeBase, setEditKnowledgeBase] = useState(knowledgeBase);
+    const [editingStaffId, setEditingStaffId] = useState<string | null>(null); 
+    const [newStaffName, setNewStaffName] = useState("");
+    const [newStaffPassword, setNewStaffPassword] = useState("");
+    const [newStaffAvatar, setNewStaffAvatar] = useState<string | undefined>(undefined);
+    const [payrollEnabled, setPayrollEnabled] = useState(false);
+    const [baseSalary, setBaseSalary] = useState<string>("");
+    const [bonusRate, setBonusRate] = useState<string>("");
+    const [staffFormError, setStaffFormError] = useState("");
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [isSavingSettings, setIsSavingSettings] = useState(false);
+    const [openEditCategories, setOpenEditCategories] = useState<Record<string, boolean>>({});
 
-  // View State
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'settings' | 'menu'>('dashboard');
+    // ... Password Management State ...
+    const [editAdminPasswords, setEditAdminPasswords] = useState<AdminPasswords>(adminPasswords);
+    const [showPasswordSection, setShowPasswordSection] = useState(false);
 
-  // Drill-down State
-  const [selectedStylist, setSelectedStylist] = useState<string | null>(null);
+    // ... Transaction Editing State ...
+    const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+    const [editTxName, setEditTxName] = useState("");
+    const [editTxPhone, setEditTxPhone] = useState("");
+    const [editTxTotal, setEditTxTotal] = useState("");
+    const [editTxDiscount, setEditTxDiscount] = useState("");
 
-  // Date Filter State
-  const [startDate, setStartDate] = useState(() => {
-      const d = new Date();
-      d.setDate(1); // Start of current month
-      return getLocalISODate(d);
-  });
-  const [endDate, setEndDate] = useState(() => {
-      return getLocalISODate(new Date()); // Today local
-  });
-
-  // --- SETUP STATE ---
-  const [pasteInput, setPasteInput] = useState('');
-  const [config, setConfig] = useState<ParsedConfig>({ apiKey: '', projectId: '', databaseURL: '' });
-  const [setupError, setSetupError] = useState('');
-  const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'fail'>('idle');
-  const [testMessage, setTestMessage] = useState('');
-
-  // --- MENU & STAFF EDITING STATE ---
-  const [editStaffList, setEditStaffList] = useState<string[]>([]);
-  const [editPricingData, setEditPricingData] = useState<ServiceCategory[]>([]);
-  const [newStaffName, setNewStaffName] = useState("");
-  const [isSavingSettings, setIsSavingSettings] = useState(false);
-  // Accordion state for menu editing
-  const [openEditCategories, setOpenEditCategories] = useState<Record<string, boolean>>({});
-
-  // Helper to get keys of services in the 'extras' category to filter them out later
-  const getExtraServiceKeys = () => {
-      const extrasCategory = pricingData.find(c => c.categoryKey === 'extras');
-      return new Set(extrasCategory ? extrasCategory.services.map(s => s.nameKey) : []);
-  };
-  const extraServiceKeys = useMemo(() => getExtraServiceKeys(), [pricingData]);
-
-
-  useEffect(() => {
-    if (isAuthenticated) {
+    // --- EFFECT: DATA LOADING ---
+    useEffect(() => {
         if (!isFirebaseConfigured()) {
             setActiveTab('settings');
         }
-        loadData();
         
-        // Init edit state
-        setEditStaffList([...staffList]);
-        setEditPricingData(JSON.parse(JSON.stringify(pricingData))); // Deep copy
-    }
-  }, [isAuthenticated]);
-
-  // Sync props to edit state if they change externally (and we aren't editing)
-  useEffect(() => {
-      if (!isSavingSettings && activeTab !== 'menu') {
-          setEditStaffList([...staffList]);
-          setEditPricingData(JSON.parse(JSON.stringify(pricingData)));
-      }
-  }, [staffList, pricingData, isSavingSettings, activeTab]);
-
-  const loadData = async () => {
-      setIsLoading(true);
-      // 1. Load Local
-      const local = getTransactions();
-      setLocalTransactions(local);
-
-      // 2. Load Cloud
-      if (GOOGLE_SHEETS_WEBAPP_URL) {
-          const cloud = await fetchGoogleSheetsData();
-          setSheetTransactions(cloud);
-      }
-      setIsLoading(false);
-  };
-
-  const handleLogin = () => {
-    setIsChecking(true);
-    try {
-        const hashedInput = btoa(`LaPerlaSalt${pin}`);
-        if (hashedInput === HASHED_PIN) {
-          setIsAuthenticated(true);
-          setError('');
-        } else {
-          setError(t.wrongPin);
-          setPin('');
+        if (dataMode === 'live') {
+            setIsLoading(true);
+            const unsubscribe = subscribeToTransactions((txs) => {
+                setSheetTransactions(Array.isArray(txs) ? txs : []);
+                setIsLoading(false);
+                if (Array.isArray(txs) && txs.length > 0) setIsCloudConnected(true);
+            });
+            return () => unsubscribe();
         }
-    } catch (e) {
-        console.error("Login error", e);
-        setError("System Error");
-    } finally {
-        setIsChecking(false);
-    }
-  };
+    }, [dataMode]);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter') {
-          handleLogin();
-      }
-  }
+    useEffect(() => {
+        setLocalTransactions(getTransactions());
+        setEditStaffList(JSON.parse(JSON.stringify(staffList)));
+        setEditPricingData(JSON.parse(JSON.stringify(pricingData))); 
+        setEditGlobalPayroll(globalPayroll);
+        setEditKnowledgeBase(knowledgeBase);
+        setEditAdminPasswords(adminPasswords);
+    }, [staffList, pricingData, globalPayroll, knowledgeBase, adminPasswords]);
 
-  // --- SETUP HANDLERS ---
-  const handlePasteChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const todayName = getSydneyDayName(new Date().toISOString());
+
+    const quickDates = useMemo(() => {
+        const dates = [];
+        for (let i = 0; i < 10; i++) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            const iso = d.toISOString();
+            dates.push({
+                label: i === 0 ? 'Today' : i === 1 ? 'Yesterday' : d.toLocaleDateString('en-AU', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Australia/Sydney' }),
+                value: getSydneyDateStr(iso)
+            });
+        }
+        return dates;
+    }, []);
+
+    const allTransactionsForCRM = useMemo(() => {
+        return sheetTransactions.length > 0 ? sheetTransactions : localTransactions;
+    }, [sheetTransactions, localTransactions]);
+
+    const filteredTransactions = useMemo(() => {
+        const source = sheetTransactions.length > 0 ? sheetTransactions : localTransactions;
+        const filtered = source.filter(tx => {
+            const dateStr = getSydneyDateStr(tx.date);
+            if (dateStr < startDate || dateStr > endDate) return false;
+            if (selectedStylistId !== 'all') {
+                const staff = staffList.find(s => s.id === selectedStylistId);
+                const isOwner = tx.customerName && staff && tx.customerName.includes(staff.name);
+                const hasItem = tx.items.some(item => item.staffId === selectedStylistId || (staff && item.staffName === staff.name));
+                if (!isOwner && !hasItem) return false;
+            }
+            return true;
+        });
+        return filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }, [sheetTransactions, localTransactions, startDate, endDate, selectedStylistId, staffList]);
+
+    const unsyncedTransactions = useMemo(() => {
+        return localTransactions.filter(localTx => 
+            !sheetTransactions.some(sheetTx => sheetTx.id === localTx.id)
+        );
+    }, [localTransactions, sheetTransactions]);
+
+    const stats = useMemo(() => {
+        let revenue = 0;
+        const orders = filteredTransactions.length;
+        const serviceCounts: Record<string, number> = {};
+        filteredTransactions.forEach(tx => {
+            let txRevenue = 0;
+            tx.items.forEach(item => {
+                if (selectedStylistId !== 'all') {
+                    const staff = staffList.find(s => s.id === selectedStylistId);
+                    const isMyItem = item.staffId === selectedStylistId || (staff && item.staffName === staff.name);
+                    if (!isMyItem) return;
+                }
+                const name = item.displayName || t.serviceNames[item.nameKey] || item.nameKey;
+                serviceCounts[name] = (serviceCounts[name] || 0) + item.quantity;
+                const gross = item.price * item.quantity;
+                const discountFactor = tx.discountPercentage ? (1 - tx.discountPercentage / 100) : 1;
+                txRevenue += (gross * discountFactor);
+            });
+            revenue += txRevenue;
+        });
+        const topServices = Object.entries(serviceCounts).sort(([, a], [, b]) => b - a).map(([name, count]) => ({ name, count }));
+        const stylistStats: Record<string, { revenue: number, bonus: number, daysActive: number, bonusDays: number }> = {};
+        const txByDate: Record<string, Transaction[]> = {};
+        filteredTransactions.forEach(tx => {
+            const dateStr = getSydneyDateStr(tx.date);
+            if (!txByDate[dateStr]) txByDate[dateStr] = [];
+            txByDate[dateStr].push(tx);
+        });
+        Object.entries(txByDate).forEach(([dateStr, dailyTxs]) => {
+            const dayOfWeek = getSydneyDayName(dailyTxs[0].date); 
+            const dailyTarget = editGlobalPayroll.customTargets?.[dayOfWeek] ?? editGlobalPayroll.defaultTarget ?? 0;
+            const dailyStylistRev: Record<string, number> = {};
+            dailyTxs.forEach(tx => {
+                tx.items.forEach(item => {
+                    const staffName = item.staffName;
+                    if (staffName) {
+                        const amount = item.price * item.quantity;
+                        const discountFactor = tx.discountPercentage ? (1 - tx.discountPercentage / 100) : 1;
+                        const netAmount = amount * discountFactor;
+                        dailyStylistRev[staffName] = (dailyStylistRev[staffName] || 0) + netAmount;
+                    }
+                });
+            });
+            Object.entries(dailyStylistRev).forEach(([name, dailyRev]) => {
+                if (selectedStylistId !== 'all') {
+                    const selectedStaff = staffList.find(s => s.id === selectedStylistId);
+                    if (selectedStaff && selectedStaff.name !== name) return;
+                }
+                if (!stylistStats[name]) stylistStats[name] = { revenue: 0, bonus: 0, daysActive: 0, bonusDays: 0 };
+                const stats = stylistStats[name];
+                stats.revenue += dailyRev;
+                const staffProfile = staffList.find(s => s.name === name);
+                if (staffProfile?.payroll?.enabled) {
+                    stats.daysActive += 1;
+                    if (dailyRev > dailyTarget) {
+                        const dailyBonus = (dailyRev - dailyTarget) * (staffProfile.payroll.bonusRate / 100);
+                        stats.bonus += dailyBonus;
+                        stats.bonusDays += 1;
+                    }
+                }
+            });
+        });
+        const topStylists = Object.entries(stylistStats).map(([name, stat]) => ({ name, ...stat })).sort((a, b) => b.revenue - a.revenue);
+        return { revenue, orders, topServices, topStylists };
+    }, [filteredTransactions, staffList, editGlobalPayroll, selectedStylistId, t.serviceNames]);
+
+    const handleManualRefresh = async () => {
+        setIsLoading(true);
+        const txs = await fetchTransactionsOnce();
+        setSheetTransactions(txs);
+        setDataMode('live');
+        setIsLoading(false);
+        setSyncMessage("Refreshed!");
+        setTimeout(() => setSyncMessage(""), 2000);
+    };
+
+    const handleLoadDateRange = async () => {
+        setIsLoading(true);
+        try {
+            const txs = await fetchTransactionsByDateRange(startDate, endDate);
+            setDataMode('history');
+            setSheetTransactions(txs);
+            if (txs.length === 0) setSyncMessage("No records found for range.");
+            else setSyncMessage(`Loaded ${txs.length} records.`);
+        } catch (e) {
+            alert("Error loading history. Please try again.");
+        } finally {
+            setIsLoading(false);
+            setTimeout(() => setSyncMessage(""), 3000);
+        }
+    };
+
+    const handleSyncLocalToCloud = async () => {
+        setIsSyncing(true);
+        let successCount = 0;
+        for (const tx of unsyncedTransactions) {
+            const result = await saveTransactionToFirebase(tx);
+            if (result.success) successCount++;
+        }
+        setIsSyncing(false);
+        if (successCount > 0) {
+            setSyncMessage(`Synced ${successCount} transactions!`);
+            handleManualRefresh();
+        } else {
+            alert("Sync failed. The data might be invalid or server unreachable.");
+        }
+    };
+
+    const handleDiscardUnsynced = () => {
+        if (!window.confirm("Delete stuck transactions from THIS device? \n\nWarning: These transactions have NOT been saved to the Cloud. This action cannot be undone.")) return;
+        unsyncedTransactions.forEach(tx => deleteLocalTransaction(tx.id));
+        setLocalTransactions(getTransactions());
+        alert("Local stuck data cleared.");
+    };
+
+    const handleForceSyncAll = async () => {
+        if (!window.confirm("This will overwrite Cloud data with all Local data. Continue?")) return;
+        setIsSyncing(true);
+        let successCount = 0;
+        for (const tx of localTransactions) {
+            const result = await saveTransactionToFirebase(tx);
+            if (result.success) successCount++;
+        }
+        setIsSyncing(false);
+        alert(`Forced sync complete. ${successCount} processed.`);
+        handleManualRefresh();
+    };
+
+    const exportToCSV = (transactions: Transaction[]) => {
+        const headers = ["ID", "Date (Sydney)", "Customer", "Phone", "Items", "Total", "Discount %", "Net Total"];
+        const rows = transactions.map(tx => {
+            const itemsStr = tx.items.map(i => {
+                const name = i.displayName || t.serviceNames[i.nameKey] || i.nameKey;
+                const staffPart = i.staffName ? ` [${i.staffName}]` : '';
+                return `${i.quantity}x ${name}${staffPart} ($${i.price})`;
+            }).join("; ");
+            const discountFactor = tx.discountPercentage ? (1 - tx.discountPercentage/100) : 1;
+            return [tx.id, getSydneyDateStr(tx.date) + " " + new Date(tx.date).toLocaleTimeString('en-AU', {timeZone: 'Australia/Sydney'}), `"${tx.customerName || ''}"`, `"${tx.customerPhone || ''}"`, `"${itemsStr}"`, (tx.total / discountFactor).toFixed(2), tx.discountPercentage || 0, tx.total.toFixed(2)].join(",");
+        });
+        const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows].join("\n");
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `laperla_export_${getSydneyDateStr(new Date().toISOString())}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    const handlePasteChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const val = e.target.value;
         setPasteInput(val);
         const parsed = parseConfigString(val);
-        
         if (parsed.apiKey || parsed.projectId) {
-            setConfig(prev => ({
-                ...prev,
-                apiKey: parsed.apiKey || prev.apiKey,
-                projectId: parsed.projectId || prev.projectId,
-                databaseURL: parsed.databaseURL || prev.databaseURL
-            }));
+            setConfig(prev => ({...prev, apiKey: parsed.apiKey || prev.apiKey, projectId: parsed.projectId || prev.projectId, databaseURL: parsed.databaseURL || prev.databaseURL}));
             setSetupError('');
             setTestStatus('idle');
         }
     };
-
     const handleTestConnection = async () => {
         setTestStatus('testing');
         setTestMessage("Checking connection...");
-        
         const result = await validateConnection(config);
-        if (result.success) {
-            setTestStatus('success');
-            setTestMessage("Connection successful! You can save now.");
-        } else {
-            setTestStatus('fail');
-            setTestMessage(result.error || "Connection failed.");
-        }
+        if (result.success) { setTestStatus('success'); setTestMessage("Connection successful!"); } else { setTestStatus('fail'); setTestMessage(result.error || "Connection failed."); }
     };
-
     const handleSaveConfig = () => {
         const result = saveFirebaseConfigLocally(config);
-        if (result.success) {
-            alert("Configuration saved! The app will reload.");
-            window.location.reload();
-        } else {
-            setSetupError(result.error || "Invalid configuration.");
+        if (result.success) { alert("Configuration saved! The app will reload."); window.location.reload(); } else { setSetupError(result.error || "Invalid configuration."); }
+    };
+    
+    const handleClearHistory = async () => {
+        const sixMonthsAgo = new Date();
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+        const dateStr = sixMonthsAgo.toLocaleDateString();
+        if (window.confirm(`XÁC NHẬN: Bạn sắp xóa dữ liệu giao dịch cũ hơn 6 tháng (trước ngày ${dateStr}).\n\n- Dữ liệu 6 tháng gần nhất sẽ được GIỮ LẠI.\n- Danh sách Nhân viên và Bảng giá sẽ KHÔNG bị mất.\n\nBạn có chắc chắn muốn xóa không?`)) {
+            const result = await pruneOldTransactionsFromFirebase(sixMonthsAgo);
+            setLocalTransactions(getTransactions());
+            if (result.success) {
+                const txs = await fetchTransactionsOnce();
+                setSheetTransactions(txs);
+                alert(`Đã xóa sạch ${result.count} giao dịch cũ hơn ${dateStr}.`);
+            } else {
+                alert("Lỗi khi xóa dữ liệu trên Cloud. Vui lòng kiểm tra kết nối.");
+            }
         }
     };
 
-    // --- MENU & STAFF HANDLERS ---
-    const handleAddStaff = () => {
-        if (!newStaffName.trim()) return;
-        setEditStaffList(prev => [...prev, newStaffName.trim()]);
-        setNewStaffName("");
+    const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            try {
+                const compressedBlob = await compressImage(file, 0.7, 300);
+                const reader = new FileReader();
+                reader.onloadend = () => { setNewStaffAvatar(reader.result as string); setStaffFormError(""); };
+                reader.readAsDataURL(compressedBlob);
+            } catch (err) {
+                setStaffFormError("Image processing failed. Try a smaller image.");
+            }
+        }
     };
 
-    const handleRemoveStaff = (index: number) => {
-        const newList = [...editStaffList];
-        newList.splice(index, 1);
-        setEditStaffList(newList);
+    const handleSelectStaffForEdit = (staff: StaffProfile) => {
+        setEditingStaffId(staff.id); setNewStaffName(staff.name); setNewStaffPassword(staff.password || ""); setNewStaffAvatar(staff.avatar);
+        if (staff.payroll) { setPayrollEnabled(staff.payroll.enabled); setBaseSalary(staff.payroll.baseSalary.toString()); setBonusRate(staff.payroll.bonusRate.toString()); } 
+        else { setPayrollEnabled(false); setBaseSalary("150"); setBonusRate("20"); }
+        setStaffFormError(""); window.scrollTo({ top: 0, behavior: 'smooth' });
     };
-
-    const handleUpdateService = (catIndex: number, srvIndex: number, field: 'displayName' | 'price', value: string) => {
+    const handleCancelEdit = () => {
+        setEditingStaffId(null); setNewStaffName(""); setNewStaffPassword(""); setNewStaffAvatar(undefined);
+        setPayrollEnabled(false); setBaseSalary(""); setBonusRate(""); setStaffFormError(""); if(fileInputRef.current) fileInputRef.current.value = "";
+    };
+    const handleSaveStaff = () => {
+        if (!newStaffName.trim()) { setStaffFormError("Name is required"); return; }
+        if (!newStaffPassword.trim()) { setStaffFormError("Password is required for login"); return; }
+        const payrollConfig: PayrollConfig | undefined = payrollEnabled ? { enabled: true, baseSalary: parseFloat(baseSalary) || 0, bonusRate: parseFloat(bonusRate) || 0, } : undefined;
+        if (editingStaffId) { setEditStaffList(prev => prev.map(s => s.id === editingStaffId ? { ...s, name: newStaffName.trim(), password: newStaffPassword.trim(), avatar: newStaffAvatar, payroll: payrollConfig } : s)); } 
+        else { const newStaff: StaffProfile = { id: Date.now().toString(), name: newStaffName.trim(), password: newStaffPassword.trim(), avatar: newStaffAvatar, payroll: payrollConfig }; setEditStaffList(prev => [...prev, newStaff]); }
+        handleCancelEdit();
+    };
+    const handleRemoveStaff = (id: string) => { if (window.confirm("Are you sure you want to remove this staff member?")) { setEditStaffList(prev => prev.filter(s => s.id !== id)); if (editingStaffId === id) handleCancelEdit(); } };
+    
+    // --- SERVICE & CATEGORY HANDLERS ---
+    const handleUpdateService = (catIndex: number, srvIndex: number, field: 'displayName' | 'price', value: string) => { const newPricing = [...editPricingData]; newPricing[catIndex].services[srvIndex] = { ...newPricing[catIndex].services[srvIndex], [field]: value }; setEditPricingData(newPricing); };
+    const handleAddService = (catIndex: number) => { const newPricing = [...editPricingData]; newPricing[catIndex].services.push({ nameKey: `custom_${Date.now()}`, price: '$0', displayName: 'New Service' }); setEditPricingData(newPricing); };
+    const handleRemoveService = (catIndex: number, srvIndex: number) => { if (window.confirm("Are you sure you want to delete this service?")) { const newPricing = [...editPricingData]; newPricing[catIndex].services.splice(srvIndex, 1); setEditPricingData(newPricing); } };
+    
+    const handleMoveService = (catIndex: number, srvIndex: number, direction: 'up' | 'down') => {
         const newPricing = [...editPricingData];
-        newPricing[catIndex].services[srvIndex] = {
-            ...newPricing[catIndex].services[srvIndex],
-            [field]: value
-        };
+        const services = [...newPricing[catIndex].services];
+        if (direction === 'up' && srvIndex > 0) {
+            [services[srvIndex], services[srvIndex - 1]] = [services[srvIndex - 1], services[srvIndex]];
+        } else if (direction === 'down' && srvIndex < services.length - 1) {
+            [services[srvIndex], services[srvIndex + 1]] = [services[srvIndex + 1], services[srvIndex]];
+        }
+        newPricing[catIndex] = { ...newPricing[catIndex], services };
         setEditPricingData(newPricing);
     };
 
-    const handleAddService = (catIndex: number) => {
+    const handleUpdateCategoryName = (index: number, newName: string) => {
         const newPricing = [...editPricingData];
-        newPricing[catIndex].services.push({
-            nameKey: `custom_${Date.now()}`,
-            price: '$0',
-            displayName: 'New Service'
+        newPricing[index] = { ...newPricing[index], categoryKey: newName };
+        setEditPricingData(newPricing);
+    };
+    const handleMoveCategory = (index: number, direction: 'up' | 'down') => {
+        const newPricing = [...editPricingData];
+        if (direction === 'up' && index > 0) {
+            [newPricing[index], newPricing[index - 1]] = [newPricing[index - 1], newPricing[index]];
+        } else if (direction === 'down' && index < newPricing.length - 1) {
+            [newPricing[index], newPricing[index + 1]] = [newPricing[index + 1], newPricing[index]];
+        }
+        setEditPricingData(newPricing);
+    };
+    const handleAddCategory = () => {
+        const newPricing = [...editPricingData];
+        newPricing.push({
+            categoryKey: `New Group ${Date.now()}`,
+            services: []
         });
         setEditPricingData(newPricing);
     };
-
-    const handleRemoveService = (catIndex: number, srvIndex: number) => {
-        if (window.confirm("Are you sure you want to delete this service?")) {
+    const handleRemoveCategory = (index: number) => {
+        if (window.confirm("Delete this entire service group?")) {
             const newPricing = [...editPricingData];
-            newPricing[catIndex].services.splice(srvIndex, 1);
+            newPricing.splice(index, 1);
             setEditPricingData(newPricing);
         }
     };
-
-    const toggleEditCategory = (key: string) => {
-        setOpenEditCategories(prev => ({ ...prev, [key]: !prev[key] }));
-    };
-
-    const handleSaveSettings = async () => {
-        if (!isFirebaseConfigured()) {
-            alert("Please connect to Firebase before saving.");
-            return;
-        }
-
-        setIsSavingSettings(true);
-        const success = await saveSettingsToFirebase(editStaffList, editPricingData);
-        setIsSavingSettings(false);
-
-        if (success) {
-            alert("Settings saved successfully!");
-        } else {
-            alert("Failed to save. Please check your internet connection.");
-        }
-    };
-  
-  // --- DASHBOARD LOGIC ---
-
-  // Combine data source
-  const allTransactions = useMemo(() => {
-     return sheetTransactions.length > 0 ? sheetTransactions : localTransactions;
-  }, [sheetTransactions, localTransactions]);
-
-  // Filtered Transactions based on Date Range
-  const filteredTransactions = useMemo(() => {
-      // FIX: Compare "YYYY-MM-DD" strings locally to avoid UTC offsets hiding today's data
-      return allTransactions.filter(tr => {
-          const trDate = new Date(tr.date);
-          const trLocalDateStr = getLocalISODate(trDate);
-          return trLocalDateStr >= startDate && trLocalDateStr <= endDate;
-      });
-  }, [allTransactions, startDate, endDate]);
-
-  // Previous Period Transactions for Growth Comparison
-  const previousPeriodStats = useMemo(() => {
-      const daySpan = getDayDifference(startDate, endDate); 
-      const prevEndDateStr = subtractDays(startDate, 1);
-      const prevStartDateStr = subtractDays(startDate, daySpan);
-
-      const prevTrans = allTransactions.filter(tr => {
-          const trDate = new Date(tr.date);
-          const trLocalDateStr = getLocalISODate(trDate);
-          return trLocalDateStr >= prevStartDateStr && trLocalDateStr <= prevEndDateStr;
-      });
-
-      let revenue = 0;
-      prevTrans.forEach(t => revenue += t.total);
-      
-      return {
-          revenue,
-          count: prevTrans.length,
-          startDate: prevStartDateStr,
-          endDate: prevEndDateStr
-      };
-  }, [allTransactions, startDate, endDate]);
-
-
-  const handleViewSheet = () => {
-      window.open(GOOGLE_SHEET_URL, '_blank');
-  };
-
-  // Calculate Dashboard Stats
-  const stats = useMemo(() => {
-    const totalRevenue = filteredTransactions.reduce((sum, t) => sum + t.total, 0);
-    const totalOrders = filteredTransactions.length;
-
-    const serviceCounts: Record<string, number> = {};
-    const stylistRevenue: Record<string, number> = {};
-
-    filteredTransactions.forEach(tr => {
-        const discountFactor = tr.discountPercentage ? (1 - tr.discountPercentage / 100) : 1;
-
-        tr.items.forEach(item => {
-            if (!extraServiceKeys.has(item.nameKey)) {
-                // Use props pricingData to resolve name if possible, else translation
-                const name = t.serviceNames[item.nameKey] || item.nameKey;
-                serviceCounts[name] = (serviceCounts[name] || 0) + item.quantity;
-            }
-
-            if (item.staffName) {
-                const itemGrossRevenue = item.price * item.quantity;
-                const itemNetRevenue = itemGrossRevenue * discountFactor;
-                stylistRevenue[item.staffName] = (stylistRevenue[item.staffName] || 0) + itemNetRevenue;
-            }
-        });
-    });
-
-    const topServices = Object.entries(serviceCounts)
-        .sort((a, b) => b[1] - a[1]);
-        // REMOVED .slice(0, 5) to show all services per user request
     
-    const topStylists = Object.entries(stylistRevenue)
-        .sort((a, b) => b[1] - a[1]);
-
-    return {
-        totalRevenue,
-        totalOrders,
-        topServices,
-        topStylists
+    const toggleEditCategory = (key: string) => { setOpenEditCategories(prev => ({ ...prev, [key]: !prev[key] })); };
+    
+    const handleSaveAllSettings = async () => { 
+        if (!isFirebaseConfigured()) { alert("Please connect to Firebase before saving."); return; } 
+        setIsSavingSettings(true); 
+        if (onSaveSettings) { 
+            await onSaveSettings(editStaffList, editPricingData, editGlobalPayroll, editKnowledgeBase, editAdminPasswords); 
+        } 
+        setIsSavingSettings(false); 
     };
-  }, [filteredTransactions, t.serviceNames, extraServiceKeys]);
 
-  // Handle drill down filter
-  const displayTransactions = useMemo(() => {
-      if (!selectedStylist) return filteredTransactions;
-      return filteredTransactions.filter(tr => 
-          tr.items.some(item => item.staffName === selectedStylist)
-      );
-  }, [filteredTransactions, selectedStylist]);
-  
-  const selectedStylistTotal = useMemo(() => {
-      if (!selectedStylist) return 0;
-      return stats.topStylists.find(s => s[0] === selectedStylist)?.[1] || 0;
-  }, [selectedStylist, stats.topStylists]);
+    const handleEditTransactionClick = (tx: Transaction) => {
+        setEditingTransaction(tx);
+        setEditTxName(tx.customerName || '');
+        setEditTxPhone(tx.customerPhone || '');
+        setEditTxTotal(tx.total.toString());
+        setEditTxDiscount(tx.discountPercentage ? tx.discountPercentage.toString() : '0');
+    };
 
+    const handleSaveTransaction = async () => {
+        if (!editingTransaction) return;
+        const updatedTx: Transaction = { ...editingTransaction, customerName: editTxName, customerPhone: editTxPhone, total: parseFloat(editTxTotal) || 0, discountPercentage: parseFloat(editTxDiscount) || 0, lastUpdated: Date.now() };
+        const success = await updateTransactionInFirebase(updatedTx);
+        if (success) setEditingTransaction(null);
+        else alert("Failed to update transaction on Cloud.");
+    };
 
-  if (!isAuthenticated) {
+    const handleDeleteTransaction = async () => {
+        if (!editingTransaction) return;
+        if (window.confirm("Delete this transaction permanently?")) {
+            await deleteTransactionFromFirebase(editingTransaction.id);
+            setEditingTransaction(null);
+            setSheetTransactions(prev => prev.filter(t => t.id !== editingTransaction.id));
+            setLocalTransactions(prev => prev.filter(t => t.id !== editingTransaction.id));
+        }
+    };
+
     return (
-      <div className="fixed inset-0 bg-blush-pink flex items-center justify-center z-50 p-4">
-        <div className="bg-pearl-white p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center border border-gold-leaf/20">
-          <div className="mx-auto w-16 h-16 bg-gold-leaf/10 rounded-full flex items-center justify-center mb-4">
-              <LockIcon className="w-8 h-8 text-gold-leaf" />
-          </div>
-          <h2 className="text-2xl font-serif text-charcoal mb-6">{t.adminLogin}</h2>
-          <input
-            type="password"
-            value={pin}
-            onChange={(e) => setPin(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={t.enterPin}
-            className="w-full text-center text-2xl p-3 border-2 border-dusty-rose/30 rounded-xl mb-4 focus:ring-2 focus:ring-gold-leaf focus:border-gold-leaf outline-none"
-            autoFocus
-          />
-          {error && <p className="text-red-500 mb-4 animate-pulse">{error}</p>}
-          <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={onLogout}
-                className="w-full bg-gray-200 text-charcoal py-3 rounded-xl font-medium hover:bg-gray-300 transition-colors"
-              >
-                {t.cancelButton}
-              </button>
-              <button
-                onClick={handleLogin}
-                disabled={isChecking}
-                className="w-full bg-gold-leaf text-white py-3 rounded-xl font-medium hover:bg-charcoal transition-colors disabled:opacity-50"
-              >
-                {isChecking ? "Checking..." : "Login"}
-              </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+        <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
+            <header className="bg-charcoal text-white p-4 sticky top-0 z-30 shadow-md">
+              <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+                  <div className="flex items-center gap-2">
+                      <LaPerlaLogo className="w-32 brightness-0 invert" />
+                      <div className="flex flex-col">
+                          <span className="text-gray-400 text-sm border-l border-gray-600 pl-3 ml-1">Admin Dashboard</span>
+                          <span className="text-gold-leaf text-[10px] pl-3 ml-1 uppercase font-bold tracking-wider">{adminRole === 'master' ? 'Master Access' : 'Store Manager'}</span>
+                      </div>
+                  </div>
+                  <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
+                      <button onClick={() => setActiveTab('dashboard')} className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors whitespace-nowrap ${activeTab === 'dashboard' ? 'bg-gold-leaf text-white' : 'hover:bg-white/10'}`}>Dashboard</button>
+                      <button onClick={() => setActiveTab('bookings')} className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors whitespace-nowrap ${activeTab === 'bookings' ? 'bg-gold-leaf text-white' : 'hover:bg-white/10'}`}>Bookings ({bookings.filter(b=>b.status==='pending').length})</button>
+                      <button onClick={() => setActiveTab('customers')} className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors whitespace-nowrap ${activeTab === 'customers' ? 'bg-gold-leaf text-white' : 'hover:bg-white/10'}`}>Customers</button>
+                      <button onClick={() => setActiveTab('marketing')} className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors whitespace-nowrap ${activeTab === 'marketing' ? 'bg-gold-leaf text-white' : 'hover:bg-white/10'}`}>Marketing 🎁</button>
+                      <button onClick={() => setActiveTab('menu')} className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors whitespace-nowrap ${activeTab === 'menu' ? 'bg-gold-leaf text-white' : 'hover:bg-white/10'}`}>Menu & Staff</button>
+                      <button onClick={() => setActiveTab('settings')} className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors whitespace-nowrap ${activeTab === 'settings' ? 'bg-gold-leaf text-white' : 'hover:bg-white/10'}`}>Settings</button>
+                  </div>
+                  <div className="flex gap-2">
+                      <button onClick={() => exportToCSV(filteredTransactions)} className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors">
+                          <DownloadIcon className="w-4 h-4" /> Export CSV
+                      </button>
+                      <button onClick={onLogout} className="bg-gray-700 hover:bg-gray-600 text-white px-3 py-2 rounded-lg text-sm font-bold transition-colors">
+                          {t.logout}
+                      </button>
+                  </div>
+              </div>
+            </header>
 
-  return (
-    <div className="min-h-screen bg-pearl-white text-charcoal font-sans pb-20">
-        {/* Admin Header */}
-      <header className="bg-charcoal text-pearl-white p-4 shadow-md sticky top-0 z-30">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-            <div className="flex items-center gap-3">
-                <ChartIcon className="w-6 h-6 text-gold-leaf" />
-                <h1 className="text-xl font-serif font-bold tracking-wide">{t.dashboard}</h1>
-            </div>
-            
-            {/* TABS */}
-            <div className="flex bg-gray-700 p-1 rounded-lg">
-                <button 
-                    onClick={() => setActiveTab('dashboard')}
-                    className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${activeTab === 'dashboard' ? 'bg-gold-leaf text-white shadow' : 'text-gray-300 hover:text-white'}`}
-                >
-                    Dashboard
-                </button>
-                <button 
-                    onClick={() => setActiveTab('menu')}
-                    className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${activeTab === 'menu' ? 'bg-gold-leaf text-white shadow' : 'text-gray-300 hover:text-white'}`}
-                >
-                    Menu & Staff
-                </button>
-                <button 
-                    onClick={() => setActiveTab('settings')}
-                    className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${activeTab === 'settings' ? 'bg-gold-leaf text-white shadow' : 'text-gray-300 hover:text-white'}`}
-                >
-                    System Connection
-                </button>
-            </div>
-
-            <div className="flex gap-3">
-                 <button 
-                    onClick={handleViewSheet}
-                    className="hidden md:flex text-xs bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg transition-colors items-center gap-1"
-                >
-                    <DownloadIcon className="w-3 h-3" />
-                    {t.viewGoogleSheet}
-                </button>
-                <button 
-                    onClick={onLogout}
-                    className="text-xs bg-gray-700 hover:bg-gray-600 px-3 py-1.5 rounded-lg transition-colors"
-                >
-                    {t.logout}
-                </button>
-            </div>
-        </div>
-      </header>
-
-      <main className="max-w-6xl mx-auto p-4 md:p-6 space-y-6">
-        
-        {/* --- SETTINGS TAB --- */}
-        {activeTab === 'settings' && (
-            <div className="max-w-xl mx-auto bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gold-leaf/20">
-                 <div className="text-center mb-6">
-                     <LaPerlaLogo className="w-40 mx-auto mb-2" />
-                     <h3 className="text-2xl font-serif font-bold text-charcoal">Firebase Configuration</h3>
-                     <p className="text-sm text-gray-500">Connect to sync bills and data across devices.</p>
-                 </div>
-
-                 {isFirebaseConfigured() && (
-                     <div className="bg-green-50 border border-green-200 text-green-700 p-3 rounded-lg mb-6 text-sm flex justify-between items-center">
-                         <span className="font-medium">✅ Connected to: {DEFAULT_CONFIG.projectId === config.projectId || config.projectId === '' ? 'Default (La Perla)' : config.projectId}</span>
-                         <div className="flex gap-2">
-                             <button 
-                                onClick={() => {
-                                    if(window.confirm("Are you sure you want to restore default?")) {
-                                        clearFirebaseConfigLocally();
-                                    }
-                                }}
-                                className="text-xs text-blue-600 hover:underline"
-                             >
-                                 Restore Default
-                             </button>
-                             <button 
-                                onClick={() => {
-                                    if(window.confirm("Are you sure you want to disconnect?")) {
-                                        localStorage.setItem('la_perla_firebase_settings', JSON.stringify({apiKey: 'DISCONNECTED', projectId: 'DISCONNECTED'}));
-                                        window.location.reload();
-                                    }
-                                }}
-                                className="text-xs text-red-500 underline font-bold"
-                             >
-                                 Disconnect
-                             </button>
-                         </div>
-                     </div>
-                 )}
-
-                 {/* CODE SNIPPET DISPLAY */}
-                 <div className="bg-charcoal text-gray-300 p-4 rounded-xl text-xs font-mono mb-6 overflow-x-auto relative group">
-                     <p className="text-gold-leaf font-bold mb-2 uppercase">Configuration Code (La Perla)</p>
-                     <pre className="whitespace-pre-wrap break-all">
-{`const firebaseConfig = {
-  apiKey: "${DEFAULT_CONFIG.apiKey}",
-  authDomain: "${DEFAULT_CONFIG.authDomain}",
-  databaseURL: "${DEFAULT_CONFIG.databaseURL}",
-  projectId: "${DEFAULT_CONFIG.projectId}",
-  storageBucket: "${DEFAULT_CONFIG.storageBucket}",
-  messagingSenderId: "${DEFAULT_CONFIG.messagingSenderId}",
-  appId: "${DEFAULT_CONFIG.appId}",
-  measurementId: "${DEFAULT_CONFIG.measurementId}"
-};`}
-                     </pre>
-                     <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                         <span className="text-[10px] bg-gray-600 px-2 py-1 rounded text-white">Default</span>
-                     </div>
-                 </div>
-
-                <div className="text-left bg-gray-50 p-4 rounded-xl mb-4 text-sm text-gray-700 space-y-2 border border-gray-100">
-                    <p className="font-bold text-gold-leaf">Step 1: Custom Configuration (Optional)</p>
-                    <p>If you want to use a different project, paste the Firebase config code here. Leave blank to use default.</p>
-                </div>
-                
-                <textarea 
-                    value={pasteInput}
-                    onChange={handlePasteChange}
-                    placeholder='Paste new Firebase Config code here (if you want to change)...'
-                    className="w-full h-20 p-3 border border-dusty-rose rounded-xl font-mono text-xs bg-gray-50 mb-4 focus:ring-2 focus:ring-gold-leaf outline-none resize-none"
-                />
-
-                <div className="text-left bg-white p-4 rounded-xl border border-gold-leaf/30 space-y-3 mb-6 relative">
-                    <div className="absolute -top-3 left-3 bg-white px-2 text-xs font-bold text-gold-leaf">Step 2: Verify Information</div>
-                    
-                    <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase">API Key</label>
-                        <input 
-                            type="text" 
-                            value={config.apiKey}
-                            onChange={(e) => setConfig({...config, apiKey: e.target.value})}
-                            className="w-full p-2 border-b border-gray-200 focus:border-gold-leaf outline-none font-mono text-sm"
-                            placeholder="Default"
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase">Project ID</label>
-                        <input 
-                            type="text" 
-                            value={config.projectId}
-                            onChange={(e) => setConfig({...config, projectId: e.target.value})}
-                            className="w-full p-2 border-b border-gray-200 focus:border-gold-leaf outline-none font-mono text-sm"
-                            placeholder="Default"
-                        />
-                    </div>
-                     <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase">Database URL</label>
-                        <input 
-                            type="text" 
-                            value={config.databaseURL}
-                            onChange={(e) => setConfig({...config, databaseURL: e.target.value})}
-                            className="w-full p-2 border-b border-gray-200 focus:border-gold-leaf outline-none font-mono text-sm text-gray-600"
-                            placeholder="Default"
-                        />
-                    </div>
-                </div>
-
-                {/* TEST CONNECTION SECTION */}
-                <div className="mb-4">
-                    <button 
-                        onClick={handleTestConnection}
-                        disabled={testStatus === 'testing' || (!config.apiKey && !pasteInput)} // Enable if pasted or manually entered, otherwise assuming default handles it
-                        className={`w-full py-2 rounded-lg font-bold text-sm transition-colors mb-2 ${
-                            testStatus === 'success' ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-charcoal hover:bg-gray-300'
-                        }`}
-                    >
-                        {testStatus === 'testing' ? 'Testing...' : 'Step 3: Test Connection'}
-                    </button>
-                    
-                    {testMessage && (
-                        <div className={`text-xs p-2 rounded text-left ${testStatus === 'success' ? 'text-green-600' : 'text-red-600 bg-red-50'}`}>
-                            {testStatus === 'success' ? '✅ ' : '❌ '} {testMessage}
-                        </div>
-                    )}
-                </div>
-                
-                {setupError && <p className="text-red-500 text-sm mb-4 font-bold bg-red-50 p-2 rounded border border-red-200">{setupError}</p>}
-
-                <div className="flex gap-3">
-                    <button 
-                        onClick={clearFirebaseConfigLocally}
-                        className="flex-1 py-3 bg-gray-100 text-charcoal font-bold rounded-xl hover:bg-gray-200 transition-colors"
-                        title="Use Default Config (La Perla)"
-                    >
-                        Use Default
-                    </button>
-                    <button 
-                        onClick={handleSaveConfig}
-                        disabled={!config.apiKey && !pasteInput}
-                        className="flex-1 py-3 bg-gold-leaf text-white font-bold rounded-xl hover:bg-charcoal transition-colors shadow-md disabled:opacity-50"
-                    >
-                        Save Configuration
-                    </button>
-                </div>
-            </div>
-        )}
-
-        {/* --- MENU & STAFF TAB --- */}
-        {activeTab === 'menu' && (
-             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                 {/* STAFF MANAGEMENT */}
-                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gold-leaf/20 lg:col-span-1 h-fit">
-                     <h3 className="text-xl font-serif font-bold text-charcoal mb-4 flex items-center gap-2">
-                         Staff Management
-                     </h3>
-                     <div className="space-y-3 mb-6 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                         {editStaffList.map((staff, index) => (
-                             <div key={index} className="flex justify-between items-center bg-gray-50 p-2 px-3 rounded-lg group hover:bg-white hover:shadow-sm border border-transparent hover:border-dusty-rose/30 transition-all">
-                                 <span className="font-medium text-charcoal">{staff}</span>
-                                 <button 
-                                    onClick={() => handleRemoveStaff(index)}
-                                    className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                                 >
-                                     <XMarkIcon className="w-4 h-4" />
-                                 </button>
-                             </div>
-                         ))}
-                     </div>
-                     <div className="flex gap-2">
-                         <input 
-                            type="text" 
-                            placeholder="New Staff Name..." 
-                            value={newStaffName}
-                            onChange={(e) => setNewStaffName(e.target.value)}
-                            className="flex-1 border border-dusty-rose/50 rounded-lg px-3 py-2 outline-none focus:border-gold-leaf"
-                            onKeyDown={(e) => e.key === 'Enter' && handleAddStaff()}
-                         />
-                         <button 
-                            onClick={handleAddStaff}
-                            className="bg-gold-leaf text-white px-4 rounded-lg hover:bg-charcoal transition-colors"
-                         >
-                             <PlusIcon className="w-5 h-5" />
-                         </button>
-                     </div>
-                 </div>
-
-                 {/* MENU MANAGEMENT */}
-                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gold-leaf/20 lg:col-span-2">
-                     <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-xl font-serif font-bold text-charcoal">
-                             Menu Management
-                        </h3>
-                        <button 
-                            onClick={handleSaveSettings}
-                            disabled={isSavingSettings}
-                            className="bg-green-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-green-700 transition-colors shadow-md disabled:opacity-50 flex items-center gap-2"
-                        >
-                            {isSavingSettings ? 'Saving...' : 'Save Changes'}
-                        </button>
-                     </div>
-                     <p className="text-xs text-gray-400 mb-6">Edit service names and prices directly. Click "Save Changes" to update all devices.</p>
-
-                     <div className="space-y-4">
-                         {editPricingData.map((category, catIndex) => {
-                             const isOpen = openEditCategories[category.categoryKey];
-                             return (
-                                 <div key={category.categoryKey} className="border border-gray-100 rounded-xl overflow-hidden">
-                                     <button 
-                                        onClick={() => toggleEditCategory(category.categoryKey)}
-                                        className="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
-                                     >
-                                         <span className="font-bold text-charcoal">
-                                             {t.serviceCategories[category.categoryKey] || category.categoryKey}
-                                         </span>
-                                         <ChevronDownIcon className={`w-5 h-5 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-                                     </button>
-
-                                     {isOpen && (
-                                         <div className="p-4 bg-white space-y-3">
-                                             {category.services.map((service, srvIndex) => (
-                                                 <div key={srvIndex} className="flex gap-3 items-center group">
-                                                     <div className="flex-1">
-                                                         <label className="text-[10px] text-gray-400 uppercase font-bold">Service Name</label>
-                                                         <input 
-                                                            type="text"
-                                                            value={service.displayName || t.serviceNames[service.nameKey] || service.nameKey}
-                                                            onChange={(e) => handleUpdateService(catIndex, srvIndex, 'displayName', e.target.value)}
-                                                            className="w-full border-b border-gray-200 py-1 text-sm font-medium focus:border-gold-leaf outline-none"
-                                                         />
-                                                     </div>
-                                                     <div className="w-24">
-                                                         <label className="text-[10px] text-gray-400 uppercase font-bold">Price</label>
-                                                         <input 
-                                                            type="text"
-                                                            value={service.price}
-                                                            onChange={(e) => handleUpdateService(catIndex, srvIndex, 'price', e.target.value)}
-                                                            className="w-full border-b border-gray-200 py-1 text-sm font-medium focus:border-gold-leaf outline-none text-right"
-                                                         />
-                                                     </div>
-                                                     <div className="pt-4">
-                                                         <button 
-                                                            onClick={() => handleRemoveService(catIndex, srvIndex)}
-                                                            className="text-gray-300 hover:text-red-500 transition-colors"
-                                                            title="Remove Service"
-                                                         >
-                                                             <XMarkIcon className="w-4 h-4" />
-                                                         </button>
-                                                     </div>
-                                                 </div>
-                                             ))}
-                                             
-                                             <div className="pt-2">
-                                                 <button 
-                                                    onClick={() => handleAddService(catIndex)}
-                                                    className="flex items-center gap-2 text-sm text-gold-leaf hover:underline font-bold"
-                                                 >
-                                                     <PlusIcon className="w-4 h-4" /> Add Service
-                                                 </button>
-                                             </div>
-                                         </div>
-                                     )}
-                                 </div>
-                             )
-                         })}
-                     </div>
-                 </div>
-             </div>
-        )}
-
-        {/* --- DASHBOARD TAB --- */}
-        {activeTab === 'dashboard' && (
-        <>
-            {/* Filters Bar */}
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4">
-                <div className="flex items-center gap-2 text-sm text-gray-500">
-                    {isLoading ? (
-                        <span className="animate-pulse text-gold-leaf">{t.loadingData}</span>
-                    ) : (
-                        <span className="flex items-center gap-1 text-green-600 font-medium">
-                            <div className="w-2 h-2 rounded-full bg-green-600"></div>
-                            {t.sourceGoogleSheets}
-                        </span>
-                    )}
-                    <button onClick={loadData} className="ml-2 text-blue-500 hover:underline text-xs">{t.refreshData}</button>
-                </div>
-
-                <div className="flex items-center gap-2 bg-gray-50 p-1 rounded-lg">
-                    <div className="flex items-center gap-2 px-2">
-                        <span className="text-xs font-bold text-gray-400 uppercase">{t.filterDateRange}</span>
-                    </div>
-                    <input 
-                        type="date" 
-                        value={startDate} 
-                        onChange={(e) => setStartDate(e.target.value)}
-                        className="bg-white border border-gray-200 rounded px-2 py-1 text-sm focus:border-gold-leaf outline-none"
-                    />
-                    <span className="text-gray-400">-</span>
-                    <input 
-                        type="date" 
-                        value={endDate}
-                        onChange={(e) => setEndDate(e.target.value)}
-                        className="bg-white border border-gray-200 rounded px-2 py-1 text-sm focus:border-gold-leaf outline-none"
-                    />
-                </div>
-            </div>
-
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* Revenue Card */}
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gold-leaf/10 relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                        <ChartIcon className="w-16 h-16 text-gold-leaf" />
-                    </div>
-                    <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider mb-1">{t.revenue}</h3>
-                    <div className="flex items-baseline gap-2">
-                        <span className="text-3xl font-bold text-charcoal">${stats.totalRevenue.toFixed(2)}</span>
-                    </div>
-                    {previousPeriodStats.revenue > 0 && (
-                        <div className={`text-xs mt-2 flex items-center gap-1 ${stats.totalRevenue >= previousPeriodStats.revenue ? 'text-green-500' : 'text-red-500'}`}>
-                            {stats.totalRevenue >= previousPeriodStats.revenue ? '↑' : '↓'} 
-                            {Math.abs(((stats.totalRevenue - previousPeriodStats.revenue) / previousPeriodStats.revenue) * 100).toFixed(0)}% {t.vsPrevious}
-                        </div>
-                    )}
-                </div>
-
-                {/* Orders Card */}
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gold-leaf/10 relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                        <ReceiptIcon className="w-16 h-16 text-charcoal" />
-                    </div>
-                    <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider mb-1">{t.orders}</h3>
-                    <div className="flex items-baseline gap-2">
-                        <span className="text-3xl font-bold text-charcoal">{stats.totalOrders}</span>
-                    </div>
-                    {previousPeriodStats.count > 0 && (
-                        <div className={`text-xs mt-2 flex items-center gap-1 ${stats.totalOrders >= previousPeriodStats.count ? 'text-green-500' : 'text-red-500'}`}>
-                            {stats.totalOrders >= previousPeriodStats.count ? '↑' : '↓'} 
-                            {Math.abs(((stats.totalOrders - previousPeriodStats.count) / previousPeriodStats.count) * 100).toFixed(0)}% {t.vsPrevious}
-                        </div>
-                    )}
-                </div>
-                
-                {/* Top Stylist Card */}
-                <div className="bg-gradient-to-br from-charcoal to-gray-800 text-white p-6 rounded-2xl shadow-sm relative overflow-hidden">
-                    <h3 className="text-gold-leaf text-sm font-medium uppercase tracking-wider mb-3">Top Stylist (Revenue)</h3>
-                    {stats.topStylists.length > 0 ? (
-                        <div>
-                            <div className="text-2xl font-bold">{stats.topStylists[0][0]}</div>
-                            <div className="text-sm opacity-70">${stats.topStylists[0][1].toFixed(2)} generated</div>
-                        </div>
-                    ) : (
-                        <div className="text-sm opacity-50">No data</div>
-                    )}
-                </div>
-
-                {/* Top Service Card */}
-                <div className="bg-gradient-to-br from-gold-leaf to-yellow-600 text-white p-6 rounded-2xl shadow-sm relative overflow-hidden">
-                    <h3 className="text-white/80 text-sm font-medium uppercase tracking-wider mb-3">Top Service</h3>
-                    {stats.topServices.length > 0 ? (
-                        <div>
-                            <div className="text-xl font-bold leading-tight">{stats.topServices[0][0]}</div>
-                            <div className="text-sm opacity-80 mt-1">{stats.topServices[0][1]} times booked</div>
-                        </div>
-                    ) : (
-                        <div className="text-sm opacity-50">No data</div>
-                    )}
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Top Services List */}
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <h3 className="text-lg font-serif font-bold text-charcoal mb-4 border-b pb-2">{t.topServices}</h3>
-                    {stats.topServices.length === 0 ? (
-                        <p className="text-gray-400 text-sm text-center py-4">{t.noData}</p>
-                    ) : (
-                        <ul className="space-y-3 h-[600px] overflow-y-auto custom-scrollbar pr-2">
-                            {stats.topServices.map(([name, count], idx) => (
-                                <li key={name} className="flex items-center justify-between text-sm">
-                                    <div className="flex items-center gap-3">
-                                        <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${idx === 0 ? 'bg-gold-leaf text-white' : 'bg-gray-100 text-gray-500'}`}>
-                                            {idx + 1}
-                                        </span>
-                                        <span className="text-gray-700 truncate max-w-[150px]">{name}</span>
+            <main className="flex-grow p-4 md:p-6 max-w-7xl mx-auto w-full">
+                {activeTab === 'dashboard' && (
+                    <div className="space-y-6 animate-fade-in">
+                        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col gap-4">
+                            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                                <div className="flex items-center gap-4 flex-wrap">
+                                    <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-200">
+                                        <div className={`w-3 h-3 rounded-full ${isLoading ? 'bg-yellow-400 animate-pulse' : (sheetTransactions.length > 0 ? 'bg-green-500' : 'bg-red-500')}`}></div>
+                                        <span className="text-sm font-bold text-gray-700">{isLoading ? 'Syncing...' : (sheetTransactions.length > 0 ? 'Cloud Data Loaded' : 'Waiting for Cloud...')}</span>
                                     </div>
-                                    <span className="font-semibold text-charcoal">{count}</span>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                </div>
-                
-                {/* Staff Performance */}
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <div className="flex justify-between items-center border-b pb-2 mb-4">
-                        <h3 className="text-lg font-serif font-bold text-charcoal">Stylist Revenue</h3>
-                        {selectedStylist && (
-                            <button 
-                                onClick={() => setSelectedStylist(null)}
-                                className="text-xs text-red-500 hover:underline"
-                            >
-                                Clear Filter
-                            </button>
+                                    <div className="text-xs text-gray-500">{sheetTransactions.length} records found in Cloud. {dataMode === 'history' && (<span className="ml-2 font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">HISTORICAL VIEW (Not Live)</span>)}</div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button onClick={handleManualRefresh} className="text-xs bg-gray-100 text-charcoal border border-gray-200 px-3 py-2 rounded-lg font-bold hover:bg-gray-200 transition-colors flex items-center gap-1">↻ Refresh / Reset Live</button>
+                                </div>
+                            </div>
+                            {unsyncedTransactions.length > 0 && (
+                                <div className="flex items-center justify-between bg-orange-50 border border-orange-200 p-3 rounded-lg animate-fade-in shadow-sm">
+                                    <div className="flex items-center gap-3"><div className="bg-orange-100 p-2 rounded-full text-orange-600"><UploadIcon className="w-5 h-5" /></div><div><p className="text-sm font-bold text-orange-800">Local Data Mismatch</p><p className="text-xs text-orange-700">{unsyncedTransactions.length} transactions are on THIS device but not the Cloud.</p></div></div>
+                                    <div className="flex gap-2"><button onClick={handleDiscardUnsynced} className="bg-white border border-orange-200 text-orange-600 hover:bg-red-50 text-xs font-bold px-3 py-2 rounded-lg shadow-sm transition-colors">Discard (Xóa)</button><button onClick={handleSyncLocalToCloud} disabled={isSyncing} className="bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold px-4 py-2 rounded-lg shadow-sm transition-colors flex items-center gap-2">{isSyncing ? "Uploading..." : `Sync Now`}</button></div>
+                                </div>
+                            )}
+                            {sheetTransactions.length === 0 && localTransactions.length > 0 && (<div className="text-right"><button onClick={handleForceSyncAll} className="text-xs text-gray-400 hover:text-red-500 underline">Force Push All {localTransactions.length} Local Items</button></div>)}
+                            {syncMessage && <p className="text-center text-xs font-bold text-green-600">{syncMessage}</p>}
+                        </div>
+
+                        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-4">
+                            <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
+                                {quickDates.map((d, i) => (<button key={i} onClick={() => { setStartDate(d.value); setEndDate(d.value); }} className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors border ${startDate === d.value && endDate === d.value ? 'bg-gold-leaf text-white border-gold-leaf' : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'}`}>{d.label}</button>))}
+                            </div>
+                            <div className="flex flex-col md:flex-row items-center justify-between gap-4 pt-2 border-t border-gray-100">
+                                <div className="flex items-center gap-2 bg-gray-50 p-2 rounded-lg border border-gray-200">
+                                    <span className="text-[10px] font-bold text-gray-400 uppercase px-1">FILTER DATE RANGE</span>
+                                    <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-white border border-gray-200 rounded px-2 py-1.5 text-sm outline-none focus:border-gold-leaf font-bold text-charcoal" />
+                                    <span className="text-gray-400">-</span>
+                                    <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-white border border-gray-200 rounded px-2 py-1.5 text-sm outline-none focus:border-gold-leaf font-bold text-charcoal" />
+                                    <button onClick={handleLoadDateRange} className="bg-gold-leaf text-white p-1.5 rounded hover:bg-charcoal transition-colors ml-1" title="Load Full History for Range"><SearchIcon className="w-4 h-4" /></button>
+                                </div>
+                                <div className="flex items-center gap-2"><div className="relative"><select value={selectedStylistId} onChange={(e) => setSelectedStylistId(e.target.value)} className="appearance-none bg-white pl-9 pr-8 py-2 rounded-lg border border-gray-200 text-sm font-bold text-charcoal focus:outline-none focus:border-gold-leaf shadow-sm cursor-pointer"><option value="all">All Stylists</option>{staffList.map(staff => (<option key={staff.id} value={staff.id}>{staff.name}</option>))}</select><UsersIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" /><ChevronDownIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" /></div></div>
+                                <div className="flex items-center gap-2 border-l border-gray-200 pl-4"><div className="bg-gold-leaf/10 p-1.5 rounded-full"><LockIcon className="w-3 h-3 text-gold-leaf" /></div><div><div className="flex items-baseline gap-1"><span className="text-[10px] font-bold text-gray-400 uppercase">TARGET ({todayName})</span><input type="number" value={editGlobalPayroll.customTargets?.[todayName] ?? ''} placeholder="0" onChange={(e) => { const val = parseFloat(e.target.value); const newTargets = { ...editGlobalPayroll.customTargets }; if (isNaN(val)) delete newTargets[todayName]; else newTargets[todayName] = val; const newPayroll = {...editGlobalPayroll, customTargets: newTargets}; setEditGlobalPayroll(newPayroll); if (onUpdateGlobalPayroll) onUpdateGlobalPayroll(newPayroll); if (onSaveSettings) onSaveSettings(editStaffList, editPricingData, newPayroll, editKnowledgeBase, editAdminPasswords); }} className="font-bold text-charcoal w-16 border-b border-gray-300 focus:border-gold-leaf outline-none text-sm bg-transparent" /></div></div></div>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><p className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">{t.revenue}</p><div className="flex items-end justify-between"><h3 className="text-3xl font-serif font-bold text-charcoal">${stats.revenue.toFixed(2)}</h3><ChartIcon className="w-8 h-8 text-gold-leaf opacity-20" /></div></div>
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><p className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">{t.orders}</p><div className="flex items-end justify-between"><h3 className="text-3xl font-serif font-bold text-charcoal">{stats.orders}</h3><ReceiptIcon className="w-8 h-8 text-gold-leaf opacity-20" /></div></div>
+                            <div className="bg-charcoal text-white p-6 rounded-2xl shadow-md col-span-2 relative overflow-hidden"><div className="relative z-10"><p className="text-gold-leaf text-xs font-bold uppercase tracking-wider mb-2">TOP STYLIST (REVENUE)</p>{stats.topStylists.length > 0 ? (<><h3 className="text-3xl font-serif font-bold">{stats.topStylists[0].name}</h3><p className="text-gray-400 text-sm mt-1">${stats.topStylists[0].revenue.toFixed(2)} generated</p></>) : <p className="text-gray-500 italic">No data</p>}</div></div>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><h3 className="text-xl font-serif font-bold text-charcoal mb-4">{t.topServices}</h3><div className="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">{stats.topServices.map((svc, i) => (<div key={i} className="flex justify-between items-center"><div className="flex items-center gap-3"><span className="w-6 h-6 rounded-full bg-gold-leaf/10 text-gold-leaf text-xs font-bold flex items-center justify-center">{i + 1}</span><span className="text-charcoal font-medium">{svc.name}</span></div><span className="font-bold text-charcoal">{svc.count}</span></div>))}</div></div>
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><div className="flex justify-between items-center mb-4"><h3 className="text-xl font-serif font-bold text-charcoal">Stylist Performance</h3><div className="flex gap-2 text-[10px] font-bold uppercase"><span className="text-green-600 flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-500"></div> Revenue</span><span className="text-purple-600 flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-purple-500"></div> Bonus</span></div></div><div className="space-y-4 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">{stats.topStylists.map((stylist, i) => { const staffProfile = staffList.find(s => s.name === stylist.name); const hasPayroll = staffProfile?.payroll?.enabled; const isSelected = selectedStylistId !== 'all' && selectedStylistId === staffProfile?.id; return (<div key={i} className={`flex justify-between items-center py-2 border-b border-gray-50 last:border-0 group relative ${isSelected ? 'bg-gold-leaf/5 -mx-2 px-2 rounded-lg' : ''}`}><span className="text-charcoal font-medium flex items-center gap-2">{stylist.name}{hasPayroll && <span className="text-green-500 text-[10px] bg-green-50 px-1 rounded border border-green-100" title="Payroll Active">$</span>}</span><div className="text-right"><span className="block font-bold text-green-600">${stylist.revenue.toFixed(2)}</span>{stylist.bonus > 0 && (<span className="block text-xs font-bold text-purple-600 cursor-help border-b border-dashed border-purple-200">+${stylist.bonus.toFixed(2)} Bonus</span>)}</div></div>)})}</div></div>
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><h3 className="text-xl font-serif font-bold text-charcoal mb-4">{t.recentTransactions}</h3><div className="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">{filteredTransactions.map((tx, i) => (<div key={tx.id} onClick={() => handleEditTransactionClick(tx)} className="pb-3 border-b border-gray-50 last:border-0 hover:bg-gray-50 p-2 rounded cursor-pointer transition-colors group"><div className="flex justify-between items-start"><div><p className="font-bold text-charcoal text-lg group-hover:text-gold-leaf transition-colors">${tx.total.toFixed(2)}{tx.customerName && <span className="text-sm font-normal text-gray-500 ml-2">- {tx.customerName}</span>}</p><p className="text-xs text-gray-400 mt-1">{getSydneyDateStr(tx.date)} {new Date(tx.date).toLocaleTimeString('en-AU', {timeZone: 'Australia/Sydney', hour: '2-digit', minute:'2-digit'})}</p><p className="text-[10px] text-gray-400 mt-0.5">{tx.items.length} items {tx.discountPercentage ? `(-${tx.discountPercentage}%)` : ''}</p></div><PencilIcon className="w-4 h-4 text-gray-300 group-hover:text-gold-leaf" /></div></div>))}{filteredTransactions.length === 0 && <p className="text-center text-gray-400 italic text-sm py-4">No data available.</p>}</div></div>
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'bookings' && (
+                    <div className="space-y-4 animate-fade-in">
+                        {bookings.length === 0 ? (<div className="text-center py-12 bg-white rounded-2xl border border-dashed border-gray-200 shadow-sm"><CalendarIcon className="w-12 h-12 mx-auto text-gray-300 mb-3" /><p className="text-gray-400 font-medium">No booking requests yet.</p></div>) : (<div className="grid grid-cols-1 gap-4">{bookings.map(booking => (<div key={booking.id} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-6 relative overflow-hidden group hover:border-gold-leaf/30 transition-colors"><div className={`absolute left-0 top-0 bottom-0 w-1.5 ${booking.status === 'pending' ? 'bg-yellow-400' : booking.status === 'confirmed' ? 'bg-green-500' : 'bg-red-400'}`}></div><div className="flex-grow space-y-3"><div className="flex justify-between items-start"><div><h3 className="font-serif font-bold text-xl text-charcoal">{booking.customerName}</h3><p className="text-sm text-gray-500 flex items-center gap-2 mt-1"><PhoneIcon className="w-4 h-4 text-gold-leaf" /><a href={`tel:${booking.customerPhone}`} className="hover:underline">{booking.customerPhone}</a></p></div><span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${booking.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : booking.status === 'confirmed' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{booking.status}</span></div><div className="flex items-center gap-2 text-sm font-medium text-charcoal bg-gray-50 p-2 rounded-lg w-fit"><CalendarIcon className="w-4 h-4 text-gold-leaf" /><span>{new Date(booking.date).toLocaleDateString()}</span><span className="text-gray-300">|</span><span>{booking.timeSlot}</span></div><div><p className="text-xs font-bold text-gray-400 uppercase mb-2">Services Requested</p><div className="flex flex-wrap gap-2">{booking.services.map((s, i) => (<span key={i} className="bg-white border border-gray-200 px-3 py-1 rounded-full text-xs font-medium text-charcoal shadow-sm flex items-center gap-1"><SparklesIcon className="w-3 h-3 text-gold-leaf" />{s}</span>))}</div></div>{booking.notes && (<div className="bg-yellow-50 p-3 rounded-xl border border-yellow-100 text-sm text-yellow-800 italic">" {booking.notes} "</div>)}<p className="text-[10px] text-gray-300 pt-2">Request sent: {new Date(booking.createdAt).toLocaleString()}</p></div><div className="flex flex-col gap-3 justify-center md:min-w-[150px] border-t md:border-t-0 md:border-l border-gray-100 pt-4 md:pt-0 md:pl-6">{booking.status === 'pending' && (<button onClick={() => onUpdateBookingStatus && onUpdateBookingStatus(booking.id, 'confirmed')} className="w-full py-2.5 bg-green-500 text-white rounded-xl font-bold text-sm shadow-md hover:bg-green-600 transition-colors flex items-center justify-center gap-2">Confirm</button>)}{booking.status !== 'cancelled' && (<button onClick={() => onUpdateBookingStatus && onUpdateBookingStatus(booking.id, 'cancelled')} className="w-full py-2.5 bg-white border border-gray-200 text-gray-600 rounded-xl font-bold text-sm hover:bg-gray-50 transition-colors">Cancel</button>)}<button onClick={() => onDeleteBooking && onDeleteBooking(booking.id)} className="w-full py-2 text-red-300 hover:text-red-500 text-xs font-bold transition-colors flex items-center justify-center gap-1 mt-auto"><TrashIcon className="w-3 h-3" /> Remove</button></div></div>))}</div>)}
+                    </div>
+                )}
+
+                {activeTab === 'customers' && (
+                    <CustomerCRMView t={t} transactions={allTransactionsForCRM} staffList={staffList} pricingData={pricingData} />
+                )}
+
+                {activeTab === 'marketing' && (
+                    <MarketingView t={t} transactions={allTransactionsForCRM} />
+                )}
+
+                {activeTab === 'settings' && (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in">
+                        {adminRole === 'master' && (
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                                <h3 className="text-xl font-serif font-bold text-charcoal mb-4 flex items-center gap-2"><LockIcon className="w-6 h-6 text-gold-leaf" /> Connection Setup</h3>
+                                <div className="space-y-4"><div><label className="block text-xs font-bold text-gray-500 uppercase mb-2">Paste Firebase JSON Config</label><textarea className="w-full p-3 border border-gray-200 rounded-xl text-xs font-mono bg-gray-50 focus:border-gold-leaf outline-none" rows={6} placeholder='{ "apiKey": "...", "projectId": "..." }' value={pasteInput} onChange={handlePasteChange}></textarea></div><div className="bg-gray-50 p-4 rounded-xl space-y-2"><p className="text-xs text-gray-500 font-bold">Preview:</p><p className="text-xs text-charcoal truncate">Project ID: {config.projectId || 'Not detected'}</p><p className="text-xs text-charcoal truncate">Database: {config.databaseURL || 'Auto-detected'}</p></div><div className="flex gap-2"><button onClick={handleTestConnection} disabled={!config.projectId || testStatus === 'testing'} className="flex-1 py-2 bg-gray-200 text-charcoal rounded-lg font-bold text-sm hover:bg-gray-300 disabled:opacity-50">{testStatus === 'testing' ? "Testing..." : "Test Connection"}</button><button onClick={handleSaveConfig} disabled={testStatus !== 'success'} className="flex-1 py-2 bg-gold-leaf text-white rounded-lg font-bold text-sm hover:bg-charcoal disabled:opacity-50 transition-colors">Save & Reload</button></div>{testMessage && (<p className={`text-center text-xs font-bold ${testStatus === 'success' ? 'text-green-600' : testStatus === 'fail' ? 'text-red-500' : 'text-gray-500'}`}>{testMessage}</p>)}{setupError && <p className="text-center text-xs text-red-500 font-bold">{setupError}</p>}</div>
+                            </div>
                         )}
+                        <div className="flex flex-col gap-6">
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><div className="flex justify-between items-center mb-2"><div><h3 className="text-xl font-serif font-bold text-charcoal flex items-center gap-2"><MapPinIcon className="w-6 h-6 text-gold-leaf" /> Location Security</h3><p className="text-xs text-gray-500 mt-1">Prevent fake orders by requiring staff to be at the shop.</p></div><div className="flex items-center gap-2"><span className="text-xs font-bold uppercase text-gray-400">{editGlobalPayroll.gpsRequired ? 'Enabled' : 'Disabled'}</span><button onClick={() => { const newSettings = { ...editGlobalPayroll, gpsRequired: !editGlobalPayroll.gpsRequired }; setEditGlobalPayroll(newSettings); if (onUpdateGlobalPayroll) onUpdateGlobalPayroll(newSettings); if (onSaveSettings) onSaveSettings(editStaffList, editPricingData, newSettings, editKnowledgeBase, editAdminPasswords); }} className={`w-12 h-6 rounded-full p-1 transition-colors duration-300 focus:outline-none ${editGlobalPayroll.gpsRequired ? 'bg-green-500' : 'bg-gray-300'}`}><div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ${editGlobalPayroll.gpsRequired ? 'translate-x-6' : 'translate-x-0'}`}></div></button></div></div><div className="text-[10px] text-gray-400 bg-gray-50 p-2 rounded-lg border border-gray-100">Note: Staff must allow location access on their devices for this to work.</div></div>
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-blue-200"><h3 className="text-xl font-serif font-bold text-blue-700 mb-4 flex items-center gap-2"><SparklesIcon className="w-6 h-6" /> AI Knowledge Base</h3><p className="text-sm text-gray-600 mb-2">Teach the AI about your shop rules, policies, parking, etc. This text is added to the AI's instructions.</p><textarea value={editKnowledgeBase} onChange={(e) => setEditKnowledgeBase(e.target.value)} className="w-full p-3 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:border-blue-500 outline-none mb-4" rows={5} placeholder="e.g. Parking is available behind the building. We offer a 3-day guarantee on Shellac. Cash payments get 5% off." /><button onClick={handleSaveAllSettings} disabled={isSavingSettings} className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50">{isSavingSettings ? "Saving..." : "Save Knowledge Base"}</button></div>
+                            {adminRole === 'master' && (
+                                <><div className="bg-white p-6 rounded-2xl shadow-sm border border-charcoal/20"><h3 className="text-xl font-serif font-bold text-charcoal mb-4 flex items-center gap-2"><LockIcon className="w-6 h-6" /> Security & Access Control</h3>{!showPasswordSection ? (<button onClick={() => setShowPasswordSection(true)} className="w-full py-3 bg-gray-100 text-charcoal font-bold rounded-xl hover:bg-gray-200 transition-colors">Change Admin Passwords</button>) : (<div className="space-y-4 bg-gray-50 p-4 rounded-xl border border-gray-100 animate-fade-in"><div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Master Admin Password</label><input type="text" value={editAdminPasswords.master} onChange={(e) => setEditAdminPasswords(prev => ({...prev, master: e.target.value}))} className="w-full p-2 border rounded-lg text-sm" /></div><div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Shop Manager Password</label><input type="text" value={editAdminPasswords.manager} onChange={(e) => setEditAdminPasswords(prev => ({...prev, manager: e.target.value}))} className="w-full p-2 border rounded-lg text-sm" /></div><div className="flex gap-2"><button onClick={() => setShowPasswordSection(false)} className="flex-1 py-2 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-500">Cancel</button><button onClick={handleSaveAllSettings} disabled={isSavingSettings} className="flex-1 py-2 bg-charcoal text-white rounded-lg text-sm font-bold hover:bg-black transition-colors">Update Passwords</button></div></div>)}</div><div className="bg-white p-6 rounded-2xl shadow-sm border border-red-200"><h3 className="text-xl font-serif font-bold text-red-600 mb-4 flex items-center gap-2"><TrashIcon className="w-6 h-6" /> System Data</h3><p className="text-sm text-gray-600 mb-4">Clean up old transaction history to keep the app fast. <br/><strong>Keeps the last 6 months of data safe.</strong></p><button onClick={handleClearHistory} className="w-full py-3 bg-red-50 text-red-600 border border-red-200 font-bold rounded-xl hover:bg-red-600 hover:text-white transition-colors flex items-center justify-center gap-2"><TrashIcon className="w-5 h-5" /> Clean Up Old Data (> 6 Months)</button></div></>
+                            )}
+                        </div>
                     </div>
-                
-                    {stats.topStylists.length === 0 ? (
-                        <p className="text-gray-400 text-sm text-center py-4">{t.noData}</p>
-                    ) : (
-                        <div className="space-y-3 h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-                            {stats.topStylists.map(([name, revenue]) => (
+                )}
+
+                {activeTab === 'menu' && (
+                    <div className="space-y-6 animate-fade-in">
+                        <div className="flex justify-end"><button onClick={handleSaveAllSettings} disabled={isSavingSettings} className="bg-green-600 text-white px-6 py-2 rounded-xl font-bold shadow-md hover:bg-green-700 transition-colors disabled:opacity-50">{isSavingSettings ? "Saving to Cloud..." : "Save All Changes"}</button></div>
+                        
+                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                            <div className="flex justify-between items-center mb-4"><h3 className="text-xl font-serif font-bold text-charcoal">Staff & Payroll</h3><button onClick={() => { handleCancelEdit(); setEditingStaffId("new"); window.scrollTo({top:0, behavior:'smooth'}); }} className="bg-charcoal text-white px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-black"><PlusIcon className="w-4 h-4" /> Add Staff</button></div>
+                            {editingStaffId && (
+                                <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 mb-6 animate-fade-in">
+                                    <h4 className="font-bold text-lg mb-4">{editingStaffId === 'new' ? 'New Staff Member' : 'Edit Staff'}</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div className="space-y-4"><div><label className="block text-xs font-bold uppercase text-gray-500 mb-1">Name</label><input type="text" value={newStaffName} onChange={e => setNewStaffName(e.target.value)} className="w-full p-2 border rounded-lg" /></div><div><label className="block text-xs font-bold uppercase text-gray-500 mb-1">Passcode (Login)</label><input type="text" value={newStaffPassword} onChange={e => setNewStaffPassword(e.target.value)} className="w-full p-2 border rounded-lg" placeholder="e.g. 1234" /></div><div><label className="block text-xs font-bold uppercase text-gray-500 mb-1">Profile Picture</label><div className="flex items-center gap-3">{newStaffAvatar ? <img src={newStaffAvatar} className="w-12 h-12 rounded-full object-cover" /> : <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center"><UserIcon className="w-6 h-6 text-gray-400" /></div>}<button onClick={() => fileInputRef.current?.click()} className="text-xs bg-white border px-3 py-1.5 rounded-lg font-bold hover:bg-gray-50">Upload</button><input type="file" ref={fileInputRef} onChange={handleAvatarUpload} className="hidden" accept="image/*" /></div></div></div><div className="space-y-4 bg-white p-4 rounded-xl border border-gray-200"><div className="flex items-center justify-between"><label className="font-bold text-sm text-charcoal">Payroll & Commission</label><button onClick={() => setPayrollEnabled(!payrollEnabled)} className={`w-10 h-5 rounded-full p-1 transition-colors ${payrollEnabled ? 'bg-green-500' : 'bg-gray-300'}`}><div className={`w-3 h-3 bg-white rounded-full shadow-sm transition-transform ${payrollEnabled ? 'translate-x-5' : ''}`}></div></button></div>{payrollEnabled && (<div className="grid grid-cols-2 gap-4 animate-fade-in"><div><label className="block text-xs font-bold text-gray-400 uppercase mb-1">Base Salary ($)</label><input type="number" value={baseSalary} onChange={e => setBaseSalary(e.target.value)} className="w-full p-2 border rounded-lg" /></div><div><label className="block text-xs font-bold text-gray-400 uppercase mb-1">Bonus Rate (%)</label><input type="number" value={bonusRate} onChange={e => setBonusRate(e.target.value)} className="w-full p-2 border rounded-lg" /></div></div>)}</div></div>
+                                    <div className="flex gap-3 mt-6"><button onClick={handleSaveStaff} className="bg-gold-leaf text-white px-6 py-2 rounded-lg font-bold hover:bg-charcoal transition-colors">Save Profile</button><button onClick={handleCancelEdit} className="bg-gray-200 text-charcoal px-6 py-2 rounded-lg font-bold hover:bg-gray-300">Cancel</button>{editingStaffId !== 'new' && <button onClick={() => handleRemoveStaff(editingStaffId!)} className="ml-auto text-red-500 font-bold hover:underline">Remove Staff</button>}</div>{staffFormError && <p className="text-red-500 text-sm mt-3 font-bold">{staffFormError}</p>}
+                                </div>
+                            )}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">{editStaffList.map(staff => (<div key={staff.id} onClick={() => handleSelectStaffForEdit(staff)} className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:border-gold-leaf cursor-pointer group bg-gray-50/50 hover:bg-white transition-all"><div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden">{staff.avatar ? <img src={staff.avatar} className="w-full h-full object-cover" /> : <UserIcon className="w-5 h-5 text-gray-400 m-2.5" />}</div><div className="flex-grow"><p className="font-bold text-sm text-charcoal group-hover:text-gold-leaf">{staff.name}</p><p className="text-xs text-gray-400">{staff.payroll?.enabled ? `${staff.payroll.bonusRate}% Comm` : 'No Payroll'}</p></div><PencilIcon className="w-4 h-4 text-gray-300 group-hover:text-gold-leaf" /></div>))}</div>
+                        </div>
+
+                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                            <div className="flex justify-between items-center mb-4"><h3 className="text-xl font-serif font-bold text-charcoal">Daily Revenue Targets</h3><span className="text-xs text-gray-400">Bonus triggers above this amount. Set to 0 for bonus on all sales.</span></div>
+                            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 bg-gray-50 p-4 rounded-xl">{DAYS_OF_WEEK.map((day, idx) => (<div key={day} className={`p-2 rounded-lg ${day === todayName ? 'bg-white shadow-sm ring-1 ring-gold-leaf' : ''}`}><label className={`block text-[10px] font-bold uppercase mb-1 ${day === todayName ? 'text-gold-leaf' : 'text-gray-400'}`}>{day} {day === todayName && '(Today)'}</label><input type="number" placeholder="0" value={editGlobalPayroll.customTargets?.[day] ?? ''} onChange={(e) => { const val = e.target.value === '' ? undefined : parseFloat(e.target.value); const newTargets = { ...editGlobalPayroll.customTargets }; if (val === undefined) delete newTargets[day]; else newTargets[day] = val; setEditGlobalPayroll({ ...editGlobalPayroll, customTargets: newTargets }); }} className="w-full p-2 border border-gray-200 rounded text-sm text-center font-bold focus:border-gold-leaf outline-none" /></div>))}</div>
+                        </div>
+
+                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="text-xl font-serif font-bold text-charcoal">Service Menu Pricing</h3>
                                 <button 
-                                    key={name} 
-                                    onClick={() => setSelectedStylist(selectedStylist === name ? null : name)}
-                                    className={`w-full flex items-center justify-between text-sm p-2 rounded-lg transition-colors ${selectedStylist === name ? 'bg-gold-leaf text-white' : 'hover:bg-gray-50'}`}
+                                    onClick={handleAddCategory}
+                                    className="bg-charcoal text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-black transition-colors"
                                 >
-                                    <span className="font-medium">{name}</span>
-                                    <span className={selectedStylist === name ? 'text-white font-bold' : 'text-green-600 font-semibold'}>
-                                        ${revenue.toFixed(2)}
-                                    </span>
+                                    <PlusIcon className="w-4 h-4" /> Add New Group
                                 </button>
-                            ))}
-                        </div>
-                    )}
-                </div>
+                            </div>
+                            
+                            <div className="space-y-4">
+                                {editPricingData.map((cat, catIndex) => { 
+                                    const isOpen = openEditCategories[cat.categoryKey]; 
+                                    return (
+                                        <div key={catIndex} className="border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:border-gold-leaf/30 transition-colors">
+                                            <div className="w-full flex items-center p-3 bg-gray-50 gap-3 border-b border-gray-200">
+                                                {/* REORDER CONTROLS */}
+                                                <div className="flex flex-col gap-1">
+                                                    <button 
+                                                        onClick={() => handleMoveCategory(catIndex, 'up')}
+                                                        disabled={catIndex === 0}
+                                                        className="p-1 text-gray-400 hover:text-gold-leaf disabled:opacity-20"
+                                                        title="Move Up"
+                                                    >
+                                                        <ChevronDownIcon className="w-4 h-4 rotate-180" />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleMoveCategory(catIndex, 'down')}
+                                                        disabled={catIndex === editPricingData.length - 1}
+                                                        className="p-1 text-gray-400 hover:text-gold-leaf disabled:opacity-20"
+                                                        title="Move Down"
+                                                    >
+                                                        <ChevronDownIcon className="w-4 h-4" />
+                                                    </button>
+                                                </div>
 
-                {/* Recent Transactions List */}
-                <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 lg:col-span-1">
-                    <h3 className="text-lg font-serif font-bold text-charcoal mb-4 border-b pb-2">
-                        {selectedStylist 
-                            ? <span>History: {selectedStylist} <span className="text-green-600 ml-1 font-sans">(Total: ${selectedStylistTotal.toFixed(2)})</span></span>
-                            : t.recentTransactions
-                        }
-                    </h3>
-                    {displayTransactions.length === 0 ? (
-                        <p className="text-gray-400 text-sm text-center py-4">{t.noData}</p>
-                    ) : (
-                        <div className="space-y-4 h-[600px] overflow-y-auto pr-1 custom-scrollbar">
-                            {displayTransactions.slice().reverse().map(tr => {
-                                // Logic to filter visible items if a stylist is selected
-                                const visibleItems = selectedStylist 
-                                    ? tr.items.filter(item => item.staffName === selectedStylist)
-                                    : tr.items;
-                                
-                                // Calculate display total based on visible items
-                                const displayTotal = visibleItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-                                
-                                const discountFactor = tr.discountPercentage ? (1 - tr.discountPercentage / 100) : 1;
-                                const finalDisplayTotal = selectedStylist ? displayTotal * discountFactor : tr.total;
+                                                {/* GROUP NAME INPUT */}
+                                                <div className="flex-grow flex items-center gap-2">
+                                                    <input 
+                                                        type="text" 
+                                                        value={cat.categoryKey}
+                                                        onChange={(e) => handleUpdateCategoryName(catIndex, e.target.value)}
+                                                        className="bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm font-bold text-charcoal focus:border-gold-leaf outline-none flex-grow"
+                                                        placeholder="Group Name"
+                                                    />
+                                                </div>
 
-                                return (
-                                    <div key={tr.id} className="flex justify-between items-start border-b border-gray-50 pb-3 last:border-0">
-                                        <div>
-                                            <p className="font-bold text-charcoal text-sm">${finalDisplayTotal.toFixed(2)}
-                                                {tr.customerName && <span className="ml-2 font-normal text-gray-500">- {tr.customerName}</span>}
-                                            </p>
-                                            <p className="text-xs text-charcoal/60">
-                                                {new Date(tr.date).toLocaleDateString()} {new Date(tr.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                                            </p>
-                                            <p className="text-xs text-charcoal/50 mt-1">
-                                                {tr.items.length} items {tr.discountPercentage ? `(-${tr.discountPercentage}%)` : ''}
-                                            </p>
+                                                <div className="flex items-center gap-1">
+                                                    <button onClick={() => toggleEditCategory(cat.categoryKey)} className="p-2 text-gray-400 hover:text-charcoal transition-colors">
+                                                        <ChevronDownIcon className={`w-5 h-5 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                                                    </button>
+                                                    <button onClick={() => handleRemoveCategory(catIndex)} className="p-2 text-gray-300 hover:text-red-500 transition-colors" title="Delete Group">
+                                                        <TrashIcon className="w-5 h-5" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            
+                                            {isOpen && (
+                                                <div className="p-3 bg-white space-y-2 animate-fade-in">
+                                                    {cat.services.map((svc, srvIndex) => (
+                                                        <div key={srvIndex} className="flex gap-2 items-center">
+                                                            {/* SERVICE REORDER CONTROLS */}
+                                                            <div className="flex flex-col gap-0.5">
+                                                                <button 
+                                                                    onClick={() => handleMoveService(catIndex, srvIndex, 'up')}
+                                                                    disabled={srvIndex === 0}
+                                                                    className="p-0.5 text-gray-300 hover:text-gold-leaf disabled:opacity-10"
+                                                                >
+                                                                    <ChevronDownIcon className="w-3 h-3 rotate-180" />
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => handleMoveService(catIndex, srvIndex, 'down')}
+                                                                    disabled={srvIndex === cat.services.length - 1}
+                                                                    className="p-0.5 text-gray-300 hover:text-gold-leaf disabled:opacity-10"
+                                                                >
+                                                                    <ChevronDownIcon className="w-3 h-3" />
+                                                                </button>
+                                                            </div>
+                                                            <input type="text" value={svc.displayName || t.serviceNames[svc.nameKey] || svc.nameKey} onChange={(e) => handleUpdateService(catIndex, srvIndex, 'displayName', e.target.value)} className="flex-grow p-2 border rounded-lg text-sm" placeholder="Service Name" />
+                                                            <input type="text" value={svc.price} onChange={(e) => handleUpdateService(catIndex, srvIndex, 'price', e.target.value)} className="w-24 p-2 border rounded-lg text-sm text-right font-bold text-gold-leaf" />
+                                                            <button onClick={() => handleRemoveService(catIndex, srvIndex)} className="p-2 text-gray-300 hover:text-red-500"><XMarkIcon className="w-4 h-4" /></button>
+                                                        </div>
+                                                    ))}
+                                                    <button onClick={() => handleAddService(catIndex)} className="w-full py-2.5 border border-dashed border-gray-300 rounded-xl text-xs font-bold text-gray-400 hover:text-gold-leaf hover:border-gold-leaf transition-colors mt-2">
+                                                        + Add Service to this Group
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
-                                    </div>
-                                );
-                            })}
+                                    ); 
+                                })}
+                            </div>
                         </div>
-                    )}
+                    </div>
+                )}
+            </main>
+
+            {editingTransaction && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+                        <div className="bg-gray-50 p-4 border-b border-gray-100 flex justify-between items-center"><h3 className="font-serif font-bold text-lg">Edit Transaction</h3><button onClick={() => setEditingTransaction(null)}><XMarkIcon className="w-5 h-5 text-gray-400 hover:text-charcoal" /></button></div>
+                        <div className="p-6 space-y-4">
+                            <div><label className="block text-xs font-bold text-gray-400 uppercase mb-1">Customer Name</label><input type="text" value={editTxName} onChange={e => setEditTxName(e.target.value)} className="w-full p-2 border rounded-lg" /></div>
+                            <div><label className="block text-xs font-bold text-gray-400 uppercase mb-1">Phone</label><input type="text" value={editTxPhone} onChange={e => setEditTxPhone(e.target.value)} className="w-full p-2 border rounded-lg" /></div>
+                            <div className="grid grid-cols-2 gap-4"><div><label className="block text-xs font-bold text-gray-400 uppercase mb-1">Total ($)</label><input type="number" value={editTxTotal} onChange={e => setEditTxTotal(e.target.value)} className="w-full p-2 border rounded-lg font-bold" /></div><div><label className="block text-xs font-bold text-gray-400 uppercase mb-1">Discount (%)</label><input type="number" value={editTxDiscount} onChange={e => setEditTxDiscount(e.target.value)} className="w-full p-2 border rounded-lg" /></div></div>
+                            <div className="bg-gray-50 p-3 rounded-lg text-xs text-gray-500 max-h-32 overflow-y-auto"><p className="font-bold mb-1">Items:</p><ul className="list-disc list-inside space-y-0.5">{editingTransaction.items.map((item, idx) => (<li key={idx}>{item.quantity}x {item.displayName || t.serviceNames[item.nameKey] || item.nameKey} {item.staffName && ` (${item.staffName})`}<span className="ml-1 text-gray-400">(${item.price})</span></li>))}</ul><p className="mt-2 italic text-[10px] text-red-400">Note: Changing total here overrides calculated item total.</p></div>
+                            <div className="flex gap-3 pt-2"><button onClick={handleDeleteTransaction} className="px-4 py-2 border border-red-200 text-red-500 rounded-lg font-bold hover:bg-red-50 flex items-center gap-2"><TrashIcon className="w-4 h-4" /> Delete</button><button onClick={handleSaveTransaction} className="flex-1 py-2 bg-gold-leaf text-white rounded-lg font-bold hover:bg-charcoal shadow-md">Save Changes</button></div>
+                        </div>
+                    </div>
                 </div>
-            </div>
-        </>
-        )}
-      </main>
-    </div>
-  );
+            )}
+        </div>
+    );
 };
