@@ -1,16 +1,4 @@
-
-
 import { GoogleGenAI, Modality } from "@google/genai";
-
-const API_KEY = process.env.API_KEY;
-
-if (!API_KEY) {
-  // In a real app, you might show an error to the user or have a fallback.
-  // For this environment, we assume the key is always present.
-  console.warn("API_KEY environment variable not set.");
-}
-
-const ai = new GoogleGenAI({ apiKey: API_KEY! });
 
 /**
  * Converts a File object to a base64 encoded string.
@@ -117,6 +105,8 @@ export const generateNailArt = async (imageFile: File, stylePrompt?: string): Pr
     : basePrompt;
 
   try {
+    // FIX: Always use new GoogleGenAI({apiKey: process.env.API_KEY}) directly before call
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: {
@@ -168,7 +158,8 @@ export const generateBookingRequest = async (
     Do not include placeholders like [Your Name]. Just write the message itself.`;
 
     try {
-        const aiWithKey = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+        // FIX: Always use new GoogleGenAI({apiKey: process.env.API_KEY}) directly before call
+        const aiWithKey = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const response = await aiWithKey.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: prompt,

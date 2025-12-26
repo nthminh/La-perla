@@ -1,14 +1,5 @@
 import { GoogleGenAI, Modality } from "@google/genai";
 
-// Use import.meta.env for Vite or fall back to process.env
-const API_KEY = process.env.API_KEY || (import.meta as any).env?.VITE_API_KEY;
-
-if (!API_KEY) {
-  console.warn("API_KEY environment variable not set.");
-}
-
-const ai = new GoogleGenAI({ apiKey: API_KEY! });
-
 /**
  * Converts a File object to a base64 encoded string.
  * @param file The file to convert.
@@ -114,6 +105,8 @@ export const generateNailArt = async (imageFile: File, stylePrompt?: string): Pr
     : basePrompt;
 
   try {
+    // FIX: Always use new GoogleGenAI({apiKey: process.env.API_KEY}) directly before call
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: {
@@ -130,6 +123,7 @@ export const generateNailArt = async (imageFile: File, stylePrompt?: string): Pr
         ],
       },
       config: {
+        // Note: Modalit.IMAGE is correct for nano banana series editing
         responseModalities: [Modality.IMAGE],
       },
     });
@@ -165,9 +159,10 @@ export const generateBookingRequest = async (
     Do not include placeholders like [Your Name]. Just write the message itself.`;
 
     try {
-        const aiWithKey = new GoogleGenAI({ apiKey: API_KEY! });
+        // FIX: Always use new GoogleGenAI({apiKey: process.env.API_KEY}) directly before call
+        const aiWithKey = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const response = await aiWithKey.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-3-flash-preview',
             contents: prompt,
         });
         return response.text.trim();
