@@ -37,8 +37,10 @@ View your app in AI Studio: https://ai.studio/apps/drive/1Ay5kinG8NgbB3wU-5ZvKuk
 
 ## 📚 Documentation
 
+- **[🇻🇳 Hướng Dẫn Tiếng Việt](./HUONG_DAN_TIENG_VIET.md)** - Vietnamese Setup Guide
 - **[Setup Guide](./SETUP_GUIDE.md)** - Detailed installation and configuration instructions
 - **[Firebase Studio Import Guide](./FIREBASE_STUDIO_GUIDE.md)** - How to import this app into Firebase Studio for advanced AI features
+- **[Deployment Checklist](./DEPLOYMENT_CHECKLIST.md)** - Production deployment guide
 
 ## ✨ Features
 
