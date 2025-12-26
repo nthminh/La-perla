@@ -139,7 +139,7 @@ export const MarketingView: React.FC<MarketingViewProps> = ({ t, transactions })
                         <div>
                             <p className="text-red-600 font-bold text-xs uppercase tracking-wider mb-1">Red Alerts</p>
                             <h3 className="text-3xl font-serif font-bold text-red-800">{customerAnalysis.redAlerts.length}</h3>
-                            <p className="text-red-500 text-sm mt-1">Customers gone for > 60 days</p>
+                            <p className="text-red-500 text-sm mt-1">Customers gone for {'>'}60 days</p>
                         </div>
                         <div className="bg-red-100 p-3 rounded-full text-red-600">
                             <ClockIcon className="w-6 h-6" />
