@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { StaffProfile, Transaction, GlobalPayrollSettings, ServiceCategory } from '../types';
 import { UserIcon, StarIcon, ChartIcon, ReceiptIcon, CloudSyncIcon, ListBulletIcon, XMarkIcon } from './Icons';
 import { subscribeToTransactions } from '../services/firebaseService'; 
@@ -36,13 +36,60 @@ const getSydneyDayName = (isoDate: string) => {
     }
 };
 
+// Image compression utility
+const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const MAX_WIDTH = 800;
+                const MAX_HEIGHT = 800;
+                let width = img.width;
+                let height = img.height;
+
+                if (width > height) {
+                    if (width > MAX_WIDTH) {
+                        height *= MAX_WIDTH / width;
+                        width = MAX_WIDTH;
+                    }
+                } else {
+                    if (height > MAX_HEIGHT) {
+                        width *= MAX_HEIGHT / height;
+                        height = MAX_HEIGHT;
+                    }
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx?.drawImage(img, 0, 0, width, height);
+                
+                // Compress to JPEG with 70% quality
+                const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+                resolve(compressedBase64);
+            };
+            img.onerror = reject;
+            img.src = e.target?.result as string;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+};
+
 export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser, onUpdateProfile, onExit, globalPayroll, pricingData }) => {
-    const [activeTab, setActiveTab] = useState<'profile' | 'earnings'>('profile');
+    const [activeTab, setActiveTab] = useState<'profile' | 'portfolio' | 'earnings'>('profile');
     
     const [bio, setBio] = useState(currentUser.bio || "");
     const [specialties, setSpecialties] = useState<string[]>(currentUser.specialties || []);
     const [newTag, setNewTag] = useState("");
     const [isSaving, setIsSaving] = useState(false);
+    
+    // Portfolio State
+    const [portfolio, setPortfolio] = useState<string[]>(currentUser.portfolio || []);
+    const [isUploading, setIsUploading] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Password Change State
     const [showPassForm, setShowPassForm] = useState(false);
@@ -168,6 +215,53 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
     const handleRemoveTag = (tagToRemove: string) => {
         setSpecialties(specialties.filter(s => s !== tagToRemove));
     };
+    
+    // Portfolio Handlers
+    const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+        
+        const currentCount = portfolio.length;
+        const MAX_PHOTOS = 50;
+        
+        if (currentCount >= MAX_PHOTOS) {
+            alert(`You can only have ${MAX_PHOTOS} photos maximum.`);
+            return;
+        }
+        
+        const availableSlots = MAX_PHOTOS - currentCount;
+        const filesToProcess = Array.from(files).slice(0, availableSlots);
+        
+        setIsUploading(true);
+        try {
+            const compressedImages: string[] = [];
+            for (const file of filesToProcess) {
+                if ((file as File).type.startsWith('image/')) {
+                    const compressed = await compressImage(file as File);
+                    compressedImages.push(compressed);
+                }
+            }
+            
+            setPortfolio([...portfolio, ...compressedImages]);
+            if (filesToProcess.length < files.length) {
+                alert(`Only ${filesToProcess.length} photos added due to ${MAX_PHOTOS} photo limit.`);
+            }
+        } catch (error) {
+            alert("Error processing images. Please try again.");
+        } finally {
+            setIsUploading(false);
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
+        }
+    };
+    
+    const handleRemovePhoto = (index: number) => {
+        const confirmed = confirm("Remove this photo from your portfolio?");
+        if (confirmed) {
+            setPortfolio(portfolio.filter((_, i) => i !== index));
+        }
+    };
 
     const handleChangePassword = async () => {
         setPassError("");
@@ -212,7 +306,7 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
             ...currentUser,
             bio: bio.trim(),
             specialties,
-            portfolio: currentUser.portfolio, 
+            portfolio: portfolio, 
             rating: currentUser.rating || 5.0,
             payroll: currentUser.payroll 
         };
@@ -275,6 +369,9 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
                 <button onClick={() => { SoundManager.playTap(); setActiveTab('profile'); }} className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'profile' ? 'bg-gold-leaf text-white shadow-md' : 'bg-white text-charcoal border border-gray-200'}`}>
                     <UserIcon className="w-4 h-4" /> Profile
                 </button>
+                <button onClick={() => { SoundManager.playTap(); setActiveTab('portfolio'); }} className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'portfolio' ? 'bg-gold-leaf text-white shadow-md' : 'bg-white text-charcoal border border-gray-200'}`}>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg> Portfolio
+                </button>
                 <button onClick={() => { SoundManager.playTap(); setActiveTab('earnings'); }} className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'earnings' ? 'bg-gold-leaf text-white shadow-md' : 'bg-white text-charcoal border border-gray-200'}`}>
                     <ChartIcon className="w-4 h-4" /> Earnings
                 </button>
@@ -321,6 +418,96 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
                                     <button onClick={handleChangePassword} disabled={isSaving} className="w-full bg-charcoal text-white py-2 rounded-lg text-sm font-bold">Update</button>
                                 </div>
                             )}
+                        </div>
+
+                        <button onClick={handleSave} disabled={isSaving} className="w-full py-4 bg-gold-leaf text-white font-bold rounded-xl shadow-lg hover:bg-charcoal transition-all disabled:opacity-50 text-lg sticky bottom-6">{isSaving ? "Saving..." : "Save Changes"}</button>
+                    </>
+                )}
+
+                {activeTab === 'portfolio' && (
+                    <>
+                        <div className="bg-white p-5 rounded-2xl shadow-sm border border-gold-leaf/20">
+                            <div className="flex justify-between items-center mb-4">
+                                <div>
+                                    <h3 className="text-xs font-bold text-gold-leaf uppercase mb-1">My Portfolio</h3>
+                                    <p className="text-xs text-gray-500">{portfolio.length} / 50 photos</p>
+                                </div>
+                                <button 
+                                    onClick={() => fileInputRef.current?.click()} 
+                                    disabled={portfolio.length >= 50 || isUploading}
+                                    className="bg-charcoal text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-black disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                                >
+                                    {isUploading ? (
+                                        <>
+                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                            <span>Processing...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                                            <span>Add Photo</span>
+                                        </>
+                                    )}
+                                </button>
+                                <input 
+                                    ref={fileInputRef}
+                                    type="file" 
+                                    accept="image/*" 
+                                    multiple
+                                    className="hidden" 
+                                    onChange={handleFileSelect}
+                                />
+                            </div>
+                            
+                            {portfolio.length === 0 ? (
+                                <div className="text-center py-12 text-gray-400">
+                                    <svg className="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                    <p className="text-sm font-medium">No photos yet</p>
+                                    <p className="text-xs mt-1">Upload photos of your nail art work</p>
+                                    <p className="text-xs text-gray-300 mt-2">Images will be automatically compressed</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-3 gap-3">
+                                    {portfolio.map((photo, index) => (
+                                        <div key={index} className="relative group aspect-square rounded-lg overflow-hidden border-2 border-gray-100 hover:border-gold-leaf transition-all shadow-sm">
+                                            <img 
+                                                src={photo} 
+                                                alt={`Portfolio ${index + 1}`} 
+                                                className="w-full h-full object-cover"
+                                            />
+                                            <button
+                                                onClick={() => handleRemovePhoto(index)}
+                                                className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg hover:bg-red-600"
+                                                title="Remove photo"
+                                            >
+                                                <XMarkIcon className="w-3 h-3" />
+                                            </button>
+                                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <p className="text-white text-xs font-bold">#{index + 1}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                        
+                        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800">
+                            <div className="flex items-start gap-2">
+                                <svg className="w-5 h-5 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                                </svg>
+                                <div>
+                                    <p className="font-bold mb-1">Tips:</p>
+                                    <ul className="text-xs space-y-1">
+                                        <li>• Maximum 50 photos per portfolio</li>
+                                        <li>• Images are automatically compressed to save space</li>
+                                        <li>• Best quality: well-lit, focused nail photos</li>
+                                        <li>• Click "Save Changes" to update your portfolio</li>
+                                    </ul>
+                                </div>
+                            </div>
                         </div>
 
                         <button onClick={handleSave} disabled={isSaving} className="w-full py-4 bg-gold-leaf text-white font-bold rounded-xl shadow-lg hover:bg-charcoal transition-all disabled:opacity-50 text-lg sticky bottom-6">{isSaving ? "Saving..." : "Save Changes"}</button>
