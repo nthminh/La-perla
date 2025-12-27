@@ -40,6 +40,7 @@ type AppMode = 'gate' | 'app';
 
 const DAILY_LIMIT = 10;
 const IDLE_TIMEOUT_MS = 60 * 60 * 1000; // 60 Minutes
+const FIREBASE_CONNECTION_TIMEOUT_MS = 10000; // 10 seconds
 
 // --- ERROR BOUNDARY COMPONENT ---
 interface ErrorBoundaryProps {
@@ -605,7 +606,7 @@ const MainApp: React.FC = () => {
           console.warn("Firebase connection timeout - continuing in offline mode");
           setIsSystemReady(true);
           setIsConnected(false);
-      }, 10000); // 10 seconds timeout
+      }, FIREBASE_CONNECTION_TIMEOUT_MS);
 
       // 1. Subscribe to System State
       const unsubState = subscribeToSystemState((cloudState) => {
