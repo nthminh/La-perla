@@ -77,6 +77,8 @@ export const subscribeToSystemState = (
   }, (error) => {
     console.warn("Firebase Read Error (SystemState) - check rules:", error.message);
     // Call onUpdate with empty state to prevent app from hanging
+    // Note: localStorage data is loaded independently in App.tsx, so this won't overwrite cached data
+    // This empty state primarily ensures isSystemReady gets set to true so the app can continue
     onUpdate(EMPTY_SYSTEM_STATE);
   });
 
