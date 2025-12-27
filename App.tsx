@@ -600,8 +600,16 @@ const MainApp: React.FC = () => {
           return;
       }
 
+      // Set a timeout to prevent infinite loading if Firebase connection fails
+      const connectionTimeout = setTimeout(() => {
+          console.warn("Firebase connection timeout - continuing in offline mode");
+          setIsSystemReady(true);
+          setIsConnected(false);
+      }, 10000); // 10 seconds timeout
+
       // 1. Subscribe to System State
       const unsubState = subscribeToSystemState((cloudState) => {
+          clearTimeout(connectionTimeout); // Clear timeout on successful connection
           setIsConnected(true);
           setIsSystemReady(true);
           
@@ -681,6 +689,7 @@ const MainApp: React.FC = () => {
       });
       
       return () => {
+          clearTimeout(connectionTimeout);
           unsubState();
           unsubSettings();
       };

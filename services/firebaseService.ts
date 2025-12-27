@@ -73,6 +73,14 @@ export const subscribeToSystemState = (
     }
   }, (error) => {
     console.warn("Firebase Read Error (SystemState) - check rules:", error.message);
+    // Call onUpdate with empty state to prevent app from hanging
+    onUpdate({
+      activeBills: [],
+      waitlist: [],
+      bookings: [],
+      activeStaffIds: [],
+      appVersion: 0
+    });
   });
 
   return unsubscribe;

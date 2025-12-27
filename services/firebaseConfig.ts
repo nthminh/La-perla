@@ -44,28 +44,32 @@ let authInstance: Auth | null = null;
 try {
     if (!getApps().length) {
         app = initializeApp(firebaseConfig);
+        console.log("Firebase app initialized successfully");
     } else {
         app = getApp();
+        console.log("Using existing Firebase app");
     }
     
     // Attempt to get database instance. This might fail if config is malformed (e.g. bad URL)
     try {
         dbInstance = getDatabase(app);
         authInstance = getAuth(app);
+        console.log("Firebase database and auth instances created");
         
         // Auto-sign in anonymously to allow access if rules require auth != null
         // Gracefully handle if Auth is not enabled in Console
         signInAnonymously(authInstance).catch(err => {
-            // Silently fail on auth errors to avoid console noise in production
+            console.warn("Anonymous sign-in failed (this is OK if auth is disabled):", err.code);
         });
 
-    } catch (dbError) {
+    } catch (dbError: any) {
+        console.error("Failed to initialize Firebase database:", dbError.message);
         dbInstance = null;
         authInstance = null;
     }
 
-} catch (e) {
-    // Critical init error - app will likely run in offline mode
+} catch (e: any) {
+    console.error("Critical Firebase initialization error - app will run in offline mode:", e.message);
 }
 
 export const db = dbInstance;
