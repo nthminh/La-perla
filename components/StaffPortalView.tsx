@@ -216,11 +216,26 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
                             const baseName = item.displayName || t.serviceNames[item.nameKey] || item.nameKey;
 
                             const txDate = new Date(tx.date);
-                            const formattedTime = txDate.toLocaleTimeString('en-AU', {
-                                timeZone: 'Australia/Sydney',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                            });
+                            
+                            // Format time based on date range
+                            let formattedTime: string;
+                            if (dateRange === 'today') {
+                                // Today tab: show only time
+                                formattedTime = txDate.toLocaleTimeString('en-AU', {
+                                    timeZone: 'Australia/Sydney',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                });
+                            } else {
+                                // Week and Month tabs: show date and time
+                                formattedTime = txDate.toLocaleDateString('en-AU', {
+                                    timeZone: 'Australia/Sydney',
+                                    day: '2-digit',
+                                    month: '2-digit',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                });
+                            }
 
                             myItems.push({
                                 displayTime: formattedTime,
