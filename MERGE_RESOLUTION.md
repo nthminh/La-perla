@@ -15,7 +15,7 @@ I compared the `main` branch and `copilot/fix-app-ts-errors` branch and found:
 - Both branches can run the dev server with `npm run dev`
 
 ### Root Cause
-The issue was that the latest commits from the `copilot/fix-app-ts-errors` branch were not yet merged into `main`. The copilot branch was ahead of main by 1 commit (c235f3d).
+The issue was that the latest commits from the `copilot/fix-app-ts-errors` branch were not yet merged into `main`. The copilot branch was ahead of main by 1 commit (c235f3d - "Initial plan" commit created by Copilot agent).
 
 ## Resolution
 
@@ -29,7 +29,7 @@ The issue was that the latest commits from the `copilot/fix-app-ts-errors` branc
 ```
 git checkout main
 git merge copilot/fix-app-ts-errors --no-edit
-# Result: Fast-forward merge from dd03df8 to c235f3d
+# Result: Fast-forward merge from dd03df8 (PR #1 merge) to c235f3d (Initial plan)
 ```
 
 ### Build Verification
