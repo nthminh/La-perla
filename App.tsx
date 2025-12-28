@@ -1041,6 +1041,7 @@ const MainApp: React.FC = () => {
                 isReceiptMode={isGuest}
                 globalPayroll={globalPayroll}
                 pastTransactions={customerLookupData}
+                bookings={bookings}
             />
         )}
         {view === 'gallery' && (

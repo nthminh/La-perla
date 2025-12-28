@@ -9,7 +9,8 @@ import {
     ServiceCategory, 
     WaitlistEntry, 
     TransactionItem,
-    GlobalPayrollSettings
+    GlobalPayrollSettings,
+    BookingRequest
 } from '../types';
 import { Translation } from '../translations';
 import { 
@@ -38,7 +39,8 @@ import {
     UsersIcon,
     LockIcon,
     PrinterIcon,
-    CalculatorIcon
+    CalculatorIcon,
+    CalendarIcon
 } from './Icons';
 import { ArtistProfileModal } from './ArtistProfileModal';
 import { 
@@ -78,6 +80,7 @@ export interface PricingViewProps {
   isReceiptMode?: boolean;
   globalPayroll?: GlobalPayrollSettings;
   pastTransactions?: Transaction[];
+  bookings?: BookingRequest[];
 }
 
 interface GroupedCartItem extends CartItem {
@@ -147,7 +150,8 @@ export const PricingView: React.FC<PricingViewProps> = ({
   onStaffReview,
   isReceiptMode = false,
   globalPayroll,
-  pastTransactions = []
+  pastTransactions = [],
+  bookings = []
 }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -176,6 +180,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
   const [tempIsVip, setTempIsVip] = useState(false);
   const [tempVipDays, setTempVipDays] = useState<number | null>(null);
   const [showWaitlistModal, setShowWaitlistModal] = useState(false);
+  const [showBookingsModal, setShowBookingsModal] = useState(false);
   const [showWaitlistAddModal, setShowWaitlistAddModal] = useState(false);
   const [tempReturnTime, setTempReturnTime] = useState("");
   const [tempSelectedServices, setTempSelectedServices] = useState<string[]>([]);
@@ -965,6 +970,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
                            <button onClick={handleOpenHistory} className="p-2 md:p-3 bg-gray-50 border border-gray-200 text-charcoal rounded-xl hover:text-gold-leaf hover:bg-white shadow-sm transition-all"><ReceiptIcon className="w-6 h-6 md:w-8 md:h-8" /></button>
                            <button onClick={() => { SoundManager.playTap(); setCalcDisplay(""); setShowCalculator(true); }} className="p-2 md:p-3 bg-gold-leaf border border-gold-leaf text-white rounded-xl hover:bg-charcoal shadow-sm transition-all"><CalculatorIcon className="w-6 h-6 md:w-8 md:h-8" /></button>
                            <button onClick={() => { SoundManager.playTap(); setShowWaitlistModal(true); }} className="relative p-2 md:p-3 bg-gray-50 border border-gray-200 text-charcoal rounded-xl hover:text-gold-leaf shadow-sm transition-all"><ClockIcon className="w-6 h-6 md:w-8 md:h-8" />{waitlist.length > 0 && <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold w-5 h-5 md:w-6 md:h-6 flex items-center justify-center rounded-full border border-white">{waitlist.length}</span>}</button>
+                           <button onClick={() => { SoundManager.playTap(); setShowBookingsModal(true); }} className="relative p-2 md:p-3 bg-gray-50 border border-gray-200 text-charcoal rounded-xl hover:text-gold-leaf shadow-sm transition-all"><CalendarIcon className="w-6 h-6 md:w-8 md:h-8" />{bookings.filter(b => b.status === 'pending').length > 0 && <span className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs font-bold w-5 h-5 md:w-6 md:h-6 flex items-center justify-center rounded-full border border-white">{bookings.filter(b => b.status === 'pending').length}</span>}</button>
                         </div>
                     </div>
             </div>
@@ -1149,6 +1155,81 @@ export const PricingView: React.FC<PricingViewProps> = ({
                                 <div className="flex gap-2 mt-2 pt-2 border-t border-gray-50"><button onClick={() => handleCheckInFromWaitlist(entry)} className="flex-1 bg-green-600 text-white text-xs font-bold py-2 rounded-lg hover:bg-green-700 shadow-sm">Check In (Create Bill)</button><button onClick={() => handleSendSMS(entry, 'ready')} className="px-3 bg-blue-500 text-white text-xs font-bold py-2 rounded-lg hover:bg-blue-600 shadow-sm" title="Send 'Ready' SMS"><ChatIcon className="w-4 h-4" /></button><button onClick={() => handleRemoveFromWaitlist(entry.id)} className="px-3 bg-red-50 text-red-500 border border-red-100 text-xs font-bold py-2 rounded-lg hover:bg-red-100"><TrashIcon className="w-4 h-4" /></button></div>
                             </div>
                         ))}
+                </div>
+            </div>
+        </div>
+      )}
+
+      {showBookingsModal && (
+        <div className="fixed inset-0 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" style={{ zIndex: 105 }}>
+            <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+                <div className="bg-white p-4 border-b border-gray-100 flex justify-between items-center">
+                    <h3 className="text-xl font-serif font-bold text-charcoal flex items-center gap-2">
+                        <CalendarIcon className="w-6 h-6 text-blue-600" />
+                        Bookings ({bookings.length})
+                    </h3>
+                    <button onClick={() => setShowBookingsModal(false)} className="text-gray-400 hover:text-charcoal">
+                        <XMarkIcon className="w-6 h-6" />
+                    </button>
+                </div>
+                <div className="p-4 overflow-y-auto flex-grow bg-gray-50 custom-scrollbar space-y-3">
+                    {bookings.length === 0 ? (
+                        <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-gray-200 shadow-sm">
+                            <CalendarIcon className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                            <p className="text-gray-400 font-medium">No booking requests yet.</p>
+                        </div>
+                    ) : (
+                        bookings.map(booking => (
+                            <div key={booking.id} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden group hover:border-gold-leaf/30 transition-colors">
+                                <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${
+                                    booking.status === 'pending' ? 'bg-yellow-400' : 
+                                    booking.status === 'confirmed' ? 'bg-green-500' : 
+                                    'bg-red-400'
+                                }`}></div>
+                                <div className="flex flex-col gap-3">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <h4 className="font-serif font-bold text-xl text-charcoal">{booking.customerName}</h4>
+                                            <p className="text-sm text-gray-500 flex items-center gap-2 mt-1">
+                                                <PhoneIcon className="w-4 h-4 text-gold-leaf" />
+                                                <a href={`tel:${booking.customerPhone}`} className="hover:underline">{booking.customerPhone}</a>
+                                            </p>
+                                        </div>
+                                        <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${
+                                            booking.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 
+                                            booking.status === 'confirmed' ? 'bg-green-100 text-green-700' : 
+                                            'bg-red-100 text-red-700'
+                                        }`}>
+                                            {booking.status}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-sm font-medium text-charcoal bg-gray-50 p-2 rounded-lg w-fit">
+                                        <CalendarIcon className="w-4 h-4 text-gold-leaf" />
+                                        <span>{new Date(booking.date).toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney' })}</span>
+                                        <span className="text-gray-300">|</span>
+                                        <span>{booking.timeSlot}</span>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-bold text-gray-400 uppercase mb-2">Services Requested</p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {booking.services.map((s, i) => (
+                                                <span key={i} className="bg-white border border-gray-200 px-3 py-1 rounded-full text-xs font-medium text-charcoal shadow-sm flex items-center gap-1">
+                                                    <SparklesIcon className="w-3 h-3 text-gold-leaf" />
+                                                    {s}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    {booking.notes && (
+                                        <div className="bg-yellow-50 p-3 rounded-xl border border-yellow-100 text-sm text-yellow-800 italic">
+                                            " {booking.notes} "
+                                        </div>
+                                    )}
+                                    <p className="text-[10px] text-gray-300 pt-2">Request sent: {new Date(booking.createdAt).toLocaleString()}</p>
+                                </div>
+                            </div>
+                        ))
+                    )}
                 </div>
             </div>
         </div>
