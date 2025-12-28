@@ -370,12 +370,18 @@ export const PricingView: React.FC<PricingViewProps> = ({
   const handleDownloadBill = async () => {
       SoundManager.playTap();
       const safeName = (customerName || 'Guest').replace(/[^a-zA-Z0-9_-]/g, '_');
-      const now = new Date();
-      const d = String(now.getDate()).padStart(2, '0');
-      const m = String(now.getMonth() + 1).padStart(2, '0');
-      const y = now.getFullYear();
-      const h = String(now.getHours()).padStart(2, '0');
-      const min = String(now.getMinutes()).padStart(2, '0');
+      const sydneyTime = new Date().toLocaleString('en-AU', { 
+        timeZone: 'Australia/Sydney',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+      const [dateStr, timeStr] = sydneyTime.split(', ');
+      const [d, m, y] = dateStr.split('/');
+      const [h, min] = timeStr.split(':');
       
       const fileName = `${safeName}_Receipt_${d}-${m}-${y}_${h}-${min}.png`;
 

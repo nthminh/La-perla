@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { StaffProfile, Transaction, GlobalPayrollSettings, ServiceCategory } from '../types';
 import { UserIcon, StarIcon, ChartIcon, ReceiptIcon, CloudSyncIcon, ListBulletIcon, XMarkIcon } from './Icons';
 import { subscribeToTransactions } from '../services/firebaseService'; 
@@ -36,13 +36,68 @@ const getSydneyDayName = (isoDate: string) => {
     }
 };
 
+// Image compression utility
+const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const MAX_WIDTH = 800;
+                const MAX_HEIGHT = 800;
+                let width = img.width;
+                let height = img.height;
+
+                if (width > height) {
+                    if (width > MAX_WIDTH) {
+                        height *= MAX_WIDTH / width;
+                        width = MAX_WIDTH;
+                    }
+                } else {
+                    if (height > MAX_HEIGHT) {
+                        width *= MAX_HEIGHT / height;
+                        height = MAX_HEIGHT;
+                    }
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx?.drawImage(img, 0, 0, width, height);
+                
+                // Compress to JPEG with 70% quality
+                const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+                resolve(compressedBase64);
+            };
+            img.onerror = reject;
+            img.src = e.target?.result as string;
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+};
+
 export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser, onUpdateProfile, onExit, globalPayroll, pricingData }) => {
-    const [activeTab, setActiveTab] = useState<'profile' | 'earnings'>('profile');
+    const [activeTab, setActiveTab] = useState<'profile' | 'portfolio' | 'earnings'>('profile');
     
     const [bio, setBio] = useState(currentUser.bio || "");
     const [specialties, setSpecialties] = useState<string[]>(currentUser.specialties || []);
     const [newTag, setNewTag] = useState("");
     const [isSaving, setIsSaving] = useState(false);
+    
+    // Portfolio State
+    const [portfolio, setPortfolio] = useState<string[]>(currentUser.portfolio || []);
+    const [isUploading, setIsUploading] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    
+    // Lightbox State
+    const [lightboxOpen, setLightboxOpen] = useState(false);
+    const [lightboxIndex, setLightboxIndex] = useState(0);
+    const [lightboxScale, setLightboxScale] = useState(1);
+    const [lightboxPosition, setLightboxPosition] = useState({ x: 0, y: 0 });
+    const [isDragging, setIsDragging] = useState(false);
+    const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
     // Password Change State
     const [showPassForm, setShowPassForm] = useState(false);
@@ -168,6 +223,155 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
     const handleRemoveTag = (tagToRemove: string) => {
         setSpecialties(specialties.filter(s => s !== tagToRemove));
     };
+    
+    // Portfolio Handlers
+    const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = e.target.files;
+        if (!files || files.length === 0) return;
+        
+        const currentCount = portfolio.length;
+        const MAX_PHOTOS = 50;
+        
+        if (currentCount >= MAX_PHOTOS) {
+            alert(`You can only have ${MAX_PHOTOS} photos maximum.`);
+            return;
+        }
+        
+        const availableSlots = MAX_PHOTOS - currentCount;
+        const filesToProcess = Array.from(files).slice(0, availableSlots);
+        
+        setIsUploading(true);
+        try {
+            const compressedImages: string[] = [];
+            for (const file of filesToProcess) {
+                if ((file as File).type.startsWith('image/')) {
+                    const compressed = await compressImage(file as File);
+                    compressedImages.push(compressed);
+                }
+            }
+            
+            setPortfolio([...portfolio, ...compressedImages]);
+            if (filesToProcess.length < files.length) {
+                alert(`Only ${filesToProcess.length} photos added due to ${MAX_PHOTOS} photo limit.`);
+            }
+        } catch (error) {
+            alert("Error processing images. Please try again.");
+        } finally {
+            setIsUploading(false);
+            if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+            }
+        }
+    };
+    
+    const handleRemovePhoto = (index: number) => {
+        const confirmed = confirm("Remove this photo from your portfolio?");
+        if (confirmed) {
+            setPortfolio(portfolio.filter((_, i) => i !== index));
+        }
+    };
+    
+    // Lightbox Handlers
+    const openLightbox = (index: number) => {
+        setLightboxIndex(index);
+        setLightboxOpen(true);
+        setLightboxScale(1);
+        setLightboxPosition({ x: 0, y: 0 });
+    };
+    
+    const closeLightbox = () => {
+        setLightboxOpen(false);
+        setLightboxScale(1);
+        setLightboxPosition({ x: 0, y: 0 });
+    };
+    
+    const nextImage = () => {
+        setLightboxIndex((prev) => (prev + 1) % portfolio.length);
+        setLightboxScale(1);
+        setLightboxPosition({ x: 0, y: 0 });
+    };
+    
+    const prevImage = () => {
+        setLightboxIndex((prev) => (prev - 1 + portfolio.length) % portfolio.length);
+        setLightboxScale(1);
+        setLightboxPosition({ x: 0, y: 0 });
+    };
+    
+    const handleZoomIn = () => {
+        setLightboxScale((prev) => Math.min(prev + 0.5, 4));
+    };
+    
+    const handleZoomOut = () => {
+        setLightboxScale((prev) => Math.max(prev - 0.5, 1));
+        if (lightboxScale <= 1.5) {
+            setLightboxPosition({ x: 0, y: 0 });
+        }
+    };
+    
+    const handleMouseDown = (e: React.MouseEvent) => {
+        if (lightboxScale > 1) {
+            setIsDragging(true);
+            setDragStart({ x: e.clientX - lightboxPosition.x, y: e.clientY - lightboxPosition.y });
+        }
+    };
+    
+    const handleMouseMove = (e: React.MouseEvent) => {
+        if (isDragging && lightboxScale > 1) {
+            setLightboxPosition({
+                x: e.clientX - dragStart.x,
+                y: e.clientY - dragStart.y
+            });
+        }
+    };
+    
+    const handleMouseUp = () => {
+        setIsDragging(false);
+    };
+    
+    const handleTouchStart = (e: React.TouchEvent) => {
+        if (e.touches.length === 1 && lightboxScale > 1) {
+            setIsDragging(true);
+            setDragStart({ 
+                x: e.touches[0].clientX - lightboxPosition.x, 
+                y: e.touches[0].clientY - lightboxPosition.y 
+            });
+        }
+    };
+    
+    const handleTouchMove = (e: React.TouchEvent) => {
+        if (isDragging && e.touches.length === 1 && lightboxScale > 1) {
+            setLightboxPosition({
+                x: e.touches[0].clientX - dragStart.x,
+                y: e.touches[0].clientY - dragStart.y
+            });
+        }
+    };
+    
+    const handleTouchEnd = () => {
+        setIsDragging(false);
+    };
+    
+    // Keyboard navigation
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (!lightboxOpen) return;
+            
+            if (e.key === 'Escape') {
+                closeLightbox();
+            } else if (e.key === 'ArrowLeft' && portfolio.length > 1) {
+                prevImage();
+            } else if (e.key === 'ArrowRight' && portfolio.length > 1) {
+                nextImage();
+            } else if (e.key === '+' || e.key === '=') {
+                handleZoomIn();
+            } else if (e.key === '-' || e.key === '_') {
+                handleZoomOut();
+            }
+        };
+        
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [lightboxOpen, portfolio.length, lightboxScale]);
 
     const handleChangePassword = async () => {
         setPassError("");
@@ -212,7 +416,7 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
             ...currentUser,
             bio: bio.trim(),
             specialties,
-            portfolio: currentUser.portfolio, 
+            portfolio: portfolio, 
             rating: currentUser.rating || 5.0,
             payroll: currentUser.payroll 
         };
@@ -275,6 +479,9 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
                 <button onClick={() => { SoundManager.playTap(); setActiveTab('profile'); }} className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'profile' ? 'bg-gold-leaf text-white shadow-md' : 'bg-white text-charcoal border border-gray-200'}`}>
                     <UserIcon className="w-4 h-4" /> Profile
                 </button>
+                <button onClick={() => { SoundManager.playTap(); setActiveTab('portfolio'); }} className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'portfolio' ? 'bg-gold-leaf text-white shadow-md' : 'bg-white text-charcoal border border-gray-200'}`}>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg> Portfolio
+                </button>
                 <button onClick={() => { SoundManager.playTap(); setActiveTab('earnings'); }} className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'earnings' ? 'bg-gold-leaf text-white shadow-md' : 'bg-white text-charcoal border border-gray-200'}`}>
                     <ChartIcon className="w-4 h-4" /> Earnings
                 </button>
@@ -321,6 +528,102 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
                                     <button onClick={handleChangePassword} disabled={isSaving} className="w-full bg-charcoal text-white py-2 rounded-lg text-sm font-bold">Update</button>
                                 </div>
                             )}
+                        </div>
+
+                        <button onClick={handleSave} disabled={isSaving} className="w-full py-4 bg-gold-leaf text-white font-bold rounded-xl shadow-lg hover:bg-charcoal transition-all disabled:opacity-50 text-lg sticky bottom-6">{isSaving ? "Saving..." : "Save Changes"}</button>
+                    </>
+                )}
+
+                {activeTab === 'portfolio' && (
+                    <>
+                        <div className="bg-white p-5 rounded-2xl shadow-sm border border-gold-leaf/20">
+                            <div className="flex justify-between items-center mb-4">
+                                <div>
+                                    <h3 className="text-xs font-bold text-gold-leaf uppercase mb-1">My Portfolio</h3>
+                                    <p className="text-xs text-gray-500">{portfolio.length} / 50 photos</p>
+                                </div>
+                                <button 
+                                    onClick={() => fileInputRef.current?.click()} 
+                                    disabled={portfolio.length >= 50 || isUploading}
+                                    className="bg-charcoal text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-black disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                                >
+                                    {isUploading ? (
+                                        <>
+                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                            <span>Processing...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                                            <span>Add Photo</span>
+                                        </>
+                                    )}
+                                </button>
+                                <input 
+                                    ref={fileInputRef}
+                                    type="file" 
+                                    accept="image/*" 
+                                    multiple
+                                    className="hidden" 
+                                    onChange={handleFileSelect}
+                                />
+                            </div>
+                            
+                            {portfolio.length === 0 ? (
+                                <div className="text-center py-12 text-gray-400">
+                                    <svg className="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                    </svg>
+                                    <p className="text-sm font-medium">No photos yet</p>
+                                    <p className="text-xs mt-1">Upload photos of your nail art work</p>
+                                    <p className="text-xs text-gray-300 mt-2">Images will be automatically compressed</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-3 gap-3">
+                                    {portfolio.map((photo, index) => (
+                                        <div key={index} className="relative group aspect-square rounded-lg overflow-hidden border-2 border-gray-100 hover:border-gold-leaf transition-all shadow-sm">
+                                            <img 
+                                                src={photo} 
+                                                alt={`Portfolio ${index + 1}`} 
+                                                className="w-full h-full object-cover cursor-pointer"
+                                                onClick={() => openLightbox(index)}
+                                            />
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); handleRemovePhoto(index); }}
+                                                className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg hover:bg-red-600 z-10"
+                                                title="Remove photo"
+                                            >
+                                                <XMarkIcon className="w-3 h-3" />
+                                            </button>
+                                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                                <p className="text-white text-xs font-bold">#{index + 1}</p>
+                                            </div>
+                                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none flex items-center justify-center">
+                                                <svg className="w-8 h-8 text-white opacity-0 group-hover:opacity-80 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                                                </svg>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                        
+                        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800">
+                            <div className="flex items-start gap-2">
+                                <svg className="w-5 h-5 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                                </svg>
+                                <div>
+                                    <p className="font-bold mb-1">Tips:</p>
+                                    <ul className="text-xs space-y-1">
+                                        <li>• Maximum 50 photos per portfolio</li>
+                                        <li>• Images are automatically compressed to save space</li>
+                                        <li>• Best quality: well-lit, focused nail photos</li>
+                                        <li>• Click "Save Changes" to update your portfolio</li>
+                                    </ul>
+                                </div>
+                            </div>
                         </div>
 
                         <button onClick={handleSave} disabled={isSaving} className="w-full py-4 bg-gold-leaf text-white font-bold rounded-xl shadow-lg hover:bg-charcoal transition-all disabled:opacity-50 text-lg sticky bottom-6">{isSaving ? "Saving..." : "Save Changes"}</button>
@@ -451,6 +754,118 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
                     </div>
                 )}
             </div>
+            
+            {/* Lightbox Modal */}
+            {lightboxOpen && portfolio.length > 0 && (
+                <div 
+                    className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center"
+                    onClick={closeLightbox}
+                >
+                    {/* Close Button */}
+                    <button
+                        onClick={closeLightbox}
+                        className="absolute top-4 right-4 z-50 bg-white/10 hover:bg-white/20 text-white rounded-full p-3 transition-colors backdrop-blur-sm"
+                        title="Close (Esc)"
+                    >
+                        <XMarkIcon className="w-6 h-6" />
+                    </button>
+                    
+                    {/* Image Counter */}
+                    <div className="absolute top-4 left-4 z-50 bg-white/10 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm font-bold">
+                        {lightboxIndex + 1} / {portfolio.length}
+                    </div>
+                    
+                    {/* Zoom Controls */}
+                    <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 z-50 flex gap-3 bg-white/10 backdrop-blur-sm rounded-full p-2">
+                        <button
+                            onClick={(e) => { e.stopPropagation(); handleZoomOut(); }}
+                            className="bg-white/20 hover:bg-white/30 text-white rounded-full p-3 transition-colors"
+                            title="Zoom Out"
+                            disabled={lightboxScale <= 1}
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10H7" />
+                            </svg>
+                        </button>
+                        <div className="flex items-center px-3 text-white text-sm font-bold">
+                            {Math.round(lightboxScale * 100)}%
+                        </div>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); handleZoomIn(); }}
+                            className="bg-white/20 hover:bg-white/30 text-white rounded-full p-3 transition-colors"
+                            title="Zoom In"
+                            disabled={lightboxScale >= 4}
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                            </svg>
+                        </button>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); setLightboxScale(1); setLightboxPosition({ x: 0, y: 0 }); }}
+                            className="bg-white/20 hover:bg-white/30 text-white rounded-full p-3 transition-colors ml-2"
+                            title="Reset"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                        </button>
+                    </div>
+                    
+                    {/* Navigation Buttons */}
+                    {portfolio.length > 1 && (
+                        <>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); prevImage(); }}
+                                className="absolute left-4 top-1/2 transform -translate-y-1/2 z-50 bg-white/10 hover:bg-white/20 text-white rounded-full p-4 transition-colors backdrop-blur-sm"
+                                title="Previous (←)"
+                            >
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                </svg>
+                            </button>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); nextImage(); }}
+                                className="absolute right-4 top-1/2 transform -translate-y-1/2 z-50 bg-white/10 hover:bg-white/20 text-white rounded-full p-4 transition-colors backdrop-blur-sm"
+                                title="Next (→)"
+                            >
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                            </button>
+                        </>
+                    )}
+                    
+                    {/* Image Container */}
+                    <div 
+                        className="relative w-full h-full flex items-center justify-center overflow-hidden"
+                        onClick={(e) => e.stopPropagation()}
+                        onMouseDown={handleMouseDown}
+                        onMouseMove={handleMouseMove}
+                        onMouseUp={handleMouseUp}
+                        onMouseLeave={handleMouseUp}
+                        onTouchStart={handleTouchStart}
+                        onTouchMove={handleTouchMove}
+                        onTouchEnd={handleTouchEnd}
+                        style={{ cursor: lightboxScale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default' }}
+                    >
+                        <img
+                            src={portfolio[lightboxIndex]}
+                            alt={`Portfolio ${lightboxIndex + 1}`}
+                            className="max-w-full max-h-full object-contain select-none transition-transform duration-200"
+                            style={{
+                                transform: `scale(${lightboxScale}) translate(${lightboxPosition.x / lightboxScale}px, ${lightboxPosition.y / lightboxScale}px)`,
+                                transformOrigin: 'center center'
+                            }}
+                            draggable={false}
+                        />
+                    </div>
+                    
+                    {/* Instructions */}
+                    <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-40 text-white/60 text-xs text-center">
+                        <p>Click outside or press ESC to close • Use +/- to zoom • Drag to pan when zoomed</p>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

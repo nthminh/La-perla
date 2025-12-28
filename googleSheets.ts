@@ -27,8 +27,8 @@ export const saveToGoogleSheets = async (transaction: Transaction): Promise<bool
 
   const data = {
     id: transaction.id,
-    date: new Date(transaction.date).toLocaleDateString(),
-    time: new Date(transaction.date).toLocaleTimeString(),
+    date: new Date(transaction.date).toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney' }),
+    time: new Date(transaction.date).toLocaleTimeString('en-AU', { timeZone: 'Australia/Sydney' }),
     total: transaction.total,
     items: itemsString,
   };
