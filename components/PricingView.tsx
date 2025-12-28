@@ -164,6 +164,11 @@ export const PricingView: React.FC<PricingViewProps> = ({
   const [cashTendered, setCashTendered] = useState<string>('');
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
 
+  // Memoize pending bookings count for performance
+  const pendingBookingsCount = useMemo(() => {
+    return bookings.filter(b => b.status === 'pending').length;
+  }, [bookings]);
+
   const [isSplitMode, setIsSplitMode] = useState(false);
   const [splitStaff1, setSplitStaff1] = useState<StaffProfile | null>(null);
   const [splitStaff2, setSplitStaff2] = useState<StaffProfile | null>(null);
@@ -970,7 +975,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
                            <button onClick={handleOpenHistory} className="p-2 md:p-3 bg-gray-50 border border-gray-200 text-charcoal rounded-xl hover:text-gold-leaf hover:bg-white shadow-sm transition-all"><ReceiptIcon className="w-6 h-6 md:w-8 md:h-8" /></button>
                            <button onClick={() => { SoundManager.playTap(); setCalcDisplay(""); setShowCalculator(true); }} className="p-2 md:p-3 bg-gold-leaf border border-gold-leaf text-white rounded-xl hover:bg-charcoal shadow-sm transition-all"><CalculatorIcon className="w-6 h-6 md:w-8 md:h-8" /></button>
                            <button onClick={() => { SoundManager.playTap(); setShowWaitlistModal(true); }} className="relative p-2 md:p-3 bg-gray-50 border border-gray-200 text-charcoal rounded-xl hover:text-gold-leaf shadow-sm transition-all"><ClockIcon className="w-6 h-6 md:w-8 md:h-8" />{waitlist.length > 0 && <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold w-5 h-5 md:w-6 md:h-6 flex items-center justify-center rounded-full border border-white">{waitlist.length}</span>}</button>
-                           <button onClick={() => { SoundManager.playTap(); setShowBookingsModal(true); }} className="relative p-2 md:p-3 bg-gray-50 border border-gray-200 text-charcoal rounded-xl hover:text-gold-leaf shadow-sm transition-all"><CalendarIcon className="w-6 h-6 md:w-8 md:h-8" />{bookings.filter(b => b.status === 'pending').length > 0 && <span className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs font-bold w-5 h-5 md:w-6 md:h-6 flex items-center justify-center rounded-full border border-white">{bookings.filter(b => b.status === 'pending').length}</span>}</button>
+                           <button onClick={() => { SoundManager.playTap(); setShowBookingsModal(true); }} className="relative p-2 md:p-3 bg-gray-50 border border-gray-200 text-charcoal rounded-xl hover:text-gold-leaf shadow-sm transition-all"><CalendarIcon className="w-6 h-6 md:w-8 md:h-8" />{pendingBookingsCount > 0 && <span className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs font-bold w-5 h-5 md:w-6 md:h-6 flex items-center justify-center rounded-full border border-white">{pendingBookingsCount}</span>}</button>
                         </div>
                     </div>
             </div>
