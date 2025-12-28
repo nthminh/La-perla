@@ -228,7 +228,7 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
                                 });
                             } else {
                                 // Week and Month tabs: show date and time
-                                formattedTime = txDate.toLocaleDateString('en-AU', {
+                                formattedTime = txDate.toLocaleString('en-AU', {
                                     timeZone: 'Australia/Sydney',
                                     day: '2-digit',
                                     month: '2-digit',
