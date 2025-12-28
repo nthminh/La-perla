@@ -298,9 +298,9 @@ export const LaPerlaLogo = ({ className = "w-64" }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 120" className={className} aria-label="La Perla">
     <defs>
       <linearGradient id="goldGradient" x1="0.5" y1="0" x2="0.5" y2="1">
-        <stop offset="0%" stop-color="#EADBC8" />
-        <stop offset="50%" stop-color="#D4AF37" />
-        <stop offset="100%" stop-color="#C49B22" />
+        <stop offset="0%" stopColor="#EADBC8" />
+        <stop offset="50%" stopColor="#D4AF37" />
+        <stop offset="100%" stopColor="#C49B22" />
       </linearGradient>
       <filter id="logoGlow" x="-10%" y="-20%" width="120%" height="140%">
         <feDropShadow dx="1" dy="2" stdDeviation="2" floodColor="#D4AF37" floodOpacity="0.4" />
