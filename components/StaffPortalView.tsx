@@ -47,19 +47,27 @@ const getDateRange = (range: 'today' | 'week' | 'month') => {
     
     if (range === 'week') {
         // Last 7 days including today
-        const weekAgo = new Date(now);
-        weekAgo.setDate(weekAgo.getDate() - 6);
+        const weekAgo = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
         return { start: getSydneyDateStr(weekAgo.toISOString()), end: sydneyToday };
     }
     
     if (range === 'month') {
         // Last 30 days including today
-        const monthAgo = new Date(now);
-        monthAgo.setDate(monthAgo.getDate() - 29);
+        const monthAgo = new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000);
         return { start: getSydneyDateStr(monthAgo.toISOString()), end: sydneyToday };
     }
     
     return { start: sydneyToday, end: sydneyToday };
+};
+
+// Get label for date range
+const getDateRangeLabel = (range: 'today' | 'week' | 'month'): string => {
+    switch (range) {
+        case 'today': return 'Today';
+        case 'week': return 'Last 7 Days';
+        case 'month': return 'Last 30 Days';
+        default: return 'Today';
+    }
 };
 
 // Image compression utility
@@ -709,7 +717,7 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
                                             <div className="flex justify-between items-start mb-4">
                                                 <div>
                                                     <p className="text-gold-leaf text-xs font-bold uppercase tracking-widest mb-1">
-                                                        Total Revenue {dateRange === 'today' ? 'Today' : dateRange === 'week' ? 'Last 7 Days' : 'Last 30 Days'}
+                                                        Total Revenue {getDateRangeLabel(dateRange)}
                                                     </p>
                                                     <h3 className="text-4xl font-serif font-bold text-white">${totalRevenue.toFixed(2)}</h3>
                                                 </div>
@@ -765,7 +773,7 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
                                     <div className="bg-gradient-to-br from-charcoal to-gray-800 text-white p-6 rounded-3xl shadow-xl border border-gold-leaf/20 relative overflow-hidden">
                                         <div className="relative z-10">
                                             <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">
-                                                {dateRange === 'today' ? "Today's" : dateRange === 'week' ? 'Last 7 Days' : 'Last 30 Days'} Revenue
+                                                {getDateRangeLabel(dateRange)} Revenue
                                             </p>
                                             <h3 className="text-5xl font-serif font-bold text-gold-leaf mb-2">${totalRevenue.toFixed(2)}</h3>
                                             <div className="inline-flex items-center gap-2 bg-white/10 px-3 py-1 rounded-full text-sm font-medium text-gray-300">
@@ -794,7 +802,7 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
                                                     <ReceiptIcon className="w-6 h-6 text-gray-300" />
                                                 </div>
                                                 <p className="text-sm font-medium">
-                                                    No services found for {dateRange === 'today' ? 'today' : dateRange === 'week' ? 'the last 7 days' : 'the last 30 days'}.
+                                                    No services found for {getDateRangeLabel(dateRange).toLowerCase()}.
                                                 </p>
                                                 <p className="text-xs mt-1">Assignments will appear here automatically.</p>
                                             </div>
