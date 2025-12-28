@@ -36,6 +36,32 @@ const getSydneyDayName = (isoDate: string) => {
     }
 };
 
+// Get date range start and end dates in Sydney Time
+const getDateRange = (range: 'today' | 'week' | 'month') => {
+    const now = new Date();
+    const sydneyToday = getSydneyDateStr(now.toISOString());
+    
+    if (range === 'today') {
+        return { start: sydneyToday, end: sydneyToday };
+    }
+    
+    if (range === 'week') {
+        // Last 7 days including today
+        const weekAgo = new Date(now);
+        weekAgo.setDate(weekAgo.getDate() - 6);
+        return { start: getSydneyDateStr(weekAgo.toISOString()), end: sydneyToday };
+    }
+    
+    if (range === 'month') {
+        // Last 30 days including today
+        const monthAgo = new Date(now);
+        monthAgo.setDate(monthAgo.getDate() - 29);
+        return { start: getSydneyDateStr(monthAgo.toISOString()), end: sydneyToday };
+    }
+    
+    return { start: sydneyToday, end: sydneyToday };
+};
+
 // Image compression utility
 const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -109,6 +135,9 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
     const [isLoadingEarnings, setIsLoadingEarnings] = useState(false);
     const [cloudTransactions, setCloudTransactions] = useState<Transaction[]>([]);
     
+    // Date Range State
+    const [dateRange, setDateRange] = useState<'today' | 'week' | 'month'>('today');
+    
     // Subscribe to real-time data when in Earnings tab
     useEffect(() => {
         if (activeTab === 'earnings') {
@@ -142,8 +171,8 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
 
         const allTransactions = Array.from(txMap.values());
         
-        // 3. Calculate TODAY in Sydney Time
-        const sydneyTodayStr = getSydneyDateStr(new Date().toISOString());
+        // 3. Calculate date range in Sydney Time
+        const { start: startDate, end: endDate } = getDateRange(dateRange);
 
         const myItems: {
             displayTime: string;
@@ -156,10 +185,10 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
         }[] = [];
         
         allTransactions.forEach(tx => {
-            // 4. Filter for "Today" using Sydney Time
+            // 4. Filter for date range using Sydney Time
             const txDateStr = getSydneyDateStr(tx.date);
             
-            if (txDateStr === sydneyTodayStr) {
+            if (txDateStr >= startDate && txDateStr <= endDate) {
                 if (tx.items && Array.isArray(tx.items)) {
                     tx.items.forEach(item => {
                         // --- STRICT ID MATCHING ---
@@ -203,7 +232,7 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
         // Sort by Time Descending (Newest first)
         return myItems.sort((a, b) => b.sortTime - a.sortTime);
 
-    }, [cloudTransactions, currentUser.id, currentUser.name, t.serviceNames]);
+    }, [cloudTransactions, currentUser.id, currentUser.name, t.serviceNames, dateRange]);
 
     const handleAddTag = () => {
         const tag = newTag.trim();
@@ -632,6 +661,43 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
 
                 {activeTab === 'earnings' && (
                     <div className="space-y-4 animate-fade-in-up">
+                        {/* Date Range Selector */}
+                        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+                            <label className="block text-xs font-bold text-gold-leaf uppercase mb-3">Period</label>
+                            <div className="grid grid-cols-3 gap-2">
+                                <button 
+                                    onClick={() => setDateRange('today')}
+                                    className={`py-2.5 px-4 rounded-xl text-sm font-bold transition-all ${
+                                        dateRange === 'today' 
+                                            ? 'bg-gold-leaf text-white shadow-md' 
+                                            : 'bg-gray-50 text-charcoal border border-gray-200 hover:border-gold-leaf'
+                                    }`}
+                                >
+                                    Today
+                                </button>
+                                <button 
+                                    onClick={() => setDateRange('week')}
+                                    className={`py-2.5 px-4 rounded-xl text-sm font-bold transition-all ${
+                                        dateRange === 'week' 
+                                            ? 'bg-gold-leaf text-white shadow-md' 
+                                            : 'bg-gray-50 text-charcoal border border-gray-200 hover:border-gold-leaf'
+                                    }`}
+                                >
+                                    Last 7 Days
+                                </button>
+                                <button 
+                                    onClick={() => setDateRange('month')}
+                                    className={`py-2.5 px-4 rounded-xl text-sm font-bold transition-all ${
+                                        dateRange === 'month' 
+                                            ? 'bg-gold-leaf text-white shadow-md' 
+                                            : 'bg-gray-50 text-charcoal border border-gray-200 hover:border-gold-leaf'
+                                    }`}
+                                >
+                                    Last 30 Days
+                                </button>
+                            </div>
+                        </div>
+
                         {isLoadingEarnings && dailyTransactions.length === 0 ? (
                             <div className="text-center py-12"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gold-leaf mx-auto mb-4"></div><p className="text-sm text-gray-500">Syncing live data...</p></div>
                         ) : (
@@ -642,55 +708,65 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
                                         <div className="relative z-10">
                                             <div className="flex justify-between items-start mb-4">
                                                 <div>
-                                                    <p className="text-gold-leaf text-xs font-bold uppercase tracking-widest mb-1">Total Revenue Today</p>
+                                                    <p className="text-gold-leaf text-xs font-bold uppercase tracking-widest mb-1">
+                                                        Total Revenue {dateRange === 'today' ? 'Today' : dateRange === 'week' ? 'Last 7 Days' : 'Last 30 Days'}
+                                                    </p>
                                                     <h3 className="text-4xl font-serif font-bold text-white">${totalRevenue.toFixed(2)}</h3>
                                                 </div>
-                                                <div className="text-right">
-                                                    <p className="text-gray-400 text-xs font-bold uppercase">Estimated Pay</p>
-                                                    <p className="text-2xl font-bold text-green-400">${payrollData.totalPay.toFixed(2)}</p>
-                                                </div>
+                                                {dateRange === 'today' && (
+                                                    <div className="text-right">
+                                                        <p className="text-gray-400 text-xs font-bold uppercase">Estimated Pay</p>
+                                                        <p className="text-2xl font-bold text-green-400">${payrollData.totalPay.toFixed(2)}</p>
+                                                    </div>
+                                                )}
                                             </div>
 
-                                            {/* Progress Bar */}
-                                            <div className="mb-4">
-                                                <div className="flex justify-between text-xs text-gray-400 mb-1 font-bold">
-                                                    <span>Goal: {payrollData.dayName}</span>
-                                                    <span>${payrollData.todaysTarget}</span>
-                                                </div>
-                                                <div className="h-3 bg-gray-700 rounded-full overflow-hidden border border-gray-600">
-                                                    <div 
-                                                        className={`h-full transition-all duration-1000 ease-out relative ${payrollData.isTargetHit ? 'bg-gradient-to-r from-green-400 to-emerald-500' : 'bg-gold-leaf'}`} 
-                                                        style={{ width: `${payrollData.progressPercent}%` }}
-                                                    >
-                                                        {payrollData.isTargetHit && <div className="absolute inset-0 bg-white/30 animate-pulse"></div>}
+                                            {/* Progress Bar - only show for today */}
+                                            {dateRange === 'today' && (
+                                                <div className="mb-4">
+                                                    <div className="flex justify-between text-xs text-gray-400 mb-1 font-bold">
+                                                        <span>Goal: {payrollData.dayName}</span>
+                                                        <span>${payrollData.todaysTarget}</span>
+                                                    </div>
+                                                    <div className="h-3 bg-gray-700 rounded-full overflow-hidden border border-gray-600">
+                                                        <div 
+                                                            className={`h-full transition-all duration-1000 ease-out relative ${payrollData.isTargetHit ? 'bg-gradient-to-r from-green-400 to-emerald-500' : 'bg-gold-leaf'}`} 
+                                                            style={{ width: `${payrollData.progressPercent}%` }}
+                                                        >
+                                                            {payrollData.isTargetHit && <div className="absolute inset-0 bg-white/30 animate-pulse"></div>}
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex justify-between text-xs mt-1">
+                                                        <span className="text-gray-500">{payrollData.progressPercent.toFixed(0)}%</span>
+                                                        {payrollData.isTargetHit 
+                                                            ? <span className="text-green-400 font-bold animate-pulse">Bonus Active! ({payrollData.bonusRate}%)</span> 
+                                                            : <span className="text-gold-leaf font-bold">${Math.max(0, payrollData.todaysTarget - totalRevenue).toFixed(2)} to Bonus</span>
+                                                        }
                                                     </div>
                                                 </div>
-                                                <div className="flex justify-between text-xs mt-1">
-                                                    <span className="text-gray-500">{payrollData.progressPercent.toFixed(0)}%</span>
-                                                    {payrollData.isTargetHit 
-                                                        ? <span className="text-green-400 font-bold animate-pulse">Bonus Active! ({payrollData.bonusRate}%)</span> 
-                                                        : <span className="text-gold-leaf font-bold">${Math.max(0, payrollData.todaysTarget - totalRevenue).toFixed(2)} to Bonus</span>
-                                                    }
-                                                </div>
-                                            </div>
+                                            )}
 
-                                            {/* Breakdown */}
-                                            <div className="grid grid-cols-2 gap-4 border-t border-gray-700 pt-3 text-sm">
-                                                <div>
-                                                    <p className="text-gray-500 text-xs">Base Salary</p>
-                                                    <p className="font-bold">${payrollData.baseSalary.toFixed(2)}</p>
+                                            {/* Breakdown - only show for today */}
+                                            {dateRange === 'today' && (
+                                                <div className="grid grid-cols-2 gap-4 border-t border-gray-700 pt-3 text-sm">
+                                                    <div>
+                                                        <p className="text-gray-500 text-xs">Base Salary</p>
+                                                        <p className="font-bold">${payrollData.baseSalary.toFixed(2)}</p>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className="text-gray-500 text-xs">Commission</p>
+                                                        <p className={`font-bold ${payrollData.bonusAmount > 0 ? 'text-green-400' : 'text-gray-400'}`}>+${payrollData.bonusAmount.toFixed(2)}</p>
+                                                    </div>
                                                 </div>
-                                                <div className="text-right">
-                                                    <p className="text-gray-500 text-xs">Commission</p>
-                                                    <p className={`font-bold ${payrollData.bonusAmount > 0 ? 'text-green-400' : 'text-gray-400'}`}>+${payrollData.bonusAmount.toFixed(2)}</p>
-                                                </div>
-                                            </div>
+                                            )}
                                         </div>
                                     </div>
                                 ) : (
                                     <div className="bg-gradient-to-br from-charcoal to-gray-800 text-white p-6 rounded-3xl shadow-xl border border-gold-leaf/20 relative overflow-hidden">
                                         <div className="relative z-10">
-                                            <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">Today's Revenue</p>
+                                            <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">
+                                                {dateRange === 'today' ? "Today's" : dateRange === 'week' ? 'Last 7 Days' : 'Last 30 Days'} Revenue
+                                            </p>
                                             <h3 className="text-5xl font-serif font-bold text-gold-leaf mb-2">${totalRevenue.toFixed(2)}</h3>
                                             <div className="inline-flex items-center gap-2 bg-white/10 px-3 py-1 rounded-full text-sm font-medium text-gray-300">
                                                 <ReceiptIcon className="w-4 h-4" />
@@ -717,9 +793,10 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
                                                 <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-3">
                                                     <ReceiptIcon className="w-6 h-6 text-gray-300" />
                                                 </div>
-                                                <p className="text-sm font-medium">No services found for today.</p>
+                                                <p className="text-sm font-medium">
+                                                    No services found for {dateRange === 'today' ? 'today' : dateRange === 'week' ? 'the last 7 days' : 'the last 30 days'}.
+                                                </p>
                                                 <p className="text-xs mt-1">Assignments will appear here automatically.</p>
-                                                <p className="text-[10px] mt-2 text-gray-300">Date: {getSydneyDateStr(new Date().toISOString())}</p>
                                             </div>
                                         ) : (
                                             <>
