@@ -23,6 +23,15 @@ export interface SystemState {
   appVersion: number; // Timestamp of the latest deploy
 }
 
+// Empty system state for offline/error scenarios
+const EMPTY_SYSTEM_STATE: SystemState = {
+  activeBills: [],
+  waitlist: [],
+  bookings: [],
+  activeStaffIds: [],
+  appVersion: 0
+};
+
 // --- HELPER: Sanitize Data for Firebase ---
 const sanitizeData = <T>(data: T): T => {
   return JSON.parse(JSON.stringify(data));
@@ -63,16 +72,14 @@ export const subscribeToSystemState = (
         appVersion: ver
       });
     } else {
-      onUpdate({
-        activeBills: [],
-        waitlist: [],
-        bookings: [],
-        activeStaffIds: [],
-        appVersion: 0
-      });
+      onUpdate(EMPTY_SYSTEM_STATE);
     }
   }, (error) => {
     console.warn("Firebase Read Error (SystemState) - check rules:", error.message);
+    // Call onUpdate with empty state to prevent app from hanging
+    // Note: localStorage data is loaded independently in App.tsx, so this won't overwrite cached data
+    // This empty state primarily ensures isSystemReady gets set to true so the app can continue
+    onUpdate(EMPTY_SYSTEM_STATE);
   });
 
   return unsubscribe;
