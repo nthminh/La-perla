@@ -232,6 +232,7 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
                                     timeZone: 'Australia/Sydney',
                                     day: '2-digit',
                                     month: '2-digit',
+                                    year: '2-digit',
                                     hour: '2-digit',
                                     minute: '2-digit'
                                 });
