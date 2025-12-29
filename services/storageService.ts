@@ -1,5 +1,6 @@
 
 import { Transaction, CustomerProfile, RecentServiceItem, WaitlistEntry, ActiveBill, StaffProfile, BookingRequest } from '../types';
+import { logger } from '../utils/logger';
 
 const STORAGE_KEY = 'la_perla_transactions';
 const CUSTOMERS_KEY = 'la_perla_customers';
@@ -19,7 +20,7 @@ export const saveTransaction = (transaction: Transaction): void => {
     // Auto-update customer profile when a transaction is saved
     saveCustomerFromTransaction(transaction);
   } catch (error) {
-    console.error("Failed to save transaction", error);
+    logger.error("Failed to save transaction", error);
   }
 };
 
