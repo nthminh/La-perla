@@ -12,7 +12,7 @@ import {
     triggerClientUpdate,
     fetchTransactionsByDateRange
 } from '../services/firebaseService';
-import { Transaction, ServiceCategory, StaffProfile, BookingRequest, PayrollConfig, GlobalPayrollSettings, AdminPasswords } from '../types';
+import { Transaction, ServiceCategory, StaffProfile, BookingRequest, PayrollConfig, GlobalPayrollSettings, AdminPasswords, MarqueeSettings } from '../types';
 import { 
     ChartIcon, LockIcon, ReceiptIcon, DownloadIcon, LaPerlaLogo, PlusIcon, XMarkIcon, 
     ChevronDownIcon, CameraIcon, UploadIcon, UserIcon, PencilIcon, CalendarIcon, 
@@ -27,7 +27,7 @@ import {
 } from '../services/firebaseConfig';
 import { CustomerCRMView } from './CustomerCRMView';
 import { MarketingView } from './MarketingView'; // New Component
-import { DEFAULT_ADMIN_PASSWORDS } from '../constants';
+import { DEFAULT_ADMIN_PASSWORDS, DEFAULT_MARQUEE_SETTINGS } from '../constants';
 import { compressImage } from '../utils/imageCompression'; 
 
 const DAYS_OF_WEEK = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -63,16 +63,17 @@ interface AdminViewProps {
     onDeleteBooking?: (id: string) => void;
     globalPayroll?: GlobalPayrollSettings;
     onUpdateGlobalPayroll?: (settings: GlobalPayrollSettings) => void;
-    onSaveSettings?: (staff: StaffProfile[], pricing: ServiceCategory[], payroll: GlobalPayrollSettings, knowledgeBase: string, adminPasswords: AdminPasswords) => Promise<void>;
+    onSaveSettings?: (staff: StaffProfile[], pricing: ServiceCategory[], payroll: GlobalPayrollSettings, knowledgeBase: string, adminPasswords: AdminPasswords, marqueeSettings: MarqueeSettings) => Promise<void>;
     knowledgeBase?: string;
     adminRole?: 'master' | 'manager' | null;
     adminPasswords?: AdminPasswords;
+    marqueeSettings?: MarqueeSettings;
 }
 
 export const AdminView: React.FC<AdminViewProps> = ({ 
     t, onLogout, staffList, pricingData, bookings = [], onUpdateBookingStatus, onDeleteBooking,
     globalPayroll = { defaultTarget: 0, customTargets: {}, gpsRequired: false }, onUpdateGlobalPayroll, onSaveSettings,
-    knowledgeBase = "", adminRole, adminPasswords = DEFAULT_ADMIN_PASSWORDS
+    knowledgeBase = "", adminRole, adminPasswords = DEFAULT_ADMIN_PASSWORDS, marqueeSettings
 }) => {
     // Data State
     const [localTransactions, setLocalTransactions] = useState<Transaction[]>([]);
@@ -105,6 +106,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
     const [editPricingData, setEditPricingData] = useState<ServiceCategory[]>([]);
     const [editGlobalPayroll, setEditGlobalPayroll] = useState<GlobalPayrollSettings>(globalPayroll);
     const [editKnowledgeBase, setEditKnowledgeBase] = useState(knowledgeBase);
+    const [editMarqueeSettings, setEditMarqueeSettings] = useState<MarqueeSettings>(marqueeSettings || DEFAULT_MARQUEE_SETTINGS);
     const [editingStaffId, setEditingStaffId] = useState<string | null>(null); 
     const [newStaffName, setNewStaffName] = useState("");
     const [newStaffPassword, setNewStaffPassword] = useState("");
@@ -152,7 +154,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
         setEditGlobalPayroll(globalPayroll);
         setEditKnowledgeBase(knowledgeBase);
         setEditAdminPasswords(adminPasswords);
-    }, [staffList, pricingData, globalPayroll, knowledgeBase, adminPasswords]);
+        setEditMarqueeSettings(marqueeSettings || DEFAULT_MARQUEE_SETTINGS);
+    }, [staffList, pricingData, globalPayroll, knowledgeBase, adminPasswords, marqueeSettings]);
 
     const todayName = getSydneyDayName(new Date().toISOString());
 
@@ -470,7 +473,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
         if (!isFirebaseConfigured()) { alert("Please connect to Firebase before saving."); return; } 
         setIsSavingSettings(true); 
         if (onSaveSettings) { 
-            await onSaveSettings(editStaffList, editPricingData, editGlobalPayroll, editKnowledgeBase, editAdminPasswords); 
+            await onSaveSettings(editStaffList, editPricingData, editGlobalPayroll, editKnowledgeBase, editAdminPasswords, editMarqueeSettings); 
         } 
         setIsSavingSettings(false); 
     };
@@ -611,7 +614,73 @@ export const AdminView: React.FC<AdminViewProps> = ({
                             </div>
                         )}
                         <div className="flex flex-col gap-6">
-                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><div className="flex justify-between items-center mb-2"><div><h3 className="text-xl font-serif font-bold text-charcoal flex items-center gap-2"><MapPinIcon className="w-6 h-6 text-gold-leaf" /> Location Security</h3><p className="text-xs text-gray-500 mt-1">Prevent fake orders by requiring staff to be at the shop.</p></div><div className="flex items-center gap-2"><span className="text-xs font-bold uppercase text-gray-400">{editGlobalPayroll.gpsRequired ? 'Enabled' : 'Disabled'}</span><button onClick={() => { const newSettings = { ...editGlobalPayroll, gpsRequired: !editGlobalPayroll.gpsRequired }; setEditGlobalPayroll(newSettings); if (onUpdateGlobalPayroll) onUpdateGlobalPayroll(newSettings); if (onSaveSettings) onSaveSettings(editStaffList, editPricingData, newSettings, editKnowledgeBase, editAdminPasswords); }} className={`w-12 h-6 rounded-full p-1 transition-colors duration-300 focus:outline-none ${editGlobalPayroll.gpsRequired ? 'bg-green-500' : 'bg-gray-300'}`}><div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ${editGlobalPayroll.gpsRequired ? 'translate-x-6' : 'translate-x-0'}`}></div></button></div></div><div className="text-[10px] text-gray-400 bg-gray-50 p-2 rounded-lg border border-gray-100">Note: Staff must allow location access on their devices for this to work.</div></div>
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><div className="flex justify-between items-center mb-2"><div><h3 className="text-xl font-serif font-bold text-charcoal flex items-center gap-2"><MapPinIcon className="w-6 h-6 text-gold-leaf" /> Location Security</h3><p className="text-xs text-gray-500 mt-1">Prevent fake orders by requiring staff to be at the shop.</p></div><div className="flex items-center gap-2"><span className="text-xs font-bold uppercase text-gray-400">{editGlobalPayroll.gpsRequired ? 'Enabled' : 'Disabled'}</span><button onClick={() => { const newSettings = { ...editGlobalPayroll, gpsRequired: !editGlobalPayroll.gpsRequired }; setEditGlobalPayroll(newSettings); if (onUpdateGlobalPayroll) onUpdateGlobalPayroll(newSettings); if (onSaveSettings) onSaveSettings(editStaffList, editPricingData, newSettings, editKnowledgeBase, editAdminPasswords, editMarqueeSettings); }} className={`w-12 h-6 rounded-full p-1 transition-colors duration-300 focus:outline-none ${editGlobalPayroll.gpsRequired ? 'bg-green-500' : 'bg-gray-300'}`}><div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ${editGlobalPayroll.gpsRequired ? 'translate-x-6' : 'translate-x-0'}`}></div></button></div></div><div className="text-[10px] text-gray-400 bg-gray-50 p-2 rounded-lg border border-gray-100">Note: Staff must allow location access on their devices for this to work.</div></div>
+                            
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gold-leaf/20">
+                                <h3 className="text-xl font-serif font-bold text-charcoal mb-4 flex items-center gap-2">
+                                    <SparklesIcon className="w-6 h-6 text-gold-leaf" /> Kiosk Marquee Banner
+                                </h3>
+                                <p className="text-sm text-gray-600 mb-4">Customize the scrolling message at the top of the kiosk screen.</p>
+                                
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Message Text</label>
+                                        <textarea 
+                                            value={editMarqueeSettings.message} 
+                                            onChange={(e) => setEditMarqueeSettings({ ...editMarqueeSettings, message: e.target.value })} 
+                                            className="w-full p-3 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:border-gold-leaf outline-none" 
+                                            rows={3} 
+                                            placeholder="e.g. 💎 Join our 1-year Membership to choose ANY color you like without paying extra! 💎"
+                                        />
+                                    </div>
+                                    
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-500 uppercase mb-2">Animation Speed</label>
+                                        <div className="grid grid-cols-3 gap-3">
+                                            <button 
+                                                onClick={() => setEditMarqueeSettings({ ...editMarqueeSettings, speed: 15 })}
+                                                className={`py-3 px-4 rounded-xl font-bold text-sm transition-all ${editMarqueeSettings.speed === 15 ? 'bg-gold-leaf text-white shadow-md' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                                            >
+                                                Fast (15s)
+                                            </button>
+                                            <button 
+                                                onClick={() => setEditMarqueeSettings({ ...editMarqueeSettings, speed: 25 })}
+                                                className={`py-3 px-4 rounded-xl font-bold text-sm transition-all ${editMarqueeSettings.speed === 25 ? 'bg-gold-leaf text-white shadow-md' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                                            >
+                                                Medium (25s)
+                                            </button>
+                                            <button 
+                                                onClick={() => setEditMarqueeSettings({ ...editMarqueeSettings, speed: 45 })}
+                                                className={`py-3 px-4 rounded-xl font-bold text-sm transition-all ${editMarqueeSettings.speed === 45 ? 'bg-gold-leaf text-white shadow-md' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                                            >
+                                                Slow (45s)
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="bg-charcoal text-white p-4 rounded-xl overflow-hidden">
+                                        <p className="text-[10px] font-bold uppercase mb-2 text-gold-leaf">Preview:</p>
+                                        <div className="overflow-hidden whitespace-nowrap">
+                                            <div 
+                                                className="inline-block animate-marquee text-sm font-bold text-gold-leaf"
+                                                style={{ animationDuration: `${editMarqueeSettings.speed}s` }}
+                                            >
+                                                <span>{editMarqueeSettings.message} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+                                                <span>{editMarqueeSettings.message} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <button 
+                                        onClick={handleSaveAllSettings} 
+                                        disabled={isSavingSettings} 
+                                        className="w-full py-3 bg-gold-leaf text-white font-bold rounded-xl hover:bg-charcoal transition-colors shadow-sm disabled:opacity-50"
+                                    >
+                                        {isSavingSettings ? "Saving..." : "Save Marquee Settings"}
+                                    </button>
+                                </div>
+                            </div>
+                            
                             <div className="bg-white p-6 rounded-2xl shadow-sm border border-blue-200"><h3 className="text-xl font-serif font-bold text-blue-700 mb-4 flex items-center gap-2"><SparklesIcon className="w-6 h-6" /> AI Knowledge Base</h3><p className="text-sm text-gray-600 mb-2">Teach the AI about your shop rules, policies, parking, etc. This text is added to the AI's instructions.</p><textarea value={editKnowledgeBase} onChange={(e) => setEditKnowledgeBase(e.target.value)} className="w-full p-3 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:border-blue-500 outline-none mb-4" rows={5} placeholder="e.g. Parking is available behind the building. We offer a 3-day guarantee on Shellac. Cash payments get 5% off." /><button onClick={handleSaveAllSettings} disabled={isSavingSettings} className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50">{isSavingSettings ? "Saving..." : "Save Knowledge Base"}</button></div>
                             {adminRole === 'master' && (
                                 <><div className="bg-white p-6 rounded-2xl shadow-sm border border-charcoal/20"><h3 className="text-xl font-serif font-bold text-charcoal mb-4 flex items-center gap-2"><LockIcon className="w-6 h-6" /> Security & Access Control</h3>{!showPasswordSection ? (<button onClick={() => setShowPasswordSection(true)} className="w-full py-3 bg-gray-100 text-charcoal font-bold rounded-xl hover:bg-gray-200 transition-colors">Change Admin Passwords</button>) : (<div className="space-y-4 bg-gray-50 p-4 rounded-xl border border-gray-100 animate-fade-in"><div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Master Admin Password</label><input type="text" value={editAdminPasswords.master} onChange={(e) => setEditAdminPasswords(prev => ({...prev, master: e.target.value}))} className="w-full p-2 border rounded-lg text-sm" /></div><div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Shop Manager Password</label><input type="text" value={editAdminPasswords.manager} onChange={(e) => setEditAdminPasswords(prev => ({...prev, manager: e.target.value}))} className="w-full p-2 border rounded-lg text-sm" /></div><div className="flex gap-2"><button onClick={() => setShowPasswordSection(false)} className="flex-1 py-2 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-500">Cancel</button><button onClick={handleSaveAllSettings} disabled={isSavingSettings} className="flex-1 py-2 bg-charcoal text-white rounded-lg text-sm font-bold hover:bg-black transition-colors">Update Passwords</button></div></div>)}</div><div className="bg-white p-6 rounded-2xl shadow-sm border border-red-200"><h3 className="text-xl font-serif font-bold text-red-600 mb-4 flex items-center gap-2"><TrashIcon className="w-6 h-6" /> System Data</h3><p className="text-sm text-gray-600 mb-4">Clean up old transaction history to keep the app fast. <br/><strong>Keeps the last 6 months of data safe.</strong></p><button onClick={handleClearHistory} className="w-full py-3 bg-red-50 text-red-600 border border-red-200 font-bold rounded-xl hover:bg-red-600 hover:text-white transition-colors flex items-center justify-center gap-2"><TrashIcon className="w-5 h-5" /> Clean Up Old Data ({'>'}6 Months)</button></div></>

@@ -150,12 +150,18 @@ export interface AdminPasswords {
     manager: string; // Shop Manager (Restricted)
 }
 
+export interface MarqueeSettings {
+    message: string;
+    speed: number; // Animation duration in seconds (e.g., 15, 25, 45)
+}
+
 export interface AppSettings {
     staffList: StaffProfile[]; 
     pricingData: ServiceCategory[];
     globalPayroll?: GlobalPayrollSettings; 
     knowledgeBase?: string;
     adminPasswords?: AdminPasswords; // New: Store passwords in settings
+    marqueeSettings?: MarqueeSettings; // New: Kiosk marquee banner settings
 }
 
 export interface SettingsSnapshot {

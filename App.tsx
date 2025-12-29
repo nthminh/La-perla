@@ -14,8 +14,8 @@ import PromotionsView from './components/PromotionsView';
 import { ChatWidget } from './components/ChatWidget';
 import { UploadIcon, SparklesIcon, PriceTagIcon, GalleryIcon, CameraIcon, DownloadIcon, BriefcaseIcon, CalendarIcon, GiftIcon, LaPerlaLogo, LockIcon, UsersIcon, CloudCheckIcon, CloudSyncIcon, CloudErrorIcon, XMarkIcon } from './components/Icons';
 import { TRANSLATIONS, Translation } from './translations';
-import { CartItem, ActiveBill, WaitlistEntry, ServiceCategory, StaffProfile, Review, BookingRequest, GlobalPayrollSettings, Transaction, AdminPasswords } from './types';
-import { PRICING_DATA as DEFAULT_PRICING, DEFAULT_STAFF_PROFILES, DEFAULT_GLOBAL_PAYROLL, DEFAULT_ADMIN_PASSWORDS } from './constants';
+import { CartItem, ActiveBill, WaitlistEntry, ServiceCategory, StaffProfile, Review, BookingRequest, GlobalPayrollSettings, Transaction, AdminPasswords, MarqueeSettings } from './types';
+import { PRICING_DATA as DEFAULT_PRICING, DEFAULT_STAFF_PROFILES, DEFAULT_GLOBAL_PAYROLL, DEFAULT_ADMIN_PASSWORDS, DEFAULT_MARQUEE_SETTINGS } from './constants';
 import { logger } from './utils/logger';
 // Removed redundant googleSheetsService imports
 import { 
@@ -296,6 +296,7 @@ const MainApp: React.FC = () => {
   const [globalPayroll, setGlobalPayroll] = useState<GlobalPayrollSettings>(DEFAULT_GLOBAL_PAYROLL);
   const [knowledgeBase, setKnowledgeBase] = useState<string>("");
   const [adminPasswords, setAdminPasswords] = useState<AdminPasswords>(DEFAULT_ADMIN_PASSWORDS);
+  const [marqueeSettings, setMarqueeSettings] = useState<MarqueeSettings>(DEFAULT_MARQUEE_SETTINGS);
 
   // Active Bills State - Default to EMPTY ARRAY to fix "Tap to Name" issue
   const [activeBills, setActiveBills] = useState<ActiveBill[]>(() => {
@@ -471,7 +472,7 @@ const MainApp: React.FC = () => {
           setCurrentUser(updatedProfile);
           saveCurrentUser(updatedProfile);
       }
-      saveSettingsToFirebase(updatedList, pricingData, globalPayroll);
+      saveSettingsToFirebase(updatedList, pricingData, globalPayroll, knowledgeBase, adminPasswords, marqueeSettings);
   };
 
   const handleStaffReview = (staffId: string, reviewData: { rating: number, badges: string[], comment?: string, customerName?: string }) => {
@@ -494,7 +495,7 @@ const MainApp: React.FC = () => {
           return staff;
       });
       setStaffList(updatedList);
-      saveSettingsToFirebase(updatedList, pricingData, globalPayroll);
+      saveSettingsToFirebase(updatedList, pricingData, globalPayroll, knowledgeBase, adminPasswords, marqueeSettings);
       alert("Thank you for your feedback!");
   };
   
@@ -687,6 +688,7 @@ const MainApp: React.FC = () => {
 
                 if (settings.knowledgeBase) setKnowledgeBase(settings.knowledgeBase);
                 if (settings.adminPasswords) setAdminPasswords(settings.adminPasswords);
+                if (settings.marqueeSettings) setMarqueeSettings(settings.marqueeSettings);
            }
       });
       
@@ -855,6 +857,7 @@ const MainApp: React.FC = () => {
             bookings={bookings}
             activeBills={activeBills}
             pastTransactions={customerLookupData} // Pass history to Kiosk
+            marqueeSettings={marqueeSettings}
           />
       );
   }
@@ -1082,17 +1085,19 @@ const MainApp: React.FC = () => {
                 onUpdateGlobalPayroll={setGlobalPayroll}
                 knowledgeBase={knowledgeBase}
                 adminPasswords={adminPasswords}
+                marqueeSettings={marqueeSettings}
                 // Pass role to enable Master features
                 adminRole={currentUser?.id === 'admin_master' ? 'master' : (currentUser?.id === 'shop_manager' ? 'manager' : undefined)}
-                onSaveSettings={async (staff, pricing, payroll, kb, passwords) => {
+                onSaveSettings={async (staff, pricing, payroll, kb, passwords, marquee) => {
                     // Update local state first to feel fast
                     setStaffList(staff);
                     setPricingData(pricing);
                     setGlobalPayroll(payroll);
                     setKnowledgeBase(kb);
                     setAdminPasswords(passwords);
+                    setMarqueeSettings(marquee);
                     // Then save to cloud
-                    const result = await saveSettingsToFirebase(staff, pricing, payroll, kb, passwords);
+                    const result = await saveSettingsToFirebase(staff, pricing, payroll, kb, passwords, marquee);
                     if(result.success) alert("Settings saved successfully!");
                     else alert("Error saving settings. Check connection.");
                 }}
