@@ -4,6 +4,7 @@ import { db, waitForAuth } from "./firebaseConfig";
 import { ActiveBill, WaitlistEntry, AppSettings, ServiceCategory, StaffProfile, BookingRequest, GlobalPayrollSettings, Transaction, AdminPasswords, SettingsSnapshot } from "../types";
 import { DEFAULT_GLOBAL_PAYROLL, DEFAULT_ADMIN_PASSWORDS } from "../constants";
 import { deleteLocalTransaction, clearTransactions, pruneOldLocalTransactions } from "./storageService";
+import { logger } from "../utils/logger";
 
 // Đường dẫn lưu trữ trong database
 const BILLS_REF = "systemState/activeBills";
@@ -75,7 +76,7 @@ export const subscribeToSystemState = (
       onUpdate(EMPTY_SYSTEM_STATE);
     }
   }, (error) => {
-    console.warn("Firebase Read Error (SystemState) - check rules:", error.message);
+    logger.warn("Firebase Read Error (SystemState) - check rules", error.message);
     // Call onUpdate with empty state to prevent app from hanging
     // Note: localStorage data is loaded independently in App.tsx, so this won't overwrite cached data
     // This empty state primarily ensures isSystemReady gets set to true so the app can continue

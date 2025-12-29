@@ -16,6 +16,7 @@ import { UploadIcon, SparklesIcon, PriceTagIcon, GalleryIcon, CameraIcon, Downlo
 import { TRANSLATIONS, Translation } from './translations';
 import { CartItem, ActiveBill, WaitlistEntry, ServiceCategory, StaffProfile, Review, BookingRequest, GlobalPayrollSettings, Transaction, AdminPasswords } from './types';
 import { PRICING_DATA as DEFAULT_PRICING, DEFAULT_STAFF_PROFILES, DEFAULT_GLOBAL_PAYROLL, DEFAULT_ADMIN_PASSWORDS } from './constants';
+import { logger } from './utils/logger';
 // Removed redundant googleSheetsService imports
 import { 
     getWaitlist, 
@@ -63,7 +64,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
     }
 
     componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-        console.error("Uncaught error:", error, errorInfo);
+        logger.error("Uncaught error", { error, errorInfo });
     }
 
     handleReset = () => {

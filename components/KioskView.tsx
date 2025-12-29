@@ -5,6 +5,10 @@ import { LaPerlaLogo, ClockIcon, PhoneIcon, UserIcon, SparklesIcon, ChevronDownI
 import { WaitlistEntry, ServiceCategory, BookingRequest, ActiveBill, CartItem, Transaction, CustomerProfile } from '../types';
 import { upsertWaitlistEntry, upsertActiveBill, upsertBooking, getNextTicketNumber } from '../services/firebaseService';
 import { SoundManager } from '../utils/sound';
+import { generateSecureId } from '../utils/idGenerator';
+import { parsePrice } from '../utils/priceParser';
+import { isValidPhone, isValidName } from '../utils/validators';
+import { useAsyncLoading } from '../utils/hooks';
 
 interface KioskViewProps {
   t: Translation;
@@ -37,6 +41,9 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
   const [showReassuranceModal, setShowReassuranceModal] = useState(false);
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({});
   const ticketRef = useRef<HTMLDivElement>(null);
+  
+  // Loading state for async operations
+  const { isLoading, withLoading } = useAsyncLoading();
 
   useEffect(() => {
     const savedName = sessionStorage.getItem('kiosk_name');
@@ -143,6 +150,13 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
 
   const handleCheckInSearch = () => {
     if (!phone.trim()) return;
+    
+    // Validate phone number
+    if (!isValidPhone(phone)) {
+      alert(t.kioskPhoneError || 'Please enter a valid phone number (8-15 digits)');
+      return;
+    }
+    
     SoundManager.playTap();
     const searchPhone = phone.replace(/[^0-9]/g, '');
     
@@ -168,34 +182,88 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
     }
   };
 
+  const convertServicesToCartItems = (serviceNames: string[]): CartItem[] => {
+    return serviceNames.map(serviceName => {
+      let foundService = null;
+      for (const cat of pricingData) {
+        const s = cat.services.find(s => (s.displayName || t.serviceNames[s.nameKey] || s.nameKey) === serviceName);
+        if (s) { 
+          foundService = s; 
+          break; 
+        }
+      }
+      
+      return {
+        id: generateSecureId(),
+        nameKey: foundService ? foundService.nameKey : serviceName,
+        price: foundService ? parsePrice(foundService.price) : 0,
+        quantity: 1,
+        displayName: serviceName
+      };
+    });
+  };
+
   const confirmCheckIn = async () => {
     if (!foundBooking) return;
-    SoundManager.playSuccess();
-    const ticketNum = await getNextTicketNumber('checkin');
-    setGeneratedTicket(ticketNum);
-    const newBill: ActiveBill = { id: Date.now().toString(), customerName: foundBooking.customerName, customerPhone: foundBooking.customerPhone, items: [], discountPercentage: 0, ticketNumber: ticketNum, isVip: isVip };
-    upsertActiveBill(newBill);
-    upsertBooking({ ...foundBooking, status: 'confirmed' });
-    setStep('success_seated');
+    
+    await withLoading(async () => {
+      SoundManager.playSuccess();
+      const ticketNum = await getNextTicketNumber('checkin');
+      setGeneratedTicket(ticketNum);
+      const bookingServices = foundBooking.services || [];
+      setSelectedServices(bookingServices); // Set selected services for ticket display
+      const initialItems = convertServicesToCartItems(bookingServices);
+      const newBill: ActiveBill = { id: Date.now().toString(), customerName: foundBooking.customerName, customerPhone: foundBooking.customerPhone, items: initialItems, discountPercentage: 0, ticketNumber: ticketNum, isVip: isVip };
+      await upsertActiveBill(newBill);
+      await upsertBooking({ ...foundBooking, status: 'confirmed' });
+      setStep('success_seated');
+    });
   };
 
   const handleImmediateCheckIn = async () => {
-    SoundManager.playSuccess();
-    const ticketNum = await getNextTicketNumber('checkin');
-    setGeneratedTicket(ticketNum);
-    const newBill: ActiveBill = { id: Date.now().toString(), customerName: name, customerPhone: phone, items: [], discountPercentage: 0, ticketNumber: ticketNum, isVip: isVip };
-    upsertActiveBill(newBill);
-    setStep('success_seated');
+    // Validate inputs
+    if (!isValidName(name)) {
+      alert(t.kioskNameError || 'Please enter a valid name (at least 2 characters)');
+      return;
+    }
+    
+    if (selectedServices.length === 0) {
+      alert(t.kioskServiceError || 'Please select at least one service');
+      return;
+    }
+    
+    await withLoading(async () => {
+      SoundManager.playSuccess();
+      const ticketNum = await getNextTicketNumber('checkin');
+      setGeneratedTicket(ticketNum);
+      const initialItems = convertServicesToCartItems(selectedServices);
+      const newBill: ActiveBill = { id: Date.now().toString(), customerName: name, customerPhone: phone, items: initialItems, discountPercentage: 0, ticketNumber: ticketNum, isVip: isVip };
+      await upsertActiveBill(newBill);
+      setStep('success_seated');
+    });
   };
 
   const handleWalkInSubmit = async () => {
-    SoundManager.playSuccess();
-    const ticketNum = await getNextTicketNumber('waitlist');
-    setGeneratedTicket(ticketNum);
-    const newEntry: WaitlistEntry = { id: Date.now().toString(), customerName: name, customerPhone: phone, notes: notes || 'Walk-in', addedTime: new Date().toISOString(), estimatedReturnTime: '', status: 'waiting', selectedServices, ticketNumber: ticketNum, isVip };
-    setWaitlist([...waitlist, newEntry]);
-    upsertWaitlistEntry(newEntry);
-    setStep('success_waitlist');
+    // Validate inputs
+    if (!isValidPhone(phone)) {
+      alert(t.kioskPhoneError || 'Please enter a valid phone number (8-15 digits)');
+      return;
+    }
+    
+    if (!isValidName(name)) {
+      alert(t.kioskNameError || 'Please enter a valid name (at least 2 characters)');
+      return;
+    }
+    
+    await withLoading(async () => {
+      SoundManager.playSuccess();
+      const ticketNum = await getNextTicketNumber('waitlist');
+      setGeneratedTicket(ticketNum);
+      const newEntry: WaitlistEntry = { id: Date.now().toString(), customerName: name, customerPhone: phone, notes: notes || 'Walk-in', addedTime: new Date().toISOString(), estimatedReturnTime: '', status: 'waiting', selectedServices, ticketNumber: ticketNum, isVip };
+      setWaitlist([...waitlist, newEntry]);
+      await upsertWaitlistEntry(newEntry);
+      setStep('success_waitlist');
+    });
   };
 
   const estimatedTotal = useMemo(() => {
@@ -286,7 +354,7 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
                 <div className="bg-gray-50 p-4 rounded-xl text-left mb-8 border border-gray-200">
                     <p className="text-xs text-gray-400 font-bold uppercase mb-1">Services</p><p className="text-lg font-medium">{foundBooking.services.join(', ')}</p>
                 </div>
-                <div className="flex gap-4"><button onClick={handleReset} className="flex-1 py-3 border rounded-xl font-bold text-gray-500">Cancel</button><button onClick={confirmCheckIn} className="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold shadow-lg">Check In Now</button></div>
+                <div className="flex gap-4"><button onClick={handleReset} className="flex-1 py-3 border rounded-xl font-bold text-gray-500" disabled={isLoading}>Cancel</button><button onClick={confirmCheckIn} className="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed" disabled={isLoading}>{isLoading ? 'Processing...' : 'Check In Now'}</button></div>
             </div>
         )}
 
@@ -304,7 +372,7 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
                     <div className="space-y-1"><label className="text-xs font-bold text-gold-leaf uppercase">Name</label><input type="text" value={name} onChange={(e) => setName(e.target.value)} className="w-full bg-gray-50 border-2 rounded-xl px-4 py-3 text-lg outline-none" placeholder="Enter Name" /></div>
                     <div className="space-y-1"><label className="text-xs font-bold text-gold-leaf uppercase">Services</label><button onClick={() => setShowReassuranceModal(true)} className="w-full bg-white border-2 border-dashed rounded-xl p-4 flex justify-between items-center"><span className={selectedServices.length > 0 ? 'text-charcoal font-bold' : 'text-gray-400'}>{selectedServices.length > 0 ? `${selectedServices.length} selected` : 'Select Services...'}</span><SparklesIcon className="w-5 h-5 text-gold-leaf" /></button></div>
                 </div>
-                <div className="flex gap-4"><button onClick={() => setStep('checkin_phone')} className="flex-1 py-3 border rounded-xl font-bold text-gray-500">Back</button><button onClick={handleImmediateCheckIn} disabled={!name.trim() || selectedServices.length === 0} className="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold shadow-lg">Check In</button></div>
+                <div className="flex gap-4"><button onClick={() => setStep('checkin_phone')} className="flex-1 py-3 border rounded-xl font-bold text-gray-500" disabled={isLoading}>Back</button><button onClick={handleImmediateCheckIn} disabled={!name.trim() || selectedServices.length === 0 || isLoading} className="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold shadow-lg disabled:opacity-50 disabled:cursor-not-allowed">{isLoading ? 'Processing...' : 'Check In'}</button></div>
             </div>
         )}
 
@@ -345,7 +413,7 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
                         />
                     </div>
                     <button onClick={() => setShowReassuranceModal(true)} className="w-full bg-white border-2 border-dashed rounded-xl p-4 flex justify-between items-center"><span className={selectedServices.length > 0 ? 'text-charcoal font-bold' : 'text-gray-400'}>{selectedServices.length > 0 ? `${selectedServices.length} selected` : 'Select Services...'}</span><SparklesIcon className="w-5 h-5 text-gold-leaf" /></button>
-                    <button onClick={handleWalkInSubmit} disabled={!name || !phone} className="w-full bg-charcoal text-white font-bold py-4 rounded-xl shadow-lg mt-4 text-lg">Join Waitlist</button>
+                    <button onClick={handleWalkInSubmit} disabled={!name || !phone || isLoading} className="w-full bg-charcoal text-white font-bold py-4 rounded-xl shadow-lg mt-4 text-lg disabled:opacity-50 disabled:cursor-not-allowed">{isLoading ? 'Processing...' : 'Join Waitlist'}</button>
                 </div>
             </div>
         )}

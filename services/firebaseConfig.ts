@@ -1,6 +1,7 @@
 import { initializeApp, getApps, getApp, deleteApp, FirebaseApp } from "firebase/app";
 import { getDatabase, Database, ref, set, remove } from "firebase/database";
 import { getAuth, signInAnonymously, Auth } from "firebase/auth";
+import { logger } from "../utils/logger";
 
 // SECURITY: Obfuscated Configuration
 // Values are Base64 encoded to prevent simple text searching in source code.
@@ -27,7 +28,7 @@ const getStoredConfig = () => {
         const stored = localStorage.getItem('la_perla_firebase_settings');
         if (stored) return JSON.parse(stored);
     } catch (e) {
-        console.error("Failed to parse stored config");
+        logger.error("Failed to parse stored config", e);
     }
     return null;
 };
@@ -44,32 +45,32 @@ let authInstance: Auth | null = null;
 try {
     if (!getApps().length) {
         app = initializeApp(firebaseConfig);
-        console.log("Firebase app initialized successfully");
+        logger.info("Firebase app initialized successfully");
     } else {
         app = getApp();
-        console.log("Using existing Firebase app");
+        logger.info("Using existing Firebase app");
     }
     
     // Attempt to get database instance. This might fail if config is malformed (e.g. bad URL)
     try {
         dbInstance = getDatabase(app);
         authInstance = getAuth(app);
-        console.log("Firebase database and auth instances created");
+        logger.info("Firebase database and auth instances created");
         
         // Auto-sign in anonymously to allow access if rules require auth != null
         // Gracefully handle if Auth is not enabled in Console
         signInAnonymously(authInstance).catch(err => {
-            console.warn("Anonymous sign-in failed (this is OK if auth is disabled):", err.code);
+            logger.warn("Anonymous sign-in failed (this is OK if auth is disabled)", err.code);
         });
 
     } catch (dbError: any) {
-        console.error("Failed to initialize Firebase database:", dbError.message);
+        logger.error("Failed to initialize Firebase database", dbError.message);
         dbInstance = null;
         authInstance = null;
     }
 
 } catch (e: any) {
-    console.error("Critical Firebase initialization error - app will run in offline mode:", e.message);
+    logger.error("Critical Firebase initialization error - app will run in offline mode", e.message);
 }
 
 export const db = dbInstance;
@@ -198,7 +199,7 @@ export const saveFirebaseConfigLocally = (config: ParsedConfig): { success: bool
         localStorage.setItem('la_perla_firebase_settings', JSON.stringify(fullConfig));
         return { success: true };
     } catch (e: any) {
-        console.error("Config Save Error", e);
+        logger.error("Config Save Error", e);
         return { success: false, error: e.message || "Unknown error." };
     }
 };
