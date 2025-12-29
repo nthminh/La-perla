@@ -39,7 +39,9 @@ View your app in AI Studio: https://ai.studio/apps/drive/1Ay5kinG8NgbB3wU-5ZvKuk
    ```bash
    ./deploy-to-firebase.sh
    ```
-   This automated script handles merge, build, and deployment! See [DEPLOY_HUONG_DAN.md](./DEPLOY_HUONG_DAN.md) for details.
+   This automated script handles merge, build, and deployment! 
+   
+   See [START_DEPLOY_HERE.md](./START_DEPLOY_HERE.md) for quick setup or [FIREBASE_DEPLOY_GUIDE.md](./FIREBASE_DEPLOY_GUIDE.md) for full details.
 
 ## 📚 Documentation
 
