@@ -1043,6 +1043,8 @@ const MainApp: React.FC = () => {
                 globalPayroll={globalPayroll}
                 pastTransactions={customerLookupData}
                 bookings={bookings}
+                onUpdateBookingStatus={handleUpdateBookingStatus}
+                onDeleteBooking={handleDeleteBooking}
             />
         )}
         {view === 'gallery' && (
