@@ -170,3 +170,26 @@ export interface SettingsSnapshot {
     data: AppSettings;
     restoredFrom?: string; // ID of the snapshot used if this was a restore
 }
+
+// Payroll Feature Types
+export interface PayrollSummary {
+    staffId: string;
+    staffName: string;
+    month: number; // 1-12
+    year: number;
+    daysWorked: number;
+    totalRevenue: number;
+    baseSalaryTotal: number; // baseSalary * daysWorked
+    bonusTotal: number;
+    adjustment: number; // Manual adjustment (+/-)
+    adjustmentNote: string;
+    finalTotal: number; // baseSalaryTotal + bonusTotal + adjustment
+}
+
+export interface PayrollDailyBreakdown {
+    date: string; // YYYY-MM-DD
+    dayOfWeek: string;
+    revenue: number;
+    target: number;
+    bonus: number;
+}
