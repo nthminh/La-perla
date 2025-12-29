@@ -113,6 +113,8 @@ App hỗ trợ:
 ## 📚 Tài Liệu Chi Tiết
 
 ### Bằng Tiếng Việt
+- **[DEPLOY_HUONG_DAN.md](./DEPLOY_HUONG_DAN.md)** - **MỚI!** Hướng dẫn deploy tự động bằng 1 lệnh
+- **[LENH_DEPLOY_NHANH.md](./LENH_DEPLOY_NHANH.md)** - Tham khảo nhanh các lệnh deploy
 - **File này** - Hướng dẫn cài đặt cơ bản
 
 ### Bằng Tiếng Anh
@@ -120,7 +122,26 @@ App hỗ trợ:
 - **[FIREBASE_STUDIO_GUIDE.md](./FIREBASE_STUDIO_GUIDE.md)** - Hướng dẫn import vào Firebase Studio
 - **[DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md)** - Checklist triển khai production
 
-## 🎯 Import Vào Firebase Studio
+## 🎯 Deploy Lên Firebase (Cách Mới - Tự Động!)
+
+### Cách Nhanh Nhất - Chỉ Một Lệnh! ⚡
+
+```bash
+./deploy-to-firebase.sh
+```
+
+Script này sẽ **tự động**:
+- ✅ Merge thay đổi từ nhánh hiện tại vào main
+- ✅ Cài đặt dependencies
+- ✅ Build ứng dụng
+- ✅ Deploy lên Firebase Hosting
+- ✅ Hiển thị link website live
+
+**Xem hướng dẫn đầy đủ:** [DEPLOY_HUONG_DAN.md](./DEPLOY_HUONG_DAN.md)
+
+### Hoặc Deploy Thủ Công (Cách Cũ)
+
+Nếu muốn làm từng bước thủ công:
 
 ### Bước 1: Build App
 ```bash
@@ -150,14 +171,7 @@ firebase deploy --only hosting
 
 Chi tiết: [FIREBASE_STUDIO_GUIDE.md](./FIREBASE_STUDIO_GUIDE.md)
 
-## 🛠️ Công Nghệ Sử Dụng
-
-- **Frontend**: React 18 + TypeScript
-- **Build Tool**: Vite
-- **Styling**: TailwindCSS
-- **Database**: Firebase Realtime Database
-- **AI**: Google Gemini API
-- **Authentication**: Firebase Auth
+---
 
 ## ⚡ Lệnh Nhanh
 
@@ -171,12 +185,24 @@ npm run dev
 # Build
 npm run build
 
-# Xem build
+# Deploy lên Firebase (TỰ ĐỘNG!)
+./deploy-to-firebase.sh
+
+# Hoặc xem build local
 npm run preview
 
-# Kiểm tra
+# Kiểm tra build
 ./verify-build.sh
 ```
+
+## 🛠️ Công Nghệ Sử Dụng
+
+- **Frontend**: React 18 + TypeScript
+- **Build Tool**: Vite
+- **Styling**: TailwindCSS
+- **Database**: Firebase Realtime Database
+- **AI**: Google Gemini API
+- **Authentication**: Firebase Auth
 
 ## 🐛 Xử Lý Lỗi
 

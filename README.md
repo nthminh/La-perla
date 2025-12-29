@@ -35,8 +35,19 @@ View your app in AI Studio: https://ai.studio/apps/drive/1Ay5kinG8NgbB3wU-5ZvKuk
    npm run build
    ```
 
+5. **Deploy to Firebase (One Command!):**
+   ```bash
+   ./deploy-to-firebase.sh
+   ```
+   This automated script handles merge, build, and deployment! 
+   
+   See [START_DEPLOY_HERE.md](./START_DEPLOY_HERE.md) for quick setup or [FIREBASE_DEPLOY_GUIDE.md](./FIREBASE_DEPLOY_GUIDE.md) for full details.
+
 ## 📚 Documentation
 
+- **[🚀 Deploy to Firebase (English)](./FIREBASE_DEPLOY_GUIDE.md)** - **NEW!** One-command deployment guide
+- **[🚀 Deploy to Firebase (Vietnamese)](./DEPLOY_HUONG_DAN.md)** - **NEW!** One-command deployment guide (Tiếng Việt)
+- **[⚡ Quick Deploy Commands (Vietnamese)](./LENH_DEPLOY_NHANH.md)** - Quick reference for deployment
 - **[🇻🇳 Hướng Dẫn Tiếng Việt](./HUONG_DAN_TIENG_VIET.md)** - Vietnamese Setup Guide
 - **[Setup Guide](./SETUP_GUIDE.md)** - Detailed installation and configuration instructions
 - **[Firebase Studio Import Guide](./FIREBASE_STUDIO_GUIDE.md)** - How to import this app into Firebase Studio for advanced AI features
