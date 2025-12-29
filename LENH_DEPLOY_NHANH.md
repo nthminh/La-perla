@@ -93,8 +93,10 @@ npm run build  # Test build
 
 Thêm vào `~/.bashrc` hoặc `~/.zshrc`:
 ```bash
-alias deploy='cd /đường/dẫn/đến/La-perla && ./deploy-to-firebase.sh'
+alias deploy='cd /path/to/La-perla && ./deploy-to-firebase.sh'
 ```
+
+Thay `/path/to/La-perla` bằng đường dẫn thực tế đến thư mục dự án của bạn.
 
 Sau đó từ bất kỳ đâu, chỉ cần gõ:
 ```bash

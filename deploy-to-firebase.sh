@@ -65,7 +65,8 @@ if ! command -v git &> /dev/null; then
     print_error "Git is not installed / Git chưa được cài đặt"
     exit 1
 fi
-print_success "Git $(git --version | cut -d ' ' -f3) installed / đã cài đặt"
+GIT_VERSION=$(git --version 2>&1 | head -n1 || echo "unknown")
+print_success "Git $GIT_VERSION installed / đã cài đặt"
 
 # Check Node.js
 if ! command -v node &> /dev/null; then
@@ -182,9 +183,12 @@ npm run build
 if [ $? -eq 0 ]; then
     print_success "Build completed successfully / Build hoàn thành thành công"
     
-    # Show build size
+    # Show build size - check for common build directories
     if [ -d "dist" ]; then
         BUILD_SIZE=$(du -sh dist 2>/dev/null | cut -f1 || echo "unknown")
+        print_info "Build size / Kích thước build: $BUILD_SIZE"
+    elif [ -d "build" ]; then
+        BUILD_SIZE=$(du -sh build 2>/dev/null | cut -f1 || echo "unknown")
         print_info "Build size / Kích thước build: $BUILD_SIZE"
     fi
 else
@@ -224,9 +228,10 @@ firebase deploy --only hosting
 if [ $? -eq 0 ]; then
     print_success "Deployment completed successfully! / Deploy hoàn thành thành công!"
     
-    # Get project name from .firebaserc
+    # Get project name from .firebaserc using more portable method
     if [ -f ".firebaserc" ]; then
-        PROJECT_NAME=$(grep -oP '"default":\s*"\K[^"]+' .firebaserc)
+        # Use sed for better portability across platforms
+        PROJECT_NAME=$(sed -n 's/.*"default"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' .firebaserc)
         if [ -n "$PROJECT_NAME" ]; then
             print_info "Your app is live at / Ứng dụng của bạn đã được triển khai tại:"
             echo -e "${GREEN}https://${PROJECT_NAME}.web.app${NC}"

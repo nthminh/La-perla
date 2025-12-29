@@ -43,7 +43,8 @@ View your app in AI Studio: https://ai.studio/apps/drive/1Ay5kinG8NgbB3wU-5ZvKuk
 
 ## 📚 Documentation
 
-- **[🚀 Deploy to Firebase (Vietnamese)](./DEPLOY_HUONG_DAN.md)** - **NEW!** One-command deployment guide
+- **[🚀 Deploy to Firebase (English)](./FIREBASE_DEPLOY_GUIDE.md)** - **NEW!** One-command deployment guide
+- **[🚀 Deploy to Firebase (Vietnamese)](./DEPLOY_HUONG_DAN.md)** - **NEW!** One-command deployment guide (Tiếng Việt)
 - **[⚡ Quick Deploy Commands (Vietnamese)](./LENH_DEPLOY_NHANH.md)** - Quick reference for deployment
 - **[🇻🇳 Hướng Dẫn Tiếng Việt](./HUONG_DAN_TIENG_VIET.md)** - Vietnamese Setup Guide
 - **[Setup Guide](./SETUP_GUIDE.md)** - Detailed installation and configuration instructions
