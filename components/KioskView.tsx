@@ -5,6 +5,9 @@ import { LaPerlaLogo, ClockIcon, PhoneIcon, UserIcon, SparklesIcon, ChevronDownI
 import { WaitlistEntry, ServiceCategory, BookingRequest, ActiveBill, CartItem, Transaction, CustomerProfile } from '../types';
 import { upsertWaitlistEntry, upsertActiveBill, upsertBooking, getNextTicketNumber } from '../services/firebaseService';
 import { SoundManager } from '../utils/sound';
+import { generateSecureId } from '../utils/idGenerator';
+import { parsePrice } from '../utils/priceParser';
+import { isValidPhone, isValidName } from '../utils/validators';
 
 interface KioskViewProps {
   t: Translation;
@@ -143,6 +146,13 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
 
   const handleCheckInSearch = () => {
     if (!phone.trim()) return;
+    
+    // Validate phone number
+    if (!isValidPhone(phone)) {
+      alert(t.kioskPhoneError || 'Please enter a valid phone number (8-15 digits)');
+      return;
+    }
+    
     SoundManager.playTap();
     const searchPhone = phone.replace(/[^0-9]/g, '');
     
@@ -169,7 +179,6 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
   };
 
   const convertServicesToCartItems = (serviceNames: string[]): CartItem[] => {
-    const generateUniqueId = () => Math.random().toString(36).substr(2, 9);
     return serviceNames.map(serviceName => {
       let foundService = null;
       for (const cat of pricingData) {
@@ -179,12 +188,9 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
           break; 
         }
       }
-      const parsePrice = (priceStr: string): number => {
-        const match = priceStr.replace(/,/g, '').match(/(\d+(\.\d+)?)/);
-        return match ? parseFloat(match[0]) : 0;
-      };
+      
       return {
-        id: generateUniqueId(),
+        id: generateSecureId(),
         nameKey: foundService ? foundService.nameKey : serviceName,
         price: foundService ? parsePrice(foundService.price) : 0,
         quantity: 1,
@@ -208,6 +214,17 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
   };
 
   const handleImmediateCheckIn = async () => {
+    // Validate inputs
+    if (!isValidName(name)) {
+      alert(t.kioskNameError || 'Please enter a valid name (at least 2 characters)');
+      return;
+    }
+    
+    if (selectedServices.length === 0) {
+      alert(t.kioskServiceError || 'Please select at least one service');
+      return;
+    }
+    
     SoundManager.playSuccess();
     const ticketNum = await getNextTicketNumber('checkin');
     setGeneratedTicket(ticketNum);
@@ -218,6 +235,17 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
   };
 
   const handleWalkInSubmit = async () => {
+    // Validate inputs
+    if (!isValidPhone(phone)) {
+      alert(t.kioskPhoneError || 'Please enter a valid phone number (8-15 digits)');
+      return;
+    }
+    
+    if (!isValidName(name)) {
+      alert(t.kioskNameError || 'Please enter a valid name (at least 2 characters)');
+      return;
+    }
+    
     SoundManager.playSuccess();
     const ticketNum = await getNextTicketNumber('waitlist');
     setGeneratedTicket(ticketNum);

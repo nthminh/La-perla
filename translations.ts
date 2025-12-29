@@ -149,6 +149,9 @@ export interface Translation {
   enterKioskMode: string;
   exitKioskMode: string;
   kioskMarqueeMessage: string;
+  kioskPhoneError: string;
+  kioskNameError: string;
+  kioskServiceError: string;
 }
 
 const baseTranslations: Omit<Translation, 'name' | 'flag'> = {
@@ -296,6 +299,9 @@ const baseTranslations: Omit<Translation, 'name' | 'flag'> = {
   enterKioskMode: "Enter Kiosk Mode",
   exitKioskMode: "Exit Kiosk",
   kioskMarqueeMessage: "💎 Join our 1-year Membership to choose ANY color you like without paying extra! 💎 Join our Yearly Membership to choose ANY color you like without extra cost! 💎",
+  kioskPhoneError: "Please enter a valid phone number (8-15 digits)",
+  kioskNameError: "Please enter a valid name (at least 2 characters)",
+  kioskServiceError: "Please select at least one service",
   serviceCategories: {
     nails: "Nails",
     ladiesWaxing: "Ladies Waxing",
