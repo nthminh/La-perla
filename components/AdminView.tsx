@@ -27,6 +27,7 @@ import {
 } from '../services/firebaseConfig';
 import { CustomerCRMView } from './CustomerCRMView';
 import { MarketingView } from './MarketingView'; // New Component
+import { PayrollView } from './PayrollView'; // Payroll Feature
 import { DEFAULT_ADMIN_PASSWORDS, DEFAULT_MARQUEE_SETTINGS } from '../constants';
 import { compressImage } from '../utils/imageCompression'; 
 
@@ -87,7 +88,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
     const [dataMode, setDataMode] = useState<'live' | 'history'>('live');
 
     // View State
-    const [activeTab, setActiveTab] = useState<'dashboard' | 'bookings' | 'customers' | 'marketing' | 'settings' | 'menu'>('dashboard');
+    const [activeTab, setActiveTab] = useState<'dashboard' | 'bookings' | 'customers' | 'marketing' | 'payroll' | 'settings' | 'menu'>('dashboard');
 
     // Filter State
     const [startDate, setStartDate] = useState(getSydneyToday());
@@ -520,6 +521,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       <button onClick={() => setActiveTab('bookings')} className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors whitespace-nowrap ${activeTab === 'bookings' ? 'bg-gold-leaf text-white' : 'hover:bg-white/10'}`}>Bookings ({bookings.filter(b=>b.status==='pending').length})</button>
                       <button onClick={() => setActiveTab('customers')} className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors whitespace-nowrap ${activeTab === 'customers' ? 'bg-gold-leaf text-white' : 'hover:bg-white/10'}`}>Customers</button>
                       <button onClick={() => setActiveTab('marketing')} className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors whitespace-nowrap ${activeTab === 'marketing' ? 'bg-gold-leaf text-white' : 'hover:bg-white/10'}`}>Marketing 🎁</button>
+                      <button onClick={() => setActiveTab('payroll')} className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors whitespace-nowrap ${activeTab === 'payroll' ? 'bg-gold-leaf text-white' : 'hover:bg-white/10'}`}>💰 Payroll</button>
                       <button onClick={() => setActiveTab('menu')} className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors whitespace-nowrap ${activeTab === 'menu' ? 'bg-gold-leaf text-white' : 'hover:bg-white/10'}`}>Menu & Staff</button>
                       <button onClick={() => setActiveTab('settings')} className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors whitespace-nowrap ${activeTab === 'settings' ? 'bg-gold-leaf text-white' : 'hover:bg-white/10'}`}>Settings</button>
                   </div>
@@ -603,6 +605,15 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
                 {activeTab === 'marketing' && (
                     <MarketingView t={t} transactions={allTransactionsForCRM} />
+                )}
+
+                {activeTab === 'payroll' && (
+                    <PayrollView 
+                        t={t}
+                        staffList={editStaffList}
+                        transactions={allTransactionsForCRM}
+                        globalPayroll={editGlobalPayroll}
+                    />
                 )}
 
                 {activeTab === 'settings' && (
