@@ -2,13 +2,14 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Translation } from '../translations';
 import { LaPerlaLogo, ClockIcon, PhoneIcon, UserIcon, SparklesIcon, ChevronDownIcon, GiftIcon, HeartIcon, CalendarIcon, XMarkIcon, BriefcaseIcon, ReceiptIcon, InfoIcon, StarIcon } from './Icons';
-import { WaitlistEntry, ServiceCategory, BookingRequest, ActiveBill, CartItem, Transaction, CustomerProfile } from '../types';
+import { WaitlistEntry, ServiceCategory, BookingRequest, ActiveBill, CartItem, Transaction, CustomerProfile, MarqueeSettings } from '../types';
 import { upsertWaitlistEntry, upsertActiveBill, upsertBooking, getNextTicketNumber } from '../services/firebaseService';
 import { SoundManager } from '../utils/sound';
 import { generateSecureId } from '../utils/idGenerator';
 import { parsePrice } from '../utils/priceParser';
 import { isValidPhone, isValidName } from '../utils/validators';
 import { useAsyncLoading } from '../utils/hooks';
+import { DEFAULT_MARQUEE_SETTINGS } from '../constants';
 
 interface KioskViewProps {
   t: Translation;
@@ -19,11 +20,12 @@ interface KioskViewProps {
   bookings?: BookingRequest[];
   activeBills?: ActiveBill[];
   pastTransactions?: Transaction[];
+  marqueeSettings?: MarqueeSettings;
 }
 
 type KioskStep = 'welcome' | 'checkin_phone' | 'checkin_confirm' | 'checkin_create' | 'walkin_form' | 'success_seated' | 'success_waitlist';
 
-export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, onExit, pricingData, bookings = [], activeBills = [], pastTransactions = [] }) => {
+export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, onExit, pricingData, bookings = [], activeBills = [], pastTransactions = [], marqueeSettings }) => {
   const [step, setStep] = useState<KioskStep>('welcome');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -280,17 +282,23 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
     return total;
   }, [selectedServices, pricingData, t.serviceNames]);
 
+  // Get marquee settings with fallback to defaults
+  const currentMarqueeSettings = marqueeSettings || DEFAULT_MARQUEE_SETTINGS;
+
   return (
     <>
     <div className="min-h-screen bg-pearl-white flex flex-col items-center justify-center p-6 relative overflow-hidden print:hidden">
       
       {/* --- MARQUEE BANNER --- */}
       <div className="fixed top-0 left-0 w-full bg-charcoal text-white py-3 z-[60] overflow-hidden whitespace-nowrap shadow-lg border-b border-gold-leaf/30">
-        <div className="animate-marquee font-bold text-sm md:text-base uppercase tracking-widest text-gold-leaf">
-          <span>{t.kioskMarqueeMessage} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-          <span>{t.kioskMarqueeMessage} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-          <span>{t.kioskMarqueeMessage} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
-          <span>{t.kioskMarqueeMessage} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+        <div 
+          className="animate-marquee font-bold text-sm md:text-base uppercase tracking-widest text-gold-leaf"
+          style={{ animationDuration: `${currentMarqueeSettings.speed}s` }}
+        >
+          <span>{currentMarqueeSettings.message} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+          <span>{currentMarqueeSettings.message} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+          <span>{currentMarqueeSettings.message} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+          <span>{currentMarqueeSettings.message} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
         </div>
       </div>
 

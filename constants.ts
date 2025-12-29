@@ -1,5 +1,5 @@
 
-import { ServiceCategory, GalleryItem, StaffProfile, GlobalPayrollSettings, AdminPasswords } from './types';
+import { ServiceCategory, GalleryItem, StaffProfile, GlobalPayrollSettings, AdminPasswords, MarqueeSettings } from './types';
 import { NailPolishIcon, WaxingIcon, EyelashIcon, SunIcon, SparklesIcon, LotusIcon, MustacheIcon, EyeDropperIcon } from './components/Icons';
 
 // --- Application Version ---
@@ -32,6 +32,11 @@ export const DEFAULT_GLOBAL_PAYROLL: GlobalPayrollSettings = {
 export const DEFAULT_ADMIN_PASSWORDS: AdminPasswords = {
     master: "2804",
     manager: "1234"
+};
+
+export const DEFAULT_MARQUEE_SETTINGS: MarqueeSettings = {
+    message: "💎 Join our 1-year Membership to choose ANY color you like without paying extra! 💎 Join our Yearly Membership to choose ANY color you like without extra cost! 💎",
+    speed: 25 // Animation duration in seconds (15=fast, 25=medium, 45=slow)
 };
 
 const STAFF_NAMES_LEGACY = [

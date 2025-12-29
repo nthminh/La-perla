@@ -1,8 +1,8 @@
 
 import { ref, onValue, set, update, remove, Unsubscribe, push, query, limitToLast, get, orderByChild, startAt, endAt } from "firebase/database";
 import { db, waitForAuth } from "./firebaseConfig";
-import { ActiveBill, WaitlistEntry, AppSettings, ServiceCategory, StaffProfile, BookingRequest, GlobalPayrollSettings, Transaction, AdminPasswords, SettingsSnapshot } from "../types";
-import { DEFAULT_GLOBAL_PAYROLL, DEFAULT_ADMIN_PASSWORDS } from "../constants";
+import { ActiveBill, WaitlistEntry, AppSettings, ServiceCategory, StaffProfile, BookingRequest, GlobalPayrollSettings, Transaction, AdminPasswords, SettingsSnapshot, MarqueeSettings } from "../types";
+import { DEFAULT_GLOBAL_PAYROLL, DEFAULT_ADMIN_PASSWORDS, DEFAULT_MARQUEE_SETTINGS } from "../constants";
 import { deleteLocalTransaction, clearTransactions, pruneOldLocalTransactions } from "./storageService";
 import { logger } from "../utils/logger";
 
@@ -535,7 +535,8 @@ export const subscribeToSettings = (
             const globalPayroll = data.globalPayroll || DEFAULT_GLOBAL_PAYROLL;
             const knowledgeBase = data.knowledgeBase || "";
             const adminPasswords = data.adminPasswords || DEFAULT_ADMIN_PASSWORDS;
-            onUpdate({ staffList, pricingData, globalPayroll, knowledgeBase, adminPasswords });
+            const marqueeSettings = data.marqueeSettings || DEFAULT_MARQUEE_SETTINGS;
+            onUpdate({ staffList, pricingData, globalPayroll, knowledgeBase, adminPasswords, marqueeSettings });
         } else {
             onUpdate(null);
         }
@@ -574,7 +575,8 @@ export const saveSettingsToFirebase = async (
     pricingData: ServiceCategory[],
     globalPayroll?: GlobalPayrollSettings,
     knowledgeBase?: string,
-    adminPasswords?: AdminPasswords
+    adminPasswords?: AdminPasswords,
+    marqueeSettings?: MarqueeSettings
 ): Promise<{ success: boolean; error?: string }> => {
     await waitForAuth();
     if (!db) return { success: false, error: "Database not initialized. Check your configuration." };
@@ -588,6 +590,7 @@ export const saveSettingsToFirebase = async (
     const sanitizedPricingData = sanitizeData(cleanPricingData);
     const sanitizedGlobalPayroll = sanitizeData(globalPayroll || DEFAULT_GLOBAL_PAYROLL);
     const sanitizedAdminPasswords = sanitizeData(adminPasswords || DEFAULT_ADMIN_PASSWORDS);
+    const sanitizedMarqueeSettings = sanitizeData(marqueeSettings || DEFAULT_MARQUEE_SETTINGS);
     const sanitizedKB = knowledgeBase || "";
 
     const newSettings: AppSettings = {
@@ -595,7 +598,8 @@ export const saveSettingsToFirebase = async (
         pricingData: sanitizedPricingData,
         globalPayroll: sanitizedGlobalPayroll,
         knowledgeBase: sanitizedKB,
-        adminPasswords: sanitizedAdminPasswords
+        adminPasswords: sanitizedAdminPasswords,
+        marqueeSettings: sanitizedMarqueeSettings
     };
 
     try {
