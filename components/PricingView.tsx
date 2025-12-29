@@ -951,6 +951,21 @@ export const PricingView: React.FC<PricingViewProps> = ({
     setShowCustomerEntry(false);
   };
 
+  const handleConfirmBooking = (bookingId: string) => {
+      SoundManager.playSuccess();
+      onUpdateBookingStatus && onUpdateBookingStatus(bookingId, 'confirmed');
+  };
+
+  const handleCancelBooking = (bookingId: string) => {
+      SoundManager.playTap();
+      onUpdateBookingStatus && onUpdateBookingStatus(bookingId, 'cancelled');
+  };
+
+  const handleRemoveBooking = (bookingId: string) => {
+      SoundManager.playError();
+      onDeleteBooking && onDeleteBooking(bookingId);
+  };
+
   if (!activeBills) return null;
 
   return (
@@ -1239,7 +1254,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
                                 <div className="flex flex-col gap-3 justify-center md:min-w-[150px] border-t md:border-t-0 md:border-l border-gray-100 pt-4 md:pt-0 md:pl-6">
                                     {booking.status === 'pending' && (
                                         <button 
-                                            onClick={() => { SoundManager.playSuccess(); onUpdateBookingStatus && onUpdateBookingStatus(booking.id, 'confirmed'); }}
+                                            onClick={() => handleConfirmBooking(booking.id)}
                                             className="w-full py-2.5 bg-green-500 text-white rounded-xl font-bold text-sm shadow-md hover:bg-green-600 transition-colors flex items-center justify-center gap-2"
                                         >
                                             Confirm
@@ -1247,14 +1262,14 @@ export const PricingView: React.FC<PricingViewProps> = ({
                                     )}
                                     {booking.status !== 'cancelled' && (
                                         <button 
-                                            onClick={() => { SoundManager.playTap(); onUpdateBookingStatus && onUpdateBookingStatus(booking.id, 'cancelled'); }}
+                                            onClick={() => handleCancelBooking(booking.id)}
                                             className="w-full py-2.5 bg-white border border-gray-200 text-gray-600 rounded-xl font-bold text-sm hover:bg-gray-50 transition-colors"
                                         >
                                             Cancel
                                         </button>
                                     )}
                                     <button 
-                                        onClick={() => { SoundManager.playError(); onDeleteBooking && onDeleteBooking(booking.id); }}
+                                        onClick={() => handleRemoveBooking(booking.id)}
                                         className="w-full py-2 text-red-300 hover:text-red-500 text-xs font-bold transition-colors flex items-center justify-center gap-1 mt-auto"
                                     >
                                         <TrashIcon className="w-3 h-3" /> Remove
