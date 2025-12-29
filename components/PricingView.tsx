@@ -953,17 +953,17 @@ export const PricingView: React.FC<PricingViewProps> = ({
 
   const handleConfirmBooking = (bookingId: string) => {
       SoundManager.playSuccess();
-      onUpdateBookingStatus && onUpdateBookingStatus(bookingId, 'confirmed');
+      onUpdateBookingStatus?.(bookingId, 'confirmed');
   };
 
   const handleCancelBooking = (bookingId: string) => {
       SoundManager.playTap();
-      onUpdateBookingStatus && onUpdateBookingStatus(bookingId, 'cancelled');
+      onUpdateBookingStatus?.(bookingId, 'cancelled');
   };
 
   const handleRemoveBooking = (bookingId: string) => {
       SoundManager.playError();
-      onDeleteBooking && onDeleteBooking(bookingId);
+      onDeleteBooking?.(bookingId);
   };
 
   if (!activeBills) return null;
