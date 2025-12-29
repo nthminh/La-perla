@@ -170,3 +170,28 @@ export interface SettingsSnapshot {
     data: AppSettings;
     restoredFrom?: string; // ID of the snapshot used if this was a restore
 }
+
+// Payroll Feature Types (Weekly Payroll - Australian Style: Thursday to Wednesday)
+export interface PayrollSummary {
+    staffId: string;
+    staffName: string;
+    weekStartDate: string; // YYYY-MM-DD (Thursday)
+    weekEndDate: string; // YYYY-MM-DD (Wednesday)
+    weekNumber: number; // Week number in year
+    year: number;
+    daysWorked: number;
+    totalRevenue: number;
+    baseSalaryTotal: number; // baseSalary * daysWorked
+    bonusTotal: number;
+    adjustment: number; // Manual adjustment (+/-)
+    adjustmentNote: string;
+    finalTotal: number; // baseSalaryTotal + bonusTotal + adjustment
+}
+
+export interface PayrollDailyBreakdown {
+    date: string; // YYYY-MM-DD
+    dayOfWeek: string;
+    revenue: number;
+    target: number;
+    bonus: number;
+}

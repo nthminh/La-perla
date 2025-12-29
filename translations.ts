@@ -152,6 +152,36 @@ export interface Translation {
   kioskPhoneError: string;
   kioskNameError: string;
   kioskServiceError: string;
+  // Payroll Feature
+  payrollTitle: string;
+  payrollSubtitle: string;
+  payrollSelectMonth: string;
+  payrollRecalculate: string;
+  payrollStaff: string;
+  payrollDaysWorked: string;
+  payrollRevenue: string;
+  payrollBonus: string;
+  payrollAdjustment: string;
+  payrollTotal: string;
+  payrollExportCSV: string;
+  payrollPrintAll: string;
+  payrollViewDetails: string;
+  payrollDetailTitle: string;
+  payrollBaseSalary: string;
+  payrollDailyRate: string;
+  payrollTarget: string;
+  payrollAboveTarget: string;
+  payrollBonusRate: string;
+  payrollSubtotal: string;
+  payrollAdjustmentNote: string;
+  payrollAdjustmentPlaceholder: string;
+  payrollFinalTotal: string;
+  payrollPrintPayslip: string;
+  payrollClose: string;
+  payrollNoData: string;
+  payrollTotalPayrollCost: string;
+  payrollMonth: string;
+  payrollYear: string;
 }
 
 const baseTranslations: Omit<Translation, 'name' | 'flag'> = {
@@ -302,6 +332,36 @@ const baseTranslations: Omit<Translation, 'name' | 'flag'> = {
   kioskPhoneError: "Please enter a valid phone number (8-15 digits)",
   kioskNameError: "Please enter a valid name (at least 2 characters)",
   kioskServiceError: "Please select at least one service",
+  // Payroll Feature Translations (English primary, Vietnamese secondary)
+  payrollTitle: "Employee Payroll",
+  payrollSubtitle: "Calculate and manage staff salaries",
+  payrollSelectMonth: "Select Month",
+  payrollRecalculate: "Recalculate",
+  payrollStaff: "Staff",
+  payrollDaysWorked: "Days Worked",
+  payrollRevenue: "Revenue",
+  payrollBonus: "Bonus",
+  payrollAdjustment: "Adjustment",
+  payrollTotal: "Total",
+  payrollExportCSV: "Export CSV",
+  payrollPrintAll: "Print All Payslips",
+  payrollViewDetails: "View Details",
+  payrollDetailTitle: "Payroll Detail",
+  payrollBaseSalary: "Base Salary",
+  payrollDailyRate: "Daily Rate",
+  payrollTarget: "Target",
+  payrollAboveTarget: "Above Target",
+  payrollBonusRate: "Bonus Rate",
+  payrollSubtotal: "Subtotal",
+  payrollAdjustmentNote: "Adjustment Note",
+  payrollAdjustmentPlaceholder: "e.g., Performance bonus, deduction reason...",
+  payrollFinalTotal: "Final Total",
+  payrollPrintPayslip: "Print Payslip",
+  payrollClose: "Close",
+  payrollNoData: "No payroll data available for this month",
+  payrollTotalPayrollCost: "Total Payroll Cost",
+  payrollMonth: "Month",
+  payrollYear: "Year",
   serviceCategories: {
     nails: "Nails",
     ladiesWaxing: "Ladies Waxing",
@@ -453,5 +513,50 @@ export const TRANSLATIONS: Record<string, Translation> = {
     name: "English",
     flag: "🇬🇧",
     ...baseTranslations,
+  },
+  vi: {
+    name: "Tiếng Việt",
+    flag: "🇻🇳",
+    ...baseTranslations,
+    // Override with Vietnamese translations
+    headerTitle: "Trợ lý AI Làm Móng La Perla",
+    headerSubtitle: "Hình dung nghệ thuật móng hoàn hảo trước khi đặt hẹn.",
+    navAiStylist: "Trợ lý AI",
+    navPriceList: "Bảng Giá",
+    navGallery: "Thư Viện",
+    navPortfolio: "Portfolio",
+    navBooking: "Đặt Hẹn",
+    navPromotions: "Khuyến Mãi",
+    navTeam: "Đội Ngũ",
+    // Payroll Vietnamese translations (secondary language)
+    payrollTitle: "Bảng Lương Nhân Viên",
+    payrollSubtitle: "Tính toán và quản lý lương nhân viên",
+    payrollSelectMonth: "Chọn Tháng",
+    payrollRecalculate: "Tính Lại",
+    payrollStaff: "Nhân Viên",
+    payrollDaysWorked: "Số Ngày Làm",
+    payrollRevenue: "Doanh Thu",
+    payrollBonus: "Thưởng",
+    payrollAdjustment: "Điều Chỉnh",
+    payrollTotal: "Tổng",
+    payrollExportCSV: "Xuất CSV",
+    payrollPrintAll: "In Tất Cả",
+    payrollViewDetails: "Xem Chi Tiết",
+    payrollDetailTitle: "Chi Tiết Lương",
+    payrollBaseSalary: "Lương Cơ Bản",
+    payrollDailyRate: "Lương Ngày",
+    payrollTarget: "Mục Tiêu",
+    payrollAboveTarget: "Vượt Mục Tiêu",
+    payrollBonusRate: "Tỷ Lệ Thưởng",
+    payrollSubtotal: "Tổng Phụ",
+    payrollAdjustmentNote: "Ghi Chú Điều Chỉnh",
+    payrollAdjustmentPlaceholder: "VD: Thưởng hiệu suất, lý do trừ lương...",
+    payrollFinalTotal: "Tổng Cuối",
+    payrollPrintPayslip: "In Phiếu Lương",
+    payrollClose: "Đóng",
+    payrollNoData: "Không có dữ liệu lương cho tháng này",
+    payrollTotalPayrollCost: "Tổng Chi Phí Lương",
+    payrollMonth: "Tháng",
+    payrollYear: "Năm",
   },
 };
