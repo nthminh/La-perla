@@ -21,6 +21,72 @@ const getSydneyDayName = (isoDate: string) => {
     }
 };
 
+// Get Thursday of current week (Australian payroll week starts Thursday)
+const getThursdayOfWeek = (date: Date): Date => {
+    const day = date.getDay(); // 0 = Sunday, 4 = Thursday
+    const diff = day >= 4 ? day - 4 : day + 3; // Days since last Thursday
+    const thursday = new Date(date);
+    thursday.setDate(date.getDate() - diff);
+    thursday.setHours(0, 0, 0, 0);
+    return thursday;
+};
+
+// Get week ranges for a year (Thursday to Wednesday)
+const getWeekRanges = (year: number) => {
+    const weeks: Array<{ start: string; end: string; label: string; weekNumber: number }> = [];
+    
+    // Start from first Thursday of the year
+    let currentDate = new Date(year, 0, 1);
+    let firstThursday = getThursdayOfWeek(currentDate);
+    
+    // If first Thursday is in previous year, start from next Thursday
+    if (firstThursday.getFullYear() < year) {
+        firstThursday = new Date(firstThursday);
+        firstThursday.setDate(firstThursday.getDate() + 7);
+    }
+    
+    let weekNum = 1;
+    let thursday = new Date(firstThursday);
+    
+    // Generate weeks until we reach next year
+    while (thursday.getFullYear() === year) {
+        const wednesday = new Date(thursday);
+        wednesday.setDate(wednesday.getDate() + 6); // Thursday + 6 days = Wednesday
+        
+        const startStr = thursday.toISOString().split('T')[0];
+        const endStr = wednesday.toISOString().split('T')[0];
+        
+        // Format label: "Week 1: Dec 28 - Jan 3"
+        const startMonth = thursday.toLocaleDateString('en-US', { month: 'short', timeZone: 'Australia/Sydney' });
+        const startDay = thursday.getDate();
+        const endMonth = wednesday.toLocaleDateString('en-US', { month: 'short', timeZone: 'Australia/Sydney' });
+        const endDay = wednesday.getDate();
+        
+        const label = `Week ${weekNum}: ${startMonth} ${startDay} - ${endMonth} ${endDay}`;
+        
+        weeks.push({
+            start: startStr,
+            end: endStr,
+            label,
+            weekNumber: weekNum
+        });
+        
+        // Move to next Thursday
+        thursday = new Date(thursday);
+        thursday.setDate(thursday.getDate() + 7);
+        weekNum++;
+    }
+    
+    return weeks;
+};
+
+// Get current week (Thursday to Wednesday)
+const getCurrentWeekIndex = (weeks: Array<{ start: string; end: string }>) => {
+    const today = new Date().toISOString().split('T')[0];
+    const idx = weeks.findIndex(w => today >= w.start && today <= w.end);
+    return idx >= 0 ? idx : weeks.length - 1;
+};
+
 interface PayrollViewProps {
     t: Translation;
     staffList: StaffProfile[];
@@ -31,24 +97,30 @@ interface PayrollViewProps {
 export const PayrollView: React.FC<PayrollViewProps> = ({ 
     t, staffList, transactions, globalPayroll 
 }) => {
-    const currentDate = new Date();
-    const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth() + 1); // 1-12
-    const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
+    const currentYear = new Date().getFullYear();
+    const [selectedYear, setSelectedYear] = useState(currentYear);
+    
+    const weekRanges = useMemo(() => getWeekRanges(selectedYear), [selectedYear]);
+    const currentWeekIdx = useMemo(() => getCurrentWeekIndex(weekRanges), [weekRanges]);
+    
+    const [selectedWeekIndex, setSelectedWeekIndex] = useState(currentWeekIdx);
     const [detailStaffId, setDetailStaffId] = useState<string | null>(null);
     
     // State for adjustments (temporary, not saved to database in Phase 1)
     const [adjustments, setAdjustments] = useState<Record<string, { amount: number; note: string }>>({});
 
-    // Calculate payroll for all staff for the selected month
+    const selectedWeek = weekRanges[selectedWeekIndex] || weekRanges[0];
+
+    // Calculate payroll for all staff for the selected week
     const payrollData = useMemo(() => {
+        if (!selectedWeek) return [];
+        
         const summaries: PayrollSummary[] = [];
         
-        // Filter transactions for selected month/year
-        const monthTransactions = transactions.filter(tx => {
-            const txDate = new Date(tx.date);
-            const txMonth = txDate.getMonth() + 1;
-            const txYear = txDate.getFullYear();
-            return txMonth === selectedMonth && txYear === selectedYear;
+        // Filter transactions for selected week (Thursday to Wednesday)
+        const weekTransactions = transactions.filter(tx => {
+            const txDate = getSydneyDateStr(tx.date);
+            return txDate >= selectedWeek.start && txDate <= selectedWeek.end;
         });
 
         // Calculate for each staff member
@@ -56,7 +128,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
             // Track days worked and revenue
             const dailyRevenue: Record<string, number> = {};
             
-            monthTransactions.forEach(tx => {
+            weekTransactions.forEach(tx => {
                 const dateStr = getSydneyDateStr(tx.date);
                 const dayOfWeek = getSydneyDayName(tx.date);
                 
@@ -93,7 +165,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
             if (staff.payroll?.enabled) {
                 Object.entries(dailyRevenue).forEach(([dateStr, dailyRev]) => {
                     // Find the transaction to get day of week
-                    const tx = monthTransactions.find(t => getSydneyDateStr(t.date) === dateStr);
+                    const tx = weekTransactions.find(t => getSydneyDateStr(t.date) === dateStr);
                     if (!tx) return;
                     
                     const dayOfWeek = getSydneyDayName(tx.date);
@@ -116,7 +188,9 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
             summaries.push({
                 staffId: staff.id,
                 staffName: staff.name,
-                month: selectedMonth,
+                weekStartDate: selectedWeek.start,
+                weekEndDate: selectedWeek.end,
+                weekNumber: selectedWeek.weekNumber,
                 year: selectedYear,
                 daysWorked,
                 totalRevenue,
@@ -129,7 +203,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
         });
         
         return summaries.sort((a, b) => b.finalTotal - a.finalTotal);
-    }, [staffList, transactions, selectedMonth, selectedYear, globalPayroll, adjustments]);
+    }, [staffList, transactions, selectedWeek, selectedYear, globalPayroll, adjustments]);
 
     // Calculate total payroll cost
     const totalPayrollCost = payrollData.reduce((sum, p) => sum + p.finalTotal, 0);
@@ -153,13 +227,15 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
     // Export to CSV
     const handleExportCSV = () => {
         const headers = [
-            t.payrollStaff,
-            t.payrollDaysWorked,
-            t.payrollRevenue,
-            t.payrollBaseSalary,
-            t.payrollBonus,
-            t.payrollAdjustment,
-            t.payrollTotal
+            "Staff",
+            "Days Worked",
+            "Revenue",
+            "Base Salary",
+            "Bonus",
+            "Adjustment",
+            "Total",
+            "Week",
+            "Period"
         ];
         
         const rows = payrollData.map(p => [
@@ -169,7 +245,9 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
             p.baseSalaryTotal.toFixed(2),
             p.bonusTotal.toFixed(2),
             p.adjustment.toFixed(2),
-            p.finalTotal.toFixed(2)
+            p.finalTotal.toFixed(2),
+            `Week ${p.weekNumber}`,
+            `${p.weekStartDate} to ${p.weekEndDate}`
         ]);
         
         const csvContent = "data:text/csv;charset=utf-8," 
@@ -178,7 +256,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `payroll_${selectedYear}_${selectedMonth.toString().padStart(2, '0')}.csv`);
+        link.setAttribute("download", `payroll_week${selectedWeek.weekNumber}_${selectedYear}.csv`);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -195,7 +273,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
         printWindow.document.write(`
             <html>
             <head>
-                <title>${t.payrollPrintPayslip} - ${summary.staffName}</title>
+                <title>Weekly Payslip - ${summary.staffName}</title>
                 <style>
                     body { font-family: Arial, sans-serif; padding: 40px; }
                     .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #D4AF37; padding-bottom: 20px; }
@@ -213,63 +291,64 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
             <body>
                 <div class="header">
                     <h1>💎 La Perla Nails & Beauty</h1>
-                    <p>${t.payrollPrintPayslip}</p>
-                    <p>${t.payrollMonth}: ${selectedMonth}/${selectedYear}</p>
+                    <p>Weekly Payslip</p>
+                    <p>Week ${summary.weekNumber}, ${summary.year}</p>
+                    <p>${summary.weekStartDate} to ${summary.weekEndDate}</p>
                 </div>
                 
                 <div class="section">
-                    <h2>${t.payrollStaff} ${t.payrollDetailTitle}</h2>
+                    <h2>Staff Details</h2>
                     <div class="row">
-                        <span class="label">${t.payrollStaff}:</span>
+                        <span class="label">Staff Name:</span>
                         <span class="value">${summary.staffName}</span>
                     </div>
                     <div class="row">
-                        <span class="label">${t.payrollDaysWorked}:</span>
+                        <span class="label">Days Worked:</span>
                         <span class="value">${summary.daysWorked} days</span>
                     </div>
                 </div>
                 
                 <div class="section">
-                    <h2>${t.payrollRevenue} & ${t.payrollBonus}</h2>
+                    <h2>Revenue & Bonus</h2>
                     <div class="row">
-                        <span class="label">${t.payrollRevenue}:</span>
+                        <span class="label">Total Revenue:</span>
                         <span class="value">$${summary.totalRevenue.toFixed(2)}</span>
                     </div>
                     <div class="row">
-                        <span class="label">${t.payrollTarget}:</span>
-                        <span class="value">${globalPayroll.defaultTarget || 0}/day</span>
+                        <span class="label">Daily Target:</span>
+                        <span class="value">$${globalPayroll.defaultTarget || 0}/day</span>
                     </div>
                     <div class="row">
-                        <span class="label">${t.payrollBonusRate}:</span>
+                        <span class="label">Bonus Rate:</span>
                         <span class="value">${staff.payroll?.bonusRate || 0}%</span>
                     </div>
                     <div class="row">
-                        <span class="label">${t.payrollBonus}:</span>
+                        <span class="label">Bonus Earned:</span>
                         <span class="value">$${summary.bonusTotal.toFixed(2)}</span>
                     </div>
                 </div>
                 
                 <div class="section">
-                    <h2>${t.payrollTotal} Calculation</h2>
+                    <h2>Total Calculation</h2>
                     <div class="row">
-                        <span class="label">${t.payrollBaseSalary} (${staff.payroll?.baseSalary || 0}/day × ${summary.daysWorked}):</span>
+                        <span class="label">Base Salary ($${staff.payroll?.baseSalary || 0}/day × ${summary.daysWorked}):</span>
                         <span class="value">$${summary.baseSalaryTotal.toFixed(2)}</span>
                     </div>
                     <div class="row">
-                        <span class="label">${t.payrollBonus}:</span>
+                        <span class="label">Bonus:</span>
                         <span class="value">$${summary.bonusTotal.toFixed(2)}</span>
                     </div>
                     ${summary.adjustment !== 0 ? `
                     <div class="row">
-                        <span class="label">${t.payrollAdjustment}:</span>
-                        <span class="value ${summary.adjustment > 0 ? 'text-green-600' : 'text-red-600'}">
+                        <span class="label">Adjustment:</span>
+                        <span class="value" style="color: ${summary.adjustment > 0 ? '#27AE60' : '#E74C3C'}">
                             ${summary.adjustment > 0 ? '+' : ''}$${summary.adjustment.toFixed(2)}
                         </span>
                     </div>
                     ${summary.adjustmentNote ? `<div class="row"><span class="label">Note:</span><span class="value">${summary.adjustmentNote}</span></div>` : ''}
                     ` : ''}
                     <div class="row total">
-                        <span class="label">${t.payrollFinalTotal}:</span>
+                        <span class="label">TOTAL WEEKLY SALARY:</span>
                         <span class="value">$${summary.finalTotal.toFixed(2)}</span>
                     </div>
                 </div>
@@ -291,11 +370,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
         }, 250);
     };
 
-    const monthNames = [
-        "January", "February", "March", "April", "May", "June",
-        "July", "August", "September", "October", "November", "December"
-    ];
-
     const detailStaff = detailStaffId ? payrollData.find(p => p.staffId === detailStaffId) : null;
 
     return (
@@ -305,9 +379,9 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
                 <div className="flex justify-between items-center">
                     <div>
                         <h1 className="text-2xl font-serif font-bold text-charcoal flex items-center gap-2">
-                            💰 {t.payrollTitle}
+                            💰 Weekly Payroll
                         </h1>
-                        <p className="text-sm text-gray-500 mt-1">{t.payrollSubtitle}</p>
+                        <p className="text-sm text-gray-500 mt-1">Calculate and manage weekly staff salaries (Thursday to Wednesday)</p>
                     </div>
                     <div className="flex gap-3">
                         <button
@@ -315,26 +389,26 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
                             className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-bold text-charcoal hover:bg-gray-50 transition-colors"
                         >
                             <DownloadIcon className="w-4 h-4" />
-                            {t.payrollExportCSV}
+                            Export CSV
                         </button>
                     </div>
                 </div>
             </div>
 
-            {/* Month/Year Selector */}
+            {/* Week/Year Selector */}
             <div className="px-6 py-4 bg-white border-b border-gray-100">
                 <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2">
-                        <label className="text-sm font-bold text-gray-500 uppercase">{t.payrollMonth}:</label>
+                        <label className="text-sm font-bold text-gray-500 uppercase">Pay Period:</label>
                         <div className="relative">
                             <select
-                                value={selectedMonth}
-                                onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                                value={selectedWeekIndex}
+                                onChange={(e) => setSelectedWeekIndex(parseInt(e.target.value))}
                                 className="appearance-none bg-white pl-3 pr-8 py-2 rounded-lg border border-gray-200 text-sm font-bold text-charcoal focus:outline-none focus:border-gold-leaf shadow-sm cursor-pointer"
                             >
-                                {monthNames.map((name, idx) => (
-                                    <option key={idx + 1} value={idx + 1}>
-                                        {name}
+                                {weekRanges.map((week, idx) => (
+                                    <option key={idx} value={idx}>
+                                        {week.label}
                                     </option>
                                 ))}
                             </select>
@@ -343,7 +417,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
                     </div>
                     
                     <div className="flex items-center gap-2">
-                        <label className="text-sm font-bold text-gray-500 uppercase">{t.payrollYear}:</label>
+                        <label className="text-sm font-bold text-gray-500 uppercase">Year:</label>
                         <div className="relative">
                             <select
                                 value={selectedYear}
@@ -359,7 +433,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
                     </div>
 
                     <div className="ml-auto flex items-center gap-2 border-l border-gray-200 pl-4">
-                        <span className="text-xs font-bold text-gray-400 uppercase">{t.payrollTotalPayrollCost}:</span>
+                        <span className="text-xs font-bold text-gray-400 uppercase">Total Weekly Cost:</span>
                         <span className="text-2xl font-bold text-gold-leaf">${totalPayrollCost.toFixed(2)}</span>
                     </div>
                 </div>
@@ -370,20 +444,20 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                     {payrollData.length === 0 ? (
                         <div className="p-12 text-center">
-                            <p className="text-gray-400 italic">{t.payrollNoData}</p>
+                            <p className="text-gray-400 italic">No payroll data available for this week</p>
                         </div>
                     ) : (
                         <div className="overflow-x-auto">
                             <table className="w-full">
                                 <thead className="bg-gray-50 border-b border-gray-100">
                                     <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">{t.payrollStaff}</th>
-                                        <th className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase">{t.payrollDaysWorked}</th>
-                                        <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">{t.payrollRevenue}</th>
-                                        <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">{t.payrollBaseSalary}</th>
-                                        <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">{t.payrollBonus}</th>
-                                        <th className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase">{t.payrollAdjustment}</th>
-                                        <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">{t.payrollTotal}</th>
+                                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Staff</th>
+                                        <th className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase">Days Worked</th>
+                                        <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">Revenue</th>
+                                        <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">Base Salary</th>
+                                        <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">Bonus</th>
+                                        <th className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase">Adjustment</th>
+                                        <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">Total</th>
                                         <th className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase">Actions</th>
                                     </tr>
                                 </thead>
@@ -424,7 +498,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
                                                         onClick={() => setDetailStaffId(summary.staffId)}
                                                         className="text-xs font-bold text-gold-leaf hover:text-charcoal px-3 py-1 rounded-lg hover:bg-gold-leaf/10 transition-colors"
                                                     >
-                                                        👁️ {t.payrollViewDetails}
+                                                        👁️ View Details
                                                     </button>
                                                 </td>
                                             </tr>
@@ -445,10 +519,10 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
                         <div className="bg-gray-50 p-6 border-b border-gray-100 flex justify-between items-center">
                             <div>
                                 <h3 className="font-serif font-bold text-xl text-charcoal">
-                                    💼 {detailStaff.staffName} - {t.payrollDetailTitle}
+                                    💼 {detailStaff.staffName} - Weekly Payroll Detail
                                 </h3>
                                 <p className="text-sm text-gray-500 mt-1">
-                                    {monthNames[selectedMonth - 1]} {selectedYear}
+                                    Week {detailStaff.weekNumber}, {detailStaff.year} ({detailStaff.weekStartDate} to {detailStaff.weekEndDate})
                                 </p>
                             </div>
                             <button
@@ -483,13 +557,13 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
                                     <div className="space-y-3">
                                         <div className="flex justify-between items-center pb-2 border-b border-gray-100">
                                             <span className="text-gray-600">
-                                                {t.payrollBaseSalary} ({staffList.find(s => s.id === detailStaff.staffId)?.payroll?.baseSalary || 0}/day × {detailStaff.daysWorked})
+                                                Base Salary (${staffList.find(s => s.id === detailStaff.staffId)?.payroll?.baseSalary || 0}/day × {detailStaff.daysWorked})
                                             </span>
                                             <span className="font-bold text-charcoal">${detailStaff.baseSalaryTotal.toFixed(2)}</span>
                                         </div>
                                         <div className="flex justify-between items-center pb-2 border-b border-gray-100">
                                             <span className="text-gray-600">
-                                                {t.payrollBonus} ({staffList.find(s => s.id === detailStaff.staffId)?.payroll?.bonusRate || 0}% on revenue above target)
+                                                Bonus ({staffList.find(s => s.id === detailStaff.staffId)?.payroll?.bonusRate || 0}% on revenue above target)
                                             </span>
                                             <span className="font-bold text-purple-600">${detailStaff.bonusTotal.toFixed(2)}</span>
                                         </div>
@@ -498,7 +572,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
 
                                 {/* Adjustment */}
                                 <div className="bg-blue-50 p-4 rounded-xl">
-                                    <h4 className="font-bold text-sm text-gray-500 uppercase mb-3">{t.payrollAdjustment}</h4>
+                                    <h4 className="font-bold text-sm text-gray-500 uppercase mb-3">Adjustment</h4>
                                     <div className="space-y-3">
                                         <div>
                                             <label className="block text-xs font-bold text-gray-500 mb-1">Amount ($)</label>
@@ -512,13 +586,13 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-xs font-bold text-gray-500 mb-1">{t.payrollAdjustmentNote}</label>
+                                            <label className="block text-xs font-bold text-gray-500 mb-1">Note</label>
                                             <textarea
                                                 value={adjustments[detailStaff.staffId]?.note || ''}
                                                 onChange={(e) => handleNoteChange(detailStaff.staffId, e.target.value)}
                                                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm text-charcoal focus:border-gold-leaf outline-none"
                                                 rows={2}
-                                                placeholder={t.payrollAdjustmentPlaceholder}
+                                                placeholder="e.g., Performance bonus, deduction reason..."
                                             />
                                         </div>
                                     </div>
@@ -527,7 +601,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
                                 {/* Final Total */}
                                 <div className="bg-gold-leaf/10 p-4 rounded-xl border-2 border-gold-leaf">
                                     <div className="flex justify-between items-center">
-                                        <span className="text-lg font-bold text-charcoal">{t.payrollFinalTotal}</span>
+                                        <span className="text-lg font-bold text-charcoal">Total Weekly Salary</span>
                                         <span className="text-3xl font-bold text-gold-leaf">${detailStaff.finalTotal.toFixed(2)}</span>
                                     </div>
                                 </div>
@@ -540,13 +614,13 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
                                 onClick={() => handlePrintPayslip(detailStaff)}
                                 className="flex-1 py-3 bg-gold-leaf text-white font-bold rounded-xl hover:bg-charcoal transition-colors shadow-md flex items-center justify-center gap-2"
                             >
-                                🖨️ {t.payrollPrintPayslip}
+                                🖨️ Print Payslip
                             </button>
                             <button
                                 onClick={() => setDetailStaffId(null)}
                                 className="px-6 py-3 bg-gray-200 text-charcoal font-bold rounded-xl hover:bg-gray-300 transition-colors"
                             >
-                                {t.payrollClose}
+                                Close
                             </button>
                         </div>
                     </div>

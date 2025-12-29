@@ -171,11 +171,13 @@ export interface SettingsSnapshot {
     restoredFrom?: string; // ID of the snapshot used if this was a restore
 }
 
-// Payroll Feature Types
+// Payroll Feature Types (Weekly Payroll - Australian Style: Thursday to Wednesday)
 export interface PayrollSummary {
     staffId: string;
     staffName: string;
-    month: number; // 1-12
+    weekStartDate: string; // YYYY-MM-DD (Thursday)
+    weekEndDate: string; // YYYY-MM-DD (Wednesday)
+    weekNumber: number; // Week number in year
     year: number;
     daysWorked: number;
     totalRevenue: number;
