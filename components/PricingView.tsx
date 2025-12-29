@@ -81,6 +81,8 @@ export interface PricingViewProps {
   globalPayroll?: GlobalPayrollSettings;
   pastTransactions?: Transaction[];
   bookings?: BookingRequest[];
+  onUpdateBookingStatus?: (id: string, status: 'pending' | 'confirmed' | 'cancelled') => void;
+  onDeleteBooking?: (id: string) => void;
 }
 
 interface GroupedCartItem extends CartItem {
@@ -151,7 +153,9 @@ export const PricingView: React.FC<PricingViewProps> = ({
   isReceiptMode = false,
   globalPayroll,
   pastTransactions = [],
-  bookings = []
+  bookings = [],
+  onUpdateBookingStatus,
+  onDeleteBooking
 }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -1185,13 +1189,13 @@ export const PricingView: React.FC<PricingViewProps> = ({
                         </div>
                     ) : (
                         bookings.map(booking => (
-                            <div key={booking.id} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden group hover:border-gold-leaf/30 transition-colors">
+                            <div key={booking.id} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-6 relative overflow-hidden group hover:border-gold-leaf/30 transition-colors">
                                 <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${
                                     booking.status === 'pending' ? 'bg-yellow-400' : 
                                     booking.status === 'confirmed' ? 'bg-green-500' : 
                                     'bg-red-400'
                                 }`}></div>
-                                <div className="flex flex-col gap-3">
+                                <div className="flex-grow space-y-3">
                                     <div className="flex justify-between items-start">
                                         <div>
                                             <h4 className="font-serif font-bold text-xl text-charcoal">{booking.customerName}</h4>
@@ -1231,6 +1235,30 @@ export const PricingView: React.FC<PricingViewProps> = ({
                                         </div>
                                     )}
                                     <p className="text-[10px] text-gray-300 pt-2">Request sent: {new Date(booking.createdAt).toLocaleString()}</p>
+                                </div>
+                                <div className="flex flex-col gap-3 justify-center md:min-w-[150px] border-t md:border-t-0 md:border-l border-gray-100 pt-4 md:pt-0 md:pl-6">
+                                    {booking.status === 'pending' && (
+                                        <button 
+                                            onClick={() => { SoundManager.playSuccess(); onUpdateBookingStatus && onUpdateBookingStatus(booking.id, 'confirmed'); }}
+                                            className="w-full py-2.5 bg-green-500 text-white rounded-xl font-bold text-sm shadow-md hover:bg-green-600 transition-colors flex items-center justify-center gap-2"
+                                        >
+                                            Confirm
+                                        </button>
+                                    )}
+                                    {booking.status !== 'cancelled' && (
+                                        <button 
+                                            onClick={() => { SoundManager.playTap(); onUpdateBookingStatus && onUpdateBookingStatus(booking.id, 'cancelled'); }}
+                                            className="w-full py-2.5 bg-white border border-gray-200 text-gray-600 rounded-xl font-bold text-sm hover:bg-gray-50 transition-colors"
+                                        >
+                                            Cancel
+                                        </button>
+                                    )}
+                                    <button 
+                                        onClick={() => { SoundManager.playError(); onDeleteBooking && onDeleteBooking(booking.id); }}
+                                        className="w-full py-2 text-red-300 hover:text-red-500 text-xs font-bold transition-colors flex items-center justify-center gap-1 mt-auto"
+                                    >
+                                        <TrashIcon className="w-3 h-3" /> Remove
+                                    </button>
                                 </div>
                             </div>
                         ))
