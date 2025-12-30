@@ -30,10 +30,10 @@ The new rules require authentication for all read and write operations. Since th
    - `transactions/*`: Transaction history
 
 3. **Data Validation**: Each path includes validation rules to ensure data structure integrity:
-   - Bills must have required fields: id, ticketNumber, customer, services, totalPrice, startTime
-   - Waitlist entries must have: id, ticketNumber, customer
-   - Bookings must have: id, customerName, date, time
-   - Transactions must have: id, date, totalPrice
+   - Bills must have required fields: id, customerName, items, discountPercentage
+   - Waitlist entries must have: id, customerName, customerPhone, notes, addedTime, estimatedReturnTime
+   - Bookings must have: id, customerName, customerPhone, services, date, timeSlot, status, createdAt
+   - Transactions must have: id, date, total, items
 
 ## How It Works with the App
 

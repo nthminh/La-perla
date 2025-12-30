@@ -9,21 +9,21 @@
         ".read": "auth != null",
         ".write": "auth != null",
         "$billId": {
-          ".validate": "newData.hasChildren(['id', 'ticketNumber', 'customer', 'services', 'totalPrice', 'startTime'])"
+          ".validate": "newData.hasChildren(['id', 'customerName', 'items', 'discountPercentage'])"
         }
       },
       "waitlist": {
         ".read": "auth != null",
         ".write": "auth != null",
         "$entryId": {
-          ".validate": "newData.hasChildren(['id', 'ticketNumber', 'customer'])"
+          ".validate": "newData.hasChildren(['id', 'customerName', 'customerPhone', 'notes', 'addedTime', 'estimatedReturnTime'])"
         }
       },
       "bookings": {
         ".read": "auth != null",
         ".write": "auth != null",
         "$bookingId": {
-          ".validate": "newData.hasChildren(['id', 'customerName', 'date', 'time'])"
+          ".validate": "newData.hasChildren(['id', 'customerName', 'customerPhone', 'services', 'date', 'timeSlot', 'status', 'createdAt'])"
         }
       },
       "activeStaff": {
@@ -85,7 +85,7 @@
       ".read": "auth != null",
       ".write": "auth != null",
       "$transactionId": {
-        ".validate": "newData.hasChildren(['id', 'date', 'totalPrice'])"
+        ".validate": "newData.hasChildren(['id', 'date', 'total', 'items'])"
       }
     },
     "_connection_test": {
