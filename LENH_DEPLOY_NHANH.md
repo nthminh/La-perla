@@ -1,5 +1,23 @@
 # 🚀 Lệnh Deploy Nhanh - Quick Deploy Commands
 
+## 🔄 Cách Mới: Tự Động Deploy (Khuyên Dùng!)
+
+### Setup một lần (5 phút):
+1. Tạo Firebase Service Account Key
+2. Thêm `FIREBASE_SERVICE_ACCOUNT` secret vào GitHub
+3. Xong! Chỉ cần push:
+
+```bash
+git push origin main
+# ✨ Tự động deploy lên Firebase!
+```
+
+📖 **Chi tiết:** [HUONG_DAN_TU_DONG_DONG_BO.md](./HUONG_DAN_TU_DONG_DONG_BO.md) | [English](./AUTO_SYNC_QUICK_GUIDE.md)
+
+---
+
+## 📦 Cách Cũ: Deploy Thủ Công (Vẫn hoạt động)
+
 ## Lệnh Chính / Main Command
 
 ```bash

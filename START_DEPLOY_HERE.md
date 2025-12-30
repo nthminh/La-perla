@@ -1,6 +1,21 @@
 # 🎯 START HERE - La Perla Deployment
 
-## ⚡ Deploy Your App in 3 Steps
+## 🔄 NEW: Auto-Deploy (Recommended)
+
+### One-Time Setup (5 minutes):
+1. Get Firebase Service Account Key from [Firebase Console](https://console.firebase.google.com/)
+2. Add `FIREBASE_SERVICE_ACCOUNT` secret to [GitHub Settings](https://github.com/nthminh/La-perla/settings/secrets/actions)
+3. Done! Just push to deploy:
+   ```bash
+   git push origin main
+   # ✨ Auto-deploys to Firebase!
+   ```
+
+📖 **Full Guide:** [AUTO_SYNC_QUICK_GUIDE.md](./AUTO_SYNC_QUICK_GUIDE.md) | [Vietnamese](./HUONG_DAN_TU_DONG_DONG_BO.md)
+
+---
+
+## 📦 Manual Deploy (Alternative)
 
 ### Step 1: First Time Setup (Only Once)
 ```bash
