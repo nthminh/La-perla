@@ -35,19 +35,33 @@ View your app in AI Studio: https://ai.studio/apps/drive/1Ay5kinG8NgbB3wU-5ZvKuk
    npm run build
    ```
 
-5. **Deploy to Firebase (One Command!):**
+5. **Deploy to Firebase:**
+   
+   **🔄 AUTO-DEPLOY (Recommended):** Just push to main!
+   ```bash
+   git push origin main
+   # ✨ Automatically deploys to Firebase via GitHub Actions
+   ```
+   See [AUTO_SYNC_QUICK_GUIDE.md](./AUTO_SYNC_QUICK_GUIDE.md) for one-time setup.
+   
+   **📦 Manual Deploy:** Use the automated script
    ```bash
    ./deploy-to-firebase.sh
    ```
-   This automated script handles merge, build, and deployment! 
+   This script handles merge, build, and deployment! 
    
    See [START_DEPLOY_HERE.md](./START_DEPLOY_HERE.md) for quick setup or [FIREBASE_DEPLOY_GUIDE.md](./FIREBASE_DEPLOY_GUIDE.md) for full details.
 
 ## 📚 Documentation
 
-- **[🚀 Deploy to Firebase (English)](./FIREBASE_DEPLOY_GUIDE.md)** - **NEW!** One-command deployment guide
-- **[🚀 Deploy to Firebase (Vietnamese)](./DEPLOY_HUONG_DAN.md)** - **NEW!** One-command deployment guide (Tiếng Việt)
+### Deployment Guides
+- **[🔄 Auto-Sync GitHub-Firebase (English)](./AUTO_SYNC_QUICK_GUIDE.md)** - **NEW!** No commands needed - just push!
+- **[🔄 Tự Động Đồng Bộ GitHub-Firebase (Vietnamese)](./HUONG_DAN_TU_DONG_DONG_BO.md)** - **NEW!** Hướng dẫn chi tiết (Tiếng Việt)
+- **[🚀 Deploy to Firebase (English)](./FIREBASE_DEPLOY_GUIDE.md)** - One-command deployment guide
+- **[🚀 Deploy to Firebase (Vietnamese)](./DEPLOY_HUONG_DAN.md)** - One-command deployment guide (Tiếng Việt)
 - **[⚡ Quick Deploy Commands (Vietnamese)](./LENH_DEPLOY_NHANH.md)** - Quick reference for deployment
+
+### Setup Guides
 - **[🇻🇳 Hướng Dẫn Tiếng Việt](./HUONG_DAN_TIENG_VIET.md)** - Vietnamese Setup Guide
 - **[Setup Guide](./SETUP_GUIDE.md)** - Detailed installation and configuration instructions
 - **[Firebase Studio Import Guide](./FIREBASE_STUDIO_GUIDE.md)** - How to import this app into Firebase Studio for advanced AI features
