@@ -1,0 +1,96 @@
+{
+  "rules": {
+    ".read": "auth != null",
+    ".write": "auth != null",
+    "systemState": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "activeBills": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        "$billId": {
+          ".validate": "newData.hasChildren(['id', 'customerName', 'items', 'discountPercentage'])"
+        }
+      },
+      "waitlist": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        "$entryId": {
+          ".validate": "newData.hasChildren(['id', 'customerName', 'customerPhone', 'notes', 'addedTime', 'estimatedReturnTime'])"
+        }
+      },
+      "bookings": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        "$bookingId": {
+          ".validate": "newData.hasChildren(['id', 'customerName', 'customerPhone', 'services', 'date', 'timeSlot', 'status', 'createdAt'])"
+        }
+      },
+      "activeStaff": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      },
+      "appVersion": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        ".validate": "newData.isNumber()"
+      },
+      "ticketCounters": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        ".validate": "newData.hasChildren(['date', 'checkIn', 'waitlist'])"
+      }
+    },
+    "settings": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "staffList": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      },
+      "pricingData": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      },
+      "globalPayroll": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      },
+      "knowledgeBase": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      },
+      "adminPasswords": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      },
+      "marqueeSettings": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      },
+      "lastUpdated": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        ".validate": "newData.isNumber()"
+      }
+    },
+    "settingsHistory": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "$snapshotId": {
+        ".validate": "newData.hasChildren(['id', 'timestamp', 'data'])"
+      }
+    },
+    "transactions": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "$transactionId": {
+        ".validate": "newData.hasChildren(['id', 'date', 'total', 'items'])"
+      }
+    },
+    "_connection_test": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    }
+  }
+}
