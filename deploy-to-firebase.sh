@@ -223,7 +223,8 @@ fi
 print_section "Step 7: Deploying to Firebase / Bước 7: Deploy lên Firebase"
 
 print_info "Starting Firebase deployment / Đang bắt đầu deploy Firebase..."
-firebase deploy --only hosting
+print_info "Deploying database rules and hosting / Đang deploy database rules và hosting..."
+firebase deploy
 
 if [ $? -eq 0 ]; then
     print_success "Deployment completed successfully! / Deploy hoàn thành thành công!"
@@ -252,6 +253,7 @@ print_success "All steps completed successfully! / Tất cả các bước đã 
 echo ""
 echo -e "${GREEN}✓${NC} Merged changes to main / Đã merge thay đổi vào main"
 echo -e "${GREEN}✓${NC} Built application / Đã build ứng dụng"
+echo -e "${GREEN}✓${NC} Deployed database rules / Đã deploy database rules"
 echo -e "${GREEN}✓${NC} Deployed to Firebase Hosting / Đã deploy lên Firebase Hosting"
 echo ""
 print_info "Next time, just run / Lần sau chỉ cần chạy: ./deploy-to-firebase.sh"
