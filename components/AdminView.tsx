@@ -439,7 +439,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 console.error("Error saving staff settings:", error);
                 setStaffFormError("Failed to save. Please try again.");
                 // Revert local state on error
-                setEditStaffList(JSON.parse(JSON.stringify(staffList)));
+                setEditStaffList(structuredClone(staffList));
             } finally {
                 setIsSavingSettings(false);
             }
@@ -464,7 +464,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     console.error("Error removing staff:", error);
                     alert("Failed to remove staff. Please try again.");
                     // Revert local state on error
-                    setEditStaffList(JSON.parse(JSON.stringify(staffList)));
+                    setEditStaffList(structuredClone(staffList));
                 } finally {
                     setIsSavingSettings(false);
                 }
@@ -526,10 +526,16 @@ export const AdminView: React.FC<AdminViewProps> = ({
     const handleSaveAllSettings = async () => { 
         if (!isFirebaseConfigured()) { alert("Please connect to Firebase before saving."); return; } 
         setIsSavingSettings(true); 
-        if (onSaveSettings) { 
-            await onSaveSettings(editStaffList, editPricingData, editGlobalPayroll, editKnowledgeBase, editAdminPasswords, editMarqueeSettings); 
-        } 
-        setIsSavingSettings(false); 
+        try {
+            if (onSaveSettings) { 
+                await onSaveSettings(editStaffList, editPricingData, editGlobalPayroll, editKnowledgeBase, editAdminPasswords, editMarqueeSettings); 
+            }
+        } catch (error) {
+            console.error("Error saving settings:", error);
+            // Error alert is already shown by onSaveSettings
+        } finally {
+            setIsSavingSettings(false); 
+        }
     };
 
     const handleEditTransactionClick = (tx: Transaction) => {
