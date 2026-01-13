@@ -411,15 +411,47 @@ export const AdminView: React.FC<AdminViewProps> = ({
         setEditingStaffId(null); setNewStaffName(""); setNewStaffPassword(""); setNewStaffAvatar(undefined);
         setPayrollEnabled(false); setBaseSalary(""); setBonusRate(""); setStaffFormError(""); if(fileInputRef.current) fileInputRef.current.value = "";
     };
-    const handleSaveStaff = () => {
+    const handleSaveStaff = async () => {
         if (!newStaffName.trim()) { setStaffFormError("Name is required"); return; }
         if (!newStaffPassword.trim()) { setStaffFormError("Password is required for login"); return; }
         const payrollConfig: PayrollConfig | undefined = payrollEnabled ? { enabled: true, baseSalary: parseFloat(baseSalary) || 0, bonusRate: parseFloat(bonusRate) || 0, } : undefined;
-        if (editingStaffId) { setEditStaffList(prev => prev.map(s => s.id === editingStaffId ? { ...s, name: newStaffName.trim(), password: newStaffPassword.trim(), avatar: newStaffAvatar, payroll: payrollConfig } : s)); } 
-        else { const newStaff: StaffProfile = { id: Date.now().toString(), name: newStaffName.trim(), password: newStaffPassword.trim(), avatar: newStaffAvatar, payroll: payrollConfig }; setEditStaffList(prev => [...prev, newStaff]); }
+        
+        // Calculate the new staff list
+        let updatedStaffList: StaffProfile[];
+        if (editingStaffId) { 
+            updatedStaffList = editStaffList.map(s => s.id === editingStaffId ? { ...s, name: newStaffName.trim(), password: newStaffPassword.trim(), avatar: newStaffAvatar, payroll: payrollConfig } : s);
+        } else { 
+            const newStaff: StaffProfile = { id: Date.now().toString(), name: newStaffName.trim(), password: newStaffPassword.trim(), avatar: newStaffAvatar, payroll: payrollConfig };
+            updatedStaffList = [...editStaffList, newStaff];
+        }
+        
+        // Update local state
+        setEditStaffList(updatedStaffList);
+        
+        // Save to Firebase immediately
+        if (onSaveSettings) {
+            setIsSavingSettings(true);
+            await onSaveSettings(updatedStaffList, editPricingData, editGlobalPayroll, editKnowledgeBase, editAdminPasswords, editMarqueeSettings);
+            setIsSavingSettings(false);
+        }
+        
         handleCancelEdit();
     };
-    const handleRemoveStaff = (id: string) => { if (window.confirm("Are you sure you want to remove this staff member?")) { setEditStaffList(prev => prev.filter(s => s.id !== id)); if (editingStaffId === id) handleCancelEdit(); } };
+    const handleRemoveStaff = async (id: string) => { 
+        if (window.confirm("Are you sure you want to remove this staff member?")) { 
+            const updatedStaffList = editStaffList.filter(s => s.id !== id);
+            setEditStaffList(updatedStaffList);
+            
+            // Save to Firebase immediately
+            if (onSaveSettings) {
+                setIsSavingSettings(true);
+                await onSaveSettings(updatedStaffList, editPricingData, editGlobalPayroll, editKnowledgeBase, editAdminPasswords, editMarqueeSettings);
+                setIsSavingSettings(false);
+            }
+            
+            if (editingStaffId === id) handleCancelEdit();
+        } 
+    };
     
     // --- SERVICE & CATEGORY HANDLERS ---
     const handleUpdateService = (catIndex: number, srvIndex: number, field: 'displayName' | 'price', value: string) => { const newPricing = [...editPricingData]; newPricing[catIndex].services[srvIndex] = { ...newPricing[catIndex].services[srvIndex], [field]: value }; setEditPricingData(newPricing); };
@@ -710,7 +742,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                 <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 mb-6 animate-fade-in">
                                     <h4 className="font-bold text-lg mb-4">{editingStaffId === 'new' ? 'New Staff Member' : 'Edit Staff'}</h4>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6"><div className="space-y-4"><div><label className="block text-xs font-bold uppercase text-gray-500 mb-1">Name</label><input type="text" value={newStaffName} onChange={e => setNewStaffName(e.target.value)} className="w-full p-2 border rounded-lg" /></div><div><label className="block text-xs font-bold uppercase text-gray-500 mb-1">Passcode (Login)</label><input type="text" value={newStaffPassword} onChange={e => setNewStaffPassword(e.target.value)} className="w-full p-2 border rounded-lg" placeholder="e.g. 1234" /></div><div><label className="block text-xs font-bold uppercase text-gray-500 mb-1">Profile Picture</label><div className="flex items-center gap-3">{newStaffAvatar ? <img src={newStaffAvatar} className="w-12 h-12 rounded-full object-cover" /> : <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center"><UserIcon className="w-6 h-6 text-gray-400" /></div>}<button onClick={() => fileInputRef.current?.click()} className="text-xs bg-white border px-3 py-1.5 rounded-lg font-bold hover:bg-gray-50">Upload</button><input type="file" ref={fileInputRef} onChange={handleAvatarUpload} className="hidden" accept="image/*" /></div></div></div><div className="space-y-4 bg-white p-4 rounded-xl border border-gray-200"><div className="flex items-center justify-between"><label className="font-bold text-sm text-charcoal">Payroll & Commission</label><button onClick={() => setPayrollEnabled(!payrollEnabled)} className={`w-10 h-5 rounded-full p-1 transition-colors ${payrollEnabled ? 'bg-green-500' : 'bg-gray-300'}`}><div className={`w-3 h-3 bg-white rounded-full shadow-sm transition-transform ${payrollEnabled ? 'translate-x-5' : ''}`}></div></button></div>{payrollEnabled && (<div className="grid grid-cols-2 gap-4 animate-fade-in"><div><label className="block text-xs font-bold text-gray-400 uppercase mb-1">Base Salary ($)</label><input type="number" value={baseSalary} onChange={e => setBaseSalary(e.target.value)} className="w-full p-2 border rounded-lg" /></div><div><label className="block text-xs font-bold text-gray-400 uppercase mb-1">Bonus Rate (%)</label><input type="number" value={bonusRate} onChange={e => setBonusRate(e.target.value)} className="w-full p-2 border rounded-lg" /></div></div>)}</div></div>
-                                    <div className="flex gap-3 mt-6"><button onClick={handleSaveStaff} className="bg-gold-leaf text-white px-6 py-2 rounded-lg font-bold hover:bg-charcoal transition-colors">Save Profile</button><button onClick={handleCancelEdit} className="bg-gray-200 text-charcoal px-6 py-2 rounded-lg font-bold hover:bg-gray-300">Cancel</button>{editingStaffId !== 'new' && <button onClick={() => handleRemoveStaff(editingStaffId!)} className="ml-auto text-red-500 font-bold hover:underline">Remove Staff</button>}</div>{staffFormError && <p className="text-red-500 text-sm mt-3 font-bold">{staffFormError}</p>}
+                                    <div className="flex gap-3 mt-6"><button onClick={handleSaveStaff} disabled={isSavingSettings} className="bg-gold-leaf text-white px-6 py-2 rounded-lg font-bold hover:bg-charcoal transition-colors disabled:opacity-50 disabled:cursor-not-allowed">{isSavingSettings ? "Saving to Cloud..." : "Save Profile"}</button><button onClick={handleCancelEdit} className="bg-gray-200 text-charcoal px-6 py-2 rounded-lg font-bold hover:bg-gray-300">Cancel</button>{editingStaffId !== 'new' && <button onClick={() => handleRemoveStaff(editingStaffId!)} disabled={isSavingSettings} className="ml-auto text-red-500 font-bold hover:underline disabled:opacity-50 disabled:cursor-not-allowed">Remove Staff</button>}</div>{staffFormError && <p className="text-red-500 text-sm mt-3 font-bold">{staffFormError}</p>}
                                 </div>
                             )}
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">{editStaffList.map(staff => (<div key={staff.id} onClick={() => handleSelectStaffForEdit(staff)} className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:border-gold-leaf cursor-pointer group bg-gray-50/50 hover:bg-white transition-all"><div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden">{staff.avatar ? <img src={staff.avatar} className="w-full h-full object-cover" /> : <UserIcon className="w-5 h-5 text-gray-400 m-2.5" />}</div><div className="flex-grow"><p className="font-bold text-sm text-charcoal group-hover:text-gold-leaf">{staff.name}</p><p className="text-xs text-gray-400">{staff.payroll?.enabled ? `${staff.payroll.bonusRate}% Comm` : 'No Payroll'}</p></div><PencilIcon className="w-4 h-4 text-gray-300 group-hover:text-gold-leaf" /></div>))}</div>
