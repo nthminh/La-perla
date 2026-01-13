@@ -418,7 +418,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
         
         // Calculate the new staff list
         let updatedStaffList: StaffProfile[];
-        if (editingStaffId) { 
+        if (editingStaffId && editingStaffId !== 'new') { 
             updatedStaffList = editStaffList.map(s => s.id === editingStaffId ? { ...s, name: newStaffName.trim(), password: newStaffPassword.trim(), avatar: newStaffAvatar, payroll: payrollConfig } : s);
         } else { 
             const newStaff: StaffProfile = { id: Date.now().toString(), name: newStaffName.trim(), password: newStaffPassword.trim(), avatar: newStaffAvatar, payroll: payrollConfig };
