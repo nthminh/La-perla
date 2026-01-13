@@ -433,15 +433,20 @@ export const AdminView: React.FC<AdminViewProps> = ({
             setIsSavingSettings(true);
             try {
                 await onSaveSettings(updatedStaffList, editPricingData, editGlobalPayroll, editKnowledgeBase, editAdminPasswords, editMarqueeSettings);
+                // Only clear the form if save was successful
+                handleCancelEdit();
             } catch (error) {
                 console.error("Error saving staff settings:", error);
-                alert("Error saving to cloud. Please try again.");
+                setStaffFormError("Failed to save. Please try again.");
+                // Revert local state on error
+                setEditStaffList(structuredClone(staffList));
             } finally {
                 setIsSavingSettings(false);
             }
+        } else {
+            // If no onSaveSettings callback, just clear the form
+            handleCancelEdit();
         }
-        
-        handleCancelEdit();
     };
     const handleRemoveStaff = async (id: string) => { 
         if (window.confirm("Are you sure you want to remove this staff member?")) { 
@@ -453,15 +458,19 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 setIsSavingSettings(true);
                 try {
                     await onSaveSettings(updatedStaffList, editPricingData, editGlobalPayroll, editKnowledgeBase, editAdminPasswords, editMarqueeSettings);
+                    // Only clear the form if save was successful and we're editing this staff
+                    if (editingStaffId === id) handleCancelEdit();
                 } catch (error) {
                     console.error("Error removing staff:", error);
-                    alert("Error saving to cloud. Please try again.");
+                    alert("Failed to remove staff. Please try again.");
+                    // Revert local state on error
+                    setEditStaffList(structuredClone(staffList));
                 } finally {
                     setIsSavingSettings(false);
                 }
+            } else {
+                if (editingStaffId === id) handleCancelEdit();
             }
-            
-            if (editingStaffId === id) handleCancelEdit();
         } 
     };
     
@@ -517,10 +526,16 @@ export const AdminView: React.FC<AdminViewProps> = ({
     const handleSaveAllSettings = async () => { 
         if (!isFirebaseConfigured()) { alert("Please connect to Firebase before saving."); return; } 
         setIsSavingSettings(true); 
-        if (onSaveSettings) { 
-            await onSaveSettings(editStaffList, editPricingData, editGlobalPayroll, editKnowledgeBase, editAdminPasswords, editMarqueeSettings); 
-        } 
-        setIsSavingSettings(false); 
+        try {
+            if (onSaveSettings) { 
+                await onSaveSettings(editStaffList, editPricingData, editGlobalPayroll, editKnowledgeBase, editAdminPasswords, editMarqueeSettings); 
+            }
+        } catch (error) {
+            console.error("Error saving settings:", error);
+            // Error alert is already shown by onSaveSettings
+        } finally {
+            setIsSavingSettings(false); 
+        }
     };
 
     const handleEditTransactionClick = (tx: Transaction) => {

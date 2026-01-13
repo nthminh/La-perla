@@ -1096,10 +1096,14 @@ const MainApp: React.FC = () => {
                     setKnowledgeBase(kb);
                     setAdminPasswords(passwords);
                     setMarqueeSettings(marquee);
-                    // Then save to cloud
+                    // Then save to cloud and return the result
                     const result = await saveSettingsToFirebase(staff, pricing, payroll, kb, passwords, marquee);
-                    if(result.success) alert("Settings saved successfully!");
-                    else alert("Error saving settings. Check connection.");
+                    if(result.success) {
+                        alert("Settings saved successfully!");
+                    } else {
+                        alert("Error saving settings. Check connection.");
+                        throw new Error(result.error || "Failed to save settings");
+                    }
                 }}
             />
         )}
