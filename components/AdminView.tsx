@@ -431,8 +431,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
         // Save to Firebase immediately
         if (onSaveSettings) {
             setIsSavingSettings(true);
-            await onSaveSettings(updatedStaffList, editPricingData, editGlobalPayroll, editKnowledgeBase, editAdminPasswords, editMarqueeSettings);
-            setIsSavingSettings(false);
+            try {
+                await onSaveSettings(updatedStaffList, editPricingData, editGlobalPayroll, editKnowledgeBase, editAdminPasswords, editMarqueeSettings);
+            } catch (error) {
+                console.error("Error saving staff settings:", error);
+                alert("Error saving to cloud. Please try again.");
+            } finally {
+                setIsSavingSettings(false);
+            }
         }
         
         handleCancelEdit();
@@ -445,8 +451,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
             // Save to Firebase immediately
             if (onSaveSettings) {
                 setIsSavingSettings(true);
-                await onSaveSettings(updatedStaffList, editPricingData, editGlobalPayroll, editKnowledgeBase, editAdminPasswords, editMarqueeSettings);
-                setIsSavingSettings(false);
+                try {
+                    await onSaveSettings(updatedStaffList, editPricingData, editGlobalPayroll, editKnowledgeBase, editAdminPasswords, editMarqueeSettings);
+                } catch (error) {
+                    console.error("Error removing staff:", error);
+                    alert("Error saving to cloud. Please try again.");
+                } finally {
+                    setIsSavingSettings(false);
+                }
             }
             
             if (editingStaffId === id) handleCancelEdit();
