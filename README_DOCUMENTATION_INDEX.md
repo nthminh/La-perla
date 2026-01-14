@@ -33,6 +33,14 @@ Nếu bạn là người đã hỏi:
 | DEPLOY_HUONG_DAN.md | Deploy guide | Tiếng Việt |
 | START_DEPLOY_HERE.md | Deploy starting point | English |
 
+### 🔄 Backup & Restore Documentation (NEW!)
+
+| File | Mô Tả | Ngôn Ngữ |
+|------|-------|----------|
+| **FIREBASE_BACKUP_RESTORE_VI.md** | Hướng dẫn sao lưu & phục hồi | 🇻🇳 Tiếng Việt |
+| **FIREBASE_BACKUP_RESTORE_EN.md** | Backup & restore guide | 🇬🇧 English |
+| scripts/README.md | Backup/restore scripts usage | English |
+
 ### 🔐 Security Documentation
 
 | File | Mô Tả |
