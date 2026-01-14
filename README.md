@@ -54,6 +54,12 @@ View your app in AI Studio: https://ai.studio/apps/drive/1Ay5kinG8NgbB3wU-5ZvKuk
 
 ## 📚 Documentation
 
+### 🆕 Backup & Restore
+- **[🔄 Backup & Restore Guide (Vietnamese)](./FIREBASE_BACKUP_RESTORE_VI.md)** - **NEW!** Sao lưu & phục hồi Firebase
+- **[🔄 Backup & Restore Guide (English)](./FIREBASE_BACKUP_RESTORE_EN.md)** - **NEW!** Firebase backup & restore
+- **[⚡ Quick Start: Backup/Restore](./BACKUP_RESTORE_START_HERE.md)** - **NEW!** Bắt đầu nhanh
+- **[❓ Restore to Yesterday FAQ](./PHUC_HOI_FIREBASE_TRA_LOI.md)** - **NEW!** Câu hỏi thường gặp
+
 ### Deployment Guides
 - **[🔄 Auto-Sync GitHub-Firebase (English)](./AUTO_SYNC_QUICK_GUIDE.md)** - **NEW!** No commands needed - just push!
 - **[🔄 Tự Động Đồng Bộ GitHub-Firebase (Vietnamese)](./HUONG_DAN_TU_DONG_DONG_BO.md)** - **NEW!** Hướng dẫn chi tiết (Tiếng Việt)
