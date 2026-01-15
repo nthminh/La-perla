@@ -496,10 +496,10 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
         setIsSaving(true);
         const updatedProfile: StaffProfile = {
             ...currentUser,
-            avatar: avatar,
+            avatar,
             bio: bio.trim(),
             specialties,
-            portfolio: portfolio, 
+            portfolio, 
             rating: currentUser.rating || 5.0,
             payroll: currentUser.payroll 
         };
