@@ -427,8 +427,39 @@ export const deleteTransactionFromFirebase = async (transactionId: string): Prom
 
     try {
         const safeId = transactionId.replace(/[.#$/[\]]/g, "_");
+        
+        // 1. Try standard delete (Path based - Fastest)
         const txRef = ref(db, `${TRANSACTIONS_REF}/${safeId}`);
         await remove(txRef);
+        
+        // 2. Robust Check: Scan entire transactions node to find this ID if it's hiding under a different key
+        // This fixes the "Transaction comes back after delete" bug using the same "Search and Destroy" pattern
+        // used for bills, waitlist, and bookings.
+        try {
+            const snapshot = await get(ref(db, TRANSACTIONS_REF));
+            if (snapshot.exists()) {
+                const data = snapshot.val();
+                const keys = Object.keys(data);
+                const updates: Record<string, null> = {};
+                let found = false;
+
+                for (const key of keys) {
+                    // Check if the object at this key has the matching ID
+                    // Need to check both the original ID and the safeId
+                    if (data[key]?.id === transactionId || data[key]?.id === safeId) {
+                        updates[key] = null; // Mark for deletion
+                        found = true;
+                    }
+                }
+
+                if (found) {
+                    await update(ref(db, TRANSACTIONS_REF), updates);
+                }
+            }
+        } catch (e) {
+            console.warn("Deep clean failed for transaction:", e);
+        }
+        
         return true;
     } catch (error: any) {
         console.warn("Error deleting transaction from Cloud (Local copy deleted):", error.code || error.message);
