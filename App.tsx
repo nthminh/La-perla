@@ -31,6 +31,7 @@ import {
     saveCurrentUser,
     clearCurrentUser,
     getTransactions,
+    getAllTransactionsIncludingDeleted,
     deleteLocalTransaction
 } from './services/storageService';
 import { subscribeToSystemState, subscribeToSettings, updateStaffPresence, saveSettingsToFirebase, saveTransactionToFirebase, upsertBooking, deleteBooking, fetchTransactionsOnce, fetchTransactionsByDateRangeIncludingDeleted } from './services/firebaseService';
@@ -560,6 +561,7 @@ const MainApp: React.FC = () => {
       const runSync = async () => {
           setSyncStatus('syncing');
           try {
+              // Get active transactions (non-deleted) for upload
               const localTxs = getTransactions();
               
               // STEP 1: Push local transactions to Firebase (Upload sync)
@@ -570,7 +572,7 @@ const MainApp: React.FC = () => {
 
               let hasError = false;
               for (const tx of recentTxs) {
-                  // Skip already-deleted transactions (don't re-sync them)
+                  // Double-check: Skip already-deleted transactions (shouldn't happen but safety check)
                   if (tx.deleted) continue;
                   
                   // Idempotent write: overwrites with same data if exists, harmless but safe
@@ -591,10 +593,14 @@ const MainApp: React.FC = () => {
                   // Fetch recent transactions INCLUDING deleted ones for sync
                   const cloudTxs = await fetchTransactionsByDateRangeIncludingDeleted(syncStartDateStr, todayStr);
                   
+                  // Check ALL local transactions (including deleted) to sync deletions properly
+                  const allLocalTxs = getAllTransactionsIncludingDeleted();
+                  const recentAllLocalTxs = allLocalTxs.filter(tx => new Date(tx.date) > twoDaysAgo);
+                  
                   // Check if any local transactions have been deleted in Firebase
                   const cloudTxMap = new Map(cloudTxs.map(tx => [tx.id, tx]));
                   
-                  for (const localTx of recentTxs) {
+                  for (const localTx of recentAllLocalTxs) {
                       const cloudTx = cloudTxMap.get(localTx.id);
                       
                       // If transaction exists in cloud and is marked as deleted

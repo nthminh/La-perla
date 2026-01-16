@@ -306,13 +306,21 @@ export const saveTransactionToFirebase = async (transaction: Transaction): Promi
         const safeId = transaction.id.replace(/[.#$/[\]]/g, "_");
         const txRef = ref(db, `${TRANSACTIONS_REF}/${safeId}`);
 
-        // --- CONFLICT RESOLUTION: LAST WRITE WINS ---
+        // --- CONFLICT RESOLUTION: LAST WRITE WINS (with deletion protection) ---
         // 1. Fetch current data on server
         const snapshot = await get(txRef);
         
         if (snapshot.exists()) {
             const serverTx = snapshot.val();
-            // 2. Compare timestamps
+            
+            // 2. CRITICAL: Never overwrite a deletion marker
+            // If server has deleted=true, refuse to sync (deletion wins)
+            if (serverTx.deleted) {
+                console.log(`Skipping sync for ${safeId}: Transaction is deleted on server`);
+                return { success: true }; // Treat as success (respecting deletion)
+            }
+            
+            // 3. Compare timestamps
             // If server has a timestamp AND local timestamp is older than server's, DO NOT OVERWRITE
             // Treat undefined/null timestamps as 0 (very old)
             const serverTime = serverTx.lastUpdated || 0;
@@ -324,7 +332,13 @@ export const saveTransactionToFirebase = async (transaction: Transaction): Promi
             }
         }
 
-        // 3. Write if local is newer or same, or server doesn't exist
+        // 4. Write if local is newer or same, or server doesn't exist
+        // But NEVER write if the local transaction is marked as deleted (shouldn't happen, but safety check)
+        if (transaction.deleted) {
+            console.log(`Skipping sync for ${safeId}: Local transaction is marked as deleted`);
+            return { success: true };
+        }
+        
         await set(txRef, cleanTx);
         return { success: true };
     } catch (error: any) {
