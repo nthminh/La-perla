@@ -92,7 +92,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ t, pricingData, staffLis
             Price list:
             ${priceInfo}
             Rules: 
-            1. Always respond in English, unless the customer explicitly asks in Vietnamese. Prioritize English responses. 
+            1. Always respond in English. Prioritize English responses. 
             2. Only provide prices from the list. If a service is not available, apologize and ask them to call (02) 9625 8194. 
             3. If customers want to book, guide them to the 'Booking' tab or call the hotline. 
             4. Keep responses short, friendly, and use emojis.
@@ -110,8 +110,8 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ t, pricingData, staffLis
             });
 
             const rawReply = response.text || "Sorry, I'm a bit busy right now, please try again later!";
-            // Remove special formatting characters like ** __ ` etc.
-            const reply = rawReply.replace(/\*\*/g, '').replace(/__/g, '').replace(/`/g, '');
+            // Remove all markdown formatting characters at once
+            const reply = rawReply.replace(/[\*_`~#\[\]]/g, '');
             setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', text: reply }]);
             if (voiceEnabled) speak(reply);
 
