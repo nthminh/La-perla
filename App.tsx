@@ -582,11 +582,14 @@ const MainApp: React.FC = () => {
               // Fetch recent transactions from Firebase to check for deletions
               try {
                   const todayStr = new Date().toISOString().split('T')[0];
-                  twoDaysAgo.setHours(0, 0, 0, 0);
-                  const twoDaysAgoStr = twoDaysAgo.toISOString().split('T')[0];
+                  // Create a separate date for the sync window to avoid mutation
+                  const syncStartDate = new Date();
+                  syncStartDate.setDate(syncStartDate.getDate() - 2);
+                  syncStartDate.setHours(0, 0, 0, 0);
+                  const syncStartDateStr = syncStartDate.toISOString().split('T')[0];
                   
                   // Fetch recent transactions INCLUDING deleted ones for sync
-                  const cloudTxs = await fetchTransactionsByDateRangeIncludingDeleted(twoDaysAgoStr, todayStr);
+                  const cloudTxs = await fetchTransactionsByDateRangeIncludingDeleted(syncStartDateStr, todayStr);
                   
                   // Check if any local transactions have been deleted in Firebase
                   const cloudTxMap = new Map(cloudTxs.map(tx => [tx.id, tx]));

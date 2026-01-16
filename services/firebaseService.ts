@@ -486,7 +486,7 @@ export const deleteTransactionFromFirebase = async (transactionId: string): Prom
             if (snapshot.exists()) {
                 const data = snapshot.val();
                 const keys = Object.keys(data);
-                const updates: Record<string, any> = {};
+                const updates: Record<string, Transaction> = {};
                 let found = false;
 
                 for (const key of keys) {
