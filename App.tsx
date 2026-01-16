@@ -30,7 +30,8 @@ import {
     getCurrentUser,
     saveCurrentUser,
     clearCurrentUser,
-    getTransactions
+    getTransactions,
+    deleteLocalTransaction
 } from './services/storageService';
 import { subscribeToSystemState, subscribeToSettings, updateStaffPresence, saveSettingsToFirebase, saveTransactionToFirebase, upsertBooking, deleteBooking, fetchTransactionsOnce, fetchTransactionsByDateRangeIncludingDeleted } from './services/firebaseService';
 import { clearFirebaseConfigLocally } from './services/firebaseConfig';
@@ -601,8 +602,6 @@ const MainApp: React.FC = () => {
                           
                           if (cloudTime >= localTime) {
                               // Sync the deletion to local storage
-                              // We use the storageService function to remove it locally
-                              const { deleteLocalTransaction } = await import('./services/storageService');
                               deleteLocalTransaction(localTx.id);
                           }
                       }
