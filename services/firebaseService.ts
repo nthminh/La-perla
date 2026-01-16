@@ -158,6 +158,41 @@ export const upsertActiveBill = async (bill: ActiveBill): Promise<void> => {
     await update(ref(db, `${BILLS_REF}/${bill.id}`), cleanBill);
 };
 
+/**
+ * Check if an active bill exists in Firebase
+ * Used to prevent duplicate payment processing
+ */
+export const checkActiveBillExists = async (billId: string): Promise<boolean> => {
+    await waitForAuth();
+    if (!db) return false;
+    
+    try {
+        // Check direct path first
+        const directSnapshot = await get(ref(db, `${BILLS_REF}/${billId}`));
+        if (directSnapshot.exists()) {
+            return true;
+        }
+        
+        // Check for bill in any key (handles array indices)
+        const allBillsSnapshot = await get(ref(db, BILLS_REF));
+        if (allBillsSnapshot.exists()) {
+            const data = allBillsSnapshot.val();
+            const keys = Object.keys(data);
+            
+            for (const key of keys) {
+                if (data[key]?.id === billId) {
+                    return true;
+                }
+            }
+        }
+        
+        return false;
+    } catch (e) {
+        console.warn("Error checking bill existence:", e);
+        return false;
+    }
+};
+
 export const deleteActiveBill = async (billId: string): Promise<void> => {
     await waitForAuth();
     if (!db) return;

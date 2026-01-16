@@ -50,7 +50,8 @@ import {
     deleteActiveBill, 
     deleteWaitlistEntry, 
     upsertWaitlistEntry, 
-    getNextTicketNumber 
+    getNextTicketNumber,
+    checkActiveBillExists 
 } from '../services/firebaseService';
 import { saveTransaction, searchCustomers, getTransactions } from '../services/storageService';
 import { SoundManager } from '../utils/sound';
@@ -829,6 +830,14 @@ export const PricingView: React.FC<PricingViewProps> = ({
 
   const handleCompletePayment = async () => {
     if (!isStaffMode || viewingHistoryBill) return; 
+    
+    // Prevent duplicate submissions
+    if (isSaving) {
+        console.log("Payment already in progress, ignoring duplicate click");
+        return;
+    }
+    
+    // GPS validation
     if (globalPayroll?.gpsRequired) {
         try {
             const position = await new Promise<GeolocationPosition>((resolve, reject) => { navigator.geolocation.getCurrentPosition(resolve, (error) => reject(error), { enableHighAccuracy: true, timeout: 5000 }); });
@@ -842,22 +851,66 @@ export const PricingView: React.FC<PricingViewProps> = ({
             return; 
         }
     }
+    
     setIsSaving(true);
-    SoundManager.playSuccess(); 
-    const items: TransactionItem[] = cartItems.map(({ id, ...rest }) => rest);
-    const transaction = { id: Date.now().toString(), date: new Date().toISOString(), total: finalTotal, items, discountPercentage, customerName, customerPhone, customerNotes, lastUpdated: Date.now() };
+    
     try {
+        // Check if this bill still exists in Firebase before processing
+        // This prevents duplicate transactions if another device already processed it
+        const billExists = await checkActiveBillExists(currentBillId);
+        if (!billExists) {
+            alert("This bill has already been processed by another device.");
+            // Clean up local state
+            const newBills = activeBills.filter(b => b.id !== currentBillId);
+            setActiveBills(newBills);
+            setCurrentBillId(newBills.length > 0 ? newBills[newBills.length - 1].id : '');
+            setIsBillOpen(false);
+            setCashTendered('');
+            setIsCalculatorOpen(false);
+            return;
+        }
+        
+        SoundManager.playSuccess(); 
+        
+        // Generate deterministic transaction ID using bill ID and timestamp
+        // This ensures the same bill creates the same transaction ID across devices
+        const transactionId = `${currentBillId}_${Date.now()}`;
+        
+        const items: TransactionItem[] = cartItems.map(({ id, ...rest }) => rest);
+        const transaction = { 
+            id: transactionId, 
+            date: new Date().toISOString(), 
+            total: finalTotal, 
+            items, 
+            discountPercentage, 
+            customerName, 
+            customerPhone, 
+            customerNotes, 
+            lastUpdated: Date.now() 
+        };
+        
+        // Save locally first
         saveTransaction(transaction); 
+        
+        // Save to Firebase
         await saveTransactionToFirebase(transaction);
+        
+        // Delete the bill from Firebase (this will fail if another device already deleted it)
         if (currentBillId) deleteActiveBill(currentBillId).catch(() => {});
+        
+        // Update local state
         const newBills = activeBills.filter(b => b.id !== currentBillId);
         setActiveBills(newBills);
         setCurrentBillId(newBills.length > 0 ? newBills[newBills.length - 1].id : '');
-        setIsBillOpen(false); setCashTendered(''); setIsCalculatorOpen(false);
+        setIsBillOpen(false); 
+        setCashTendered(''); 
+        setIsCalculatorOpen(false);
     } catch (error) {
         alert("Payment saved LOCALLY. Syncing later.");
         setIsBillOpen(false);
-    } finally { setIsSaving(false); }
+    } finally { 
+        setIsSaving(false); 
+    }
   };
 
   const handleAddToWaitlist = () => {
