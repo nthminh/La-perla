@@ -872,9 +872,10 @@ export const PricingView: React.FC<PricingViewProps> = ({
         
         SoundManager.playSuccess(); 
         
-        // Generate deterministic transaction ID using bill ID and timestamp
-        // This ensures the same bill creates the same transaction ID across devices
-        const transactionId = `${currentBillId}_${Date.now()}`;
+        // Generate deterministic transaction ID using only the bill ID
+        // This ensures the same bill always creates the same transaction ID across all devices
+        // preventing duplicate transactions even if processed simultaneously
+        const transactionId = `tx_${currentBillId}`;
         
         const items: TransactionItem[] = cartItems.map(({ id, ...rest }) => rest);
         const transaction = { 
