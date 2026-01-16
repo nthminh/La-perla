@@ -30,9 +30,10 @@ import {
     getCurrentUser,
     saveCurrentUser,
     clearCurrentUser,
-    getTransactions
+    getTransactions,
+    deleteLocalTransaction
 } from './services/storageService';
-import { subscribeToSystemState, subscribeToSettings, updateStaffPresence, saveSettingsToFirebase, saveTransactionToFirebase, upsertBooking, deleteBooking, fetchTransactionsOnce } from './services/firebaseService';
+import { subscribeToSystemState, subscribeToSettings, updateStaffPresence, saveSettingsToFirebase, saveTransactionToFirebase, upsertBooking, deleteBooking, fetchTransactionsOnce, fetchTransactionsByDateRangeIncludingDeleted } from './services/firebaseService';
 import { clearFirebaseConfigLocally } from './services/firebaseConfig';
 import { SoundManager } from './utils/sound';
 
@@ -560,11 +561,8 @@ const MainApp: React.FC = () => {
           setSyncStatus('syncing');
           try {
               const localTxs = getTransactions();
-              if (localTxs.length === 0) {
-                  setSyncStatus('synced');
-                  return;
-              }
-
+              
+              // STEP 1: Push local transactions to Firebase (Upload sync)
               // Only sync transactions from last 48 hours to save bandwidth
               const twoDaysAgo = new Date();
               twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
@@ -572,9 +570,48 @@ const MainApp: React.FC = () => {
 
               let hasError = false;
               for (const tx of recentTxs) {
+                  // Skip already-deleted transactions (don't re-sync them)
+                  if (tx.deleted) continue;
+                  
                   // Idempotent write: overwrites with same data if exists, harmless but safe
                   const result = await saveTransactionToFirebase(tx);
                   if (!result.success) hasError = true;
+              }
+
+              // STEP 2: Pull deletions from Firebase (Download sync)
+              // Fetch recent transactions from Firebase to check for deletions
+              try {
+                  const todayStr = new Date().toISOString().split('T')[0];
+                  // Create a separate date for the sync window to avoid mutation
+                  const syncStartDate = new Date();
+                  syncStartDate.setDate(syncStartDate.getDate() - 2);
+                  syncStartDate.setHours(0, 0, 0, 0);
+                  const syncStartDateStr = syncStartDate.toISOString().split('T')[0];
+                  
+                  // Fetch recent transactions INCLUDING deleted ones for sync
+                  const cloudTxs = await fetchTransactionsByDateRangeIncludingDeleted(syncStartDateStr, todayStr);
+                  
+                  // Check if any local transactions have been deleted in Firebase
+                  const cloudTxMap = new Map(cloudTxs.map(tx => [tx.id, tx]));
+                  
+                  for (const localTx of recentTxs) {
+                      const cloudTx = cloudTxMap.get(localTx.id);
+                      
+                      // If transaction exists in cloud and is marked as deleted
+                      // AND the cloud version is newer (higher lastUpdated timestamp)
+                      if (cloudTx && cloudTx.deleted) {
+                          const cloudTime = cloudTx.lastUpdated || 0;
+                          const localTime = localTx.lastUpdated || 0;
+                          
+                          if (cloudTime >= localTime) {
+                              // Sync the deletion to local storage
+                              deleteLocalTransaction(localTx.id);
+                          }
+                      }
+                  }
+              } catch (syncError) {
+                  console.warn("Deletion sync failed (non-critical):", syncError);
+                  // Don't set hasError for this, as upload sync may have succeeded
               }
 
               if (hasError) setSyncStatus('error');

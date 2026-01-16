@@ -332,9 +332,11 @@ export const subscribeToTransactions = (onUpdate: (transactions: Transaction[]) 
         const data = snapshot.val();
         if (data) {
             const txList: Transaction[] = Array.isArray(data) ? data : Object.values(data);
+            // Filter out soft-deleted transactions
+            const activeTxList = txList.filter(tx => !tx.deleted);
             // Sort by date descending
-            txList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-            onUpdate(txList);
+            activeTxList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            onUpdate(activeTxList);
         } else {
             onUpdate([]);
         }
@@ -362,8 +364,10 @@ export const fetchTransactionsOnce = async (limit: number = 50): Promise<Transac
         if (snapshot.exists()) {
             const data = snapshot.val();
             const txList: Transaction[] = Array.isArray(data) ? data : Object.values(data);
+            // Filter out soft-deleted transactions
+            const activeTxList = txList.filter(tx => !tx.deleted);
             // Client-side sort: Newest first
-            return txList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            return activeTxList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         }
         return [];
     } catch (error: any) {
@@ -394,6 +398,40 @@ export const fetchTransactionsByDateRange = async (startDate: string, endDate: s
         if (snapshot.exists()) {
             const data = snapshot.val();
             const txList: Transaction[] = Array.isArray(data) ? data : Object.values(data);
+            // Filter out soft-deleted transactions
+            const activeTxList = txList.filter(tx => !tx.deleted);
+            return activeTxList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        }
+        return [];
+    } catch (error: any) {
+        console.warn("Firebase date-range fetch failed:", error.code);
+        return [];
+    }
+}
+
+// 2d. Fetch Transactions By Date Range (INCLUDING DELETED - for sync purposes)
+export const fetchTransactionsByDateRangeIncludingDeleted = async (startDate: string, endDate: string): Promise<Transaction[]> => {
+    await waitForAuth();
+    if (!db) return [];
+
+    // Construct query parameters
+    // startDate and endDate are expected to be YYYY-MM-DD
+    const startISO = startDate; 
+    const endISO = endDate + "\uf8ff"; 
+
+    try {
+        const txQuery = query(
+            ref(db, TRANSACTIONS_REF), 
+            orderByChild('date'), 
+            startAt(startISO), 
+            endAt(endISO)
+        );
+
+        const snapshot = await get(txQuery);
+        if (snapshot.exists()) {
+            const data = snapshot.val();
+            const txList: Transaction[] = Array.isArray(data) ? data : Object.values(data);
+            // Return ALL transactions including deleted ones (for sync purposes)
             return txList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         }
         return [];
@@ -419,7 +457,9 @@ export const updateTransactionInFirebase = async (transaction: Transaction): Pro
     }
 };
 
-// 4. Delete Transaction
+// 4. Delete Transaction (SOFT DELETE)
+// Marks transaction as deleted instead of removing it.
+// This prevents reappearing issues when worker devices sync their local copies.
 export const deleteTransactionFromFirebase = async (transactionId: string): Promise<boolean> => {
     deleteLocalTransaction(transactionId);
     await waitForAuth();
@@ -427,27 +467,34 @@ export const deleteTransactionFromFirebase = async (transactionId: string): Prom
 
     try {
         const safeId = transactionId.replace(/[.#$/[\]]/g, "_");
-        
-        // 1. Try standard delete (Path based - Fastest)
         const txRef = ref(db, `${TRANSACTIONS_REF}/${safeId}`);
-        await remove(txRef);
         
-        // 2. Robust Check: Scan entire transactions node to find this ID if it's hiding under a different key
-        // This fixes the "Transaction comes back after delete" bug using the same "Search and Destroy" pattern
-        // used for bills, waitlist, and bookings.
+        // SOFT DELETE: Mark as deleted with timestamp instead of removing
+        // This allows the deletion to sync across all devices
+        const deletionMarker = {
+            deleted: true,
+            lastUpdated: Date.now() // Ensure this deletion has the latest timestamp
+        };
+        
+        // 1. Try standard soft delete (Path based - Fastest)
+        await update(txRef, deletionMarker);
+        
+        // 2. Robust Check: Find and mark ALL instances of this transaction as deleted
+        // This fixes cases where the transaction is stored under different keys
         try {
             const snapshot = await get(ref(db, TRANSACTIONS_REF));
             if (snapshot.exists()) {
                 const data = snapshot.val();
                 const keys = Object.keys(data);
-                const updates: Record<string, null> = {};
+                const updates: Record<string, Transaction> = {};
                 let found = false;
 
                 for (const key of keys) {
                     // Check if the object at this key has the matching ID
                     // Need to check both the original ID and the safeId
                     if (data[key]?.id === transactionId || data[key]?.id === safeId) {
-                        updates[key] = null; // Mark for deletion
+                        // Mark as deleted instead of null
+                        updates[key] = { ...data[key], ...deletionMarker };
                         found = true;
                     }
                 }
@@ -462,7 +509,7 @@ export const deleteTransactionFromFirebase = async (transactionId: string): Prom
         
         return true;
     } catch (error: any) {
-        console.warn("Error deleting transaction from Cloud (Local copy deleted):", error.code || error.message);
+        console.warn("Error marking transaction as deleted in Cloud (Local copy deleted):", error.code || error.message);
         return true; 
     }
 };

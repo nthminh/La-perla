@@ -85,6 +85,7 @@ export interface Transaction {
   customerNotes?: string;
   // Conflict Resolution
   lastUpdated?: number; // Epoch timestamp of the last edit
+  deleted?: boolean; // Soft delete flag to prevent reappearing after deletion
 }
 
 export interface ActiveBill {
