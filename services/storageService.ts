@@ -14,7 +14,24 @@ export const saveTransaction = (transaction: Transaction): void => {
   try {
     const existingData = localStorage.getItem(STORAGE_KEY);
     const transactions: Transaction[] = existingData ? JSON.parse(existingData) : [];
-    transactions.push(transaction);
+    
+    // UPSERT: Check if transaction already exists and update it, otherwise add it
+    const existingIndex = transactions.findIndex(t => t.id === transaction.id);
+    if (existingIndex >= 0) {
+      // Update existing transaction (keep the one with the latest timestamp)
+      const existing = transactions[existingIndex];
+      const existingTime = existing.lastUpdated || 0;
+      const newTime = transaction.lastUpdated || 0;
+      
+      // Only update if the new transaction is newer or same age
+      if (newTime >= existingTime) {
+        transactions[existingIndex] = transaction;
+      }
+    } else {
+      // Add new transaction
+      transactions.push(transaction);
+    }
+    
     localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions));
     
     // Auto-update customer profile when a transaction is saved
@@ -25,6 +42,21 @@ export const saveTransaction = (transaction: Transaction): void => {
 };
 
 export const getTransactions = (): Transaction[] => {
+  try {
+    const existingData = localStorage.getItem(STORAGE_KEY);
+    if (!existingData) return [];
+    
+    const transactions: Transaction[] = JSON.parse(existingData);
+    // Filter out soft-deleted transactions from local storage
+    // This ensures deleted transactions don't get re-synced
+    return transactions.filter(t => !t.deleted);
+  } catch (error) {
+    console.error("Failed to load transactions", error);
+    return [];
+  }
+};
+
+export const getAllTransactionsIncludingDeleted = (): Transaction[] => {
   try {
     const existingData = localStorage.getItem(STORAGE_KEY);
     return existingData ? JSON.parse(existingData) : [];
@@ -39,8 +71,15 @@ export const deleteLocalTransaction = (id: string): void => {
         const existingData = localStorage.getItem(STORAGE_KEY);
         if (existingData) {
             const transactions: Transaction[] = JSON.parse(existingData);
+            // Filter removes ALL instances with matching ID (handles duplicates)
             const updated = transactions.filter(t => t.id !== id);
             localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+            
+            // Log if duplicates were found (for debugging)
+            const removedCount = transactions.length - updated.length;
+            if (removedCount > 1) {
+                console.warn(`Removed ${removedCount} duplicate instances of transaction ${id}`);
+            }
         }
     } catch (error) {
         console.error("Failed to delete local transaction", error);
