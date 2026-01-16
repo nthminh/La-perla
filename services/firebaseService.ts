@@ -161,23 +161,16 @@ export const upsertActiveBill = async (bill: ActiveBill): Promise<void> => {
 /**
  * Check if an active bill exists in Firebase
  * Used to prevent duplicate payment processing
- * Optimized to check direct path first before doing full scan
+ * Only checks direct path for optimal performance
  */
 export const checkActiveBillExists = async (billId: string): Promise<boolean> => {
     await waitForAuth();
     if (!db) return false;
     
     try {
-        // Check direct path first (most common case)
+        // Check direct path (standard bill storage location)
         const directSnapshot = await get(ref(db, `${BILLS_REF}/${billId}`));
-        if (directSnapshot.exists()) {
-            return true;
-        }
-        
-        // If not found via direct path, bill likely doesn't exist
-        // Skip the expensive full scan in most cases
-        // Only do full scan if we suspect array index storage (rare)
-        return false;
+        return directSnapshot.exists();
     } catch (e) {
         console.warn("Error checking bill existence:", e);
         return false;
