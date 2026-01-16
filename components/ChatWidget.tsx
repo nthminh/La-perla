@@ -20,7 +20,7 @@ interface Message {
 export const ChatWidget: React.FC<ChatWidgetProps> = ({ t, pricingData, staffList, knowledgeBase }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<Message[]>([
-        { id: '1', role: 'assistant', text: "Chào bạn! Mình là trợ lý ảo của La Perla. Bạn cần hỏi về giá dịch vụ hay tìm thợ nào ạ? ✨" }
+        { id: '1', role: 'assistant', text: "Hello! I'm La Perla's virtual assistant. Would you like to know about our services or find a stylist? ✨" }
     ]);
     const [input, setInput] = useState("");
     const [isThinking, setIsThinking] = useState(false);
@@ -40,7 +40,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ t, pricingData, staffLis
         if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
             const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
             recognitionRef.current = new SpeechRecognition();
-            recognitionRef.current.lang = 'vi-VN';
+            recognitionRef.current.lang = 'en-US';
             recognitionRef.current.onresult = (event: any) => {
                 const transcript = event.results[0][0].transcript;
                 setInput(transcript);
@@ -66,7 +66,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ t, pricingData, staffLis
         window.speechSynthesis.cancel();
         // FIX: SynthesisUtterance corrected to SpeechSynthesisUtterance
         const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'vi-VN';
+        utterance.lang = 'en-US';
         window.speechSynthesis.speak(utterance);
     };
 
@@ -87,15 +87,16 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ t, pricingData, staffLis
             }).join('\n\n');
 
             const systemInstruction = `
-            Bạn là lễ tân AI của tiệm 'La Perla Nails & Beauty' tại Plumpton, NSW.
-            Dữ liệu nhân viên (24 người): Amy, Angela, Chị Hạnh, Chloe, Ellie, Fiona, Hiền, Ivy, Kaylee, Khuê, Lê, Linh, Mỹ Anh, Phượng, Song, Sue, Tâm, Thai, Tina, Trang, Trang Bé, Vivian, Vy, Joe.
-            Bảng giá:
+            You are the AI receptionist of 'La Perla Nails & Beauty' salon in Plumpton, NSW.
+            Staff data (24 people): Amy, Angela, Chị Hạnh, Chloe, Ellie, Fiona, Hiền, Ivy, Kaylee, Khuê, Lê, Linh, Mỹ Anh, Phượng, Song, Sue, Tâm, Thai, Tina, Trang, Trang Bé, Vivian, Vy, Joe.
+            Price list:
             ${priceInfo}
-            Quy tắc: 
-            1. Trả lời bằng ngôn ngữ khách sử dụng (Tiếng Việt hoặc Tiếng Anh). 
-            2. Chỉ báo giá có trong danh sách. Nếu khách hỏi dịch vụ không có, hãy xin lỗi và bảo khách gọi (02) 9625 8194. 
-            3. Nếu khách muốn đặt lịch, hướng dẫn họ vào tab 'Booking' hoặc gọi hotline. 
-            4. Trả lời ngắn gọn, thân thiện, sử dụng emoji.`;
+            Rules: 
+            1. Always respond in English. Prioritize English responses. 
+            2. Only provide prices from the list. If a service is not available, apologize and ask them to call (02) 9625 8194. 
+            3. If customers want to book, guide them to the 'Booking' tab or call the hotline. 
+            4. Keep responses short, friendly, and use emojis.
+            5. NEVER use special formatting characters like ** or __ in your responses. Use plain text only.`;
 
             // FIX: Always use new GoogleGenAI({apiKey: process.env.API_KEY}) directly before call
             const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -108,12 +109,14 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ t, pricingData, staffLis
                 config: { systemInstruction }
             });
 
-            const reply = response.text || "Xin lỗi, mình đang bận một chút, bạn thử lại sau nhé!";
+            const rawReply = response.text || "Sorry, I'm a bit busy right now, please try again later!";
+            // Remove all markdown formatting characters at once
+            const reply = rawReply.replace(/[\*_`~#\[\]]/g, '');
             setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', text: reply }]);
             if (voiceEnabled) speak(reply);
 
         } catch (error) {
-            setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', text: "Lỗi kết nối bộ não AI." }]);
+            setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', text: "AI connection error." }]);
         } finally {
             setIsThinking(false);
         }
@@ -126,7 +129,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ t, pricingData, staffLis
                     <div className="bg-charcoal text-white p-4 flex justify-between items-center">
                         <div className="flex items-center gap-2">
                             <RobotIcon className="w-5 h-5 text-gold-leaf" />
-                            <div><h3 className="font-bold text-sm">La Perla AI</h3><p className="text-[10px] text-gray-400">Online tư vấn 24/7</p></div>
+                            <div><h3 className="font-bold text-sm">La Perla AI</h3><p className="text-[10px] text-gray-400">Online 24/7 Assistant</p></div>
                         </div>
                         <div className="flex gap-2">
                             <button onClick={() => setVoiceEnabled(!voiceEnabled)}>{voiceEnabled ? <VolumeUpIcon className="w-4 h-4"/> : <VolumeOffIcon className="w-4 h-4 text-gray-500"/>}</button>
@@ -141,12 +144,12 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ t, pricingData, staffLis
                                 </div>
                             </div>
                         ))}
-                        {isThinking && <div className="text-xs text-gray-400 italic animate-pulse">La Perla AI đang trả lời...</div>}
+                        {isThinking && <div className="text-xs text-gray-400 italic animate-pulse">La Perla AI is responding...</div>}
                         <div ref={chatEndRef} />
                     </div>
                     <div className="p-3 bg-white border-t flex items-center gap-2">
                         <button onClick={toggleListening} className={`p-2 rounded-full ${isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-gray-100 text-gray-400'}`}><MicIcon className="w-5 h-5" /></button>
-                        <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend()} placeholder="Hỏi giá móng, nối mi..." className="flex-1 bg-gray-50 border rounded-full px-4 py-2 text-sm outline-none focus:ring-1 focus:ring-gold-leaf" />
+                        <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend()} placeholder="Ask about nails, lashes..." className="flex-1 bg-gray-50 border rounded-full px-4 py-2 text-sm outline-none focus:ring-1 focus:ring-gold-leaf" />
                         <button onClick={() => handleSend()} className="p-2 bg-gold-leaf text-white rounded-full"><ArrowRightIcon className="w-5 h-5" /></button>
                     </div>
                 </div>
