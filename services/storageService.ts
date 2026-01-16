@@ -23,7 +23,7 @@ export const saveTransaction = (transaction: Transaction): void => {
       const existingTime = existing.lastUpdated || 0;
       const newTime = transaction.lastUpdated || 0;
       
-      // Only update if the new transaction is newer or same age
+      // Only update if the new transaction is newer or has the same timestamp
       if (newTime >= existingTime) {
         transactions[existingIndex] = transaction;
       }
@@ -48,7 +48,7 @@ export const getTransactions = (): Transaction[] => {
     
     const transactions: Transaction[] = JSON.parse(existingData);
     // Filter out soft-deleted transactions from local storage
-    // This ensures deleted transactions don't get re-synced
+    // This ensures deleted transactions are not returned for normal operations
     return transactions.filter(t => !t.deleted);
   } catch (error) {
     console.error("Failed to load transactions", error);
