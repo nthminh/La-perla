@@ -1182,7 +1182,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
           <div className="fixed bottom-0 left-0 w-full p-4 z-40 animate-slide-up">
               <div className="max-w-3xl mx-auto bg-charcoal text-white rounded-full shadow-2xl p-3 flex justify-between items-center border border-gold-leaf/30 backdrop-blur-md bg-opacity-95">
                   <div className="flex flex-col px-4">
-                      <div className="flex items-center gap-2">{isVip && <StarIcon className="w-3 h-3 text-gold-leaf" filled />}<span className="text-xs text-gold-leaf font-medium uppercase tracking-wider">{customerName || 'Guest'} - {t.total}</span></div>
+                      <div className="flex items-center gap-2">{isVip && <StarIcon className="w-3 h-3 text-gold-leaf" filled />}<span className="text-xs text-gold-leaf font-medium uppercase tracking-wider">{currentBill?.ticketNumber && <span className="font-mono bg-gold-leaf text-charcoal px-1.5 rounded mr-2 text-[10px] align-middle inline-block">{currentBill.ticketNumber}</span>}{customerName || 'Guest'} - {t.total}</span></div>
                       <span className="text-xl font-bold">${finalTotal.toFixed(2)}</span>
                   </div>
                   <button onClick={() => { SoundManager.playTap(); setIsBillOpen(true); }} className="bg-gold-leaf text-white font-sans font-bold py-2 px-6 rounded-full shadow-lg hover:bg-white hover:text-gold-leaf transition-all flex items-center gap-2"><ReceiptIcon className="w-5 h-5" />{t.viewBill} ({cartItemCount})</button>
@@ -1350,7 +1350,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
                           <span>Subtotal: ${cartTotal.toFixed(2)}</span>
                           <div className="flex items-center gap-1"><span>Discount:</span>{isStaffMode && !viewingHistoryBill ? <select value={discountPercentage} onChange={(e) => updateCurrentBill({ discountPercentage: Number(e.target.value) })} className="bg-gray-100 border border-gray-300 rounded px-1 py-0.5 text-xs outline-none focus:border-gold-leaf text-charcoal">{[0,5,10,15,20,25,30].map(v => <option key={v} value={v}>{v}%</option>)}</select> : <span className="text-red-500">{discountPercentage}% (-${discountAmount.toFixed(2)})</span>}</div>
                       </div>
-                      {customerName ? <div className="inline-block bg-gray-100 px-3 py-1 rounded-full text-xs font-bold text-gray-600 flex items-center justify-center gap-2 mx-auto w-fit">{isVip && <StarIcon className="w-3 h-3 text-gold-leaf" filled />}{customerName}</div> : <p className="text-xs text-gray-400 italic">Guest</p>}
+                      {customerName ? <div className="inline-block bg-gray-100 px-3 py-1 rounded-full text-xs font-bold text-gray-600 flex items-center justify-center gap-2 mx-auto w-fit">{targetBill?.ticketNumber && <span className="font-mono bg-black text-white px-1.5 rounded mr-1 text-[10px]">{targetBill.ticketNumber}</span>}{isVip && <StarIcon className="w-3 h-3 text-gold-leaf" filled />}{customerName}</div> : <p className="text-xs text-gray-400 italic">Guest</p>}
                   </div>
                   <div className="flex-1 overflow-y-auto p-4 bg-gray-50 custom-scrollbar">
                       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-4">
