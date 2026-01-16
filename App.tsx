@@ -891,6 +891,7 @@ const MainApp: React.FC = () => {
   // If Kiosk View is active
   if (view === 'kiosk') {
       return (
+          <>
           <KioskView 
             t={t}
             waitlist={waitlist}
@@ -902,6 +903,15 @@ const MainApp: React.FC = () => {
             pastTransactions={customerLookupData} // Pass history to Kiosk
             marqueeSettings={marqueeSettings}
           />
+          <div className="print:hidden">
+            <ChatWidget 
+                t={t}
+                pricingData={pricingData}
+                staffList={staffList}
+                knowledgeBase={knowledgeBase}
+            />
+          </div>
+          </>
       );
   }
 
@@ -1151,18 +1161,6 @@ const MainApp: React.FC = () => {
             />
         )}
       </main>
-      
-      {/* Chat Widget */}
-      {!isGuest && appMode === 'app' && view !== 'admin' && view !== 'portal' && (
-          <div className="print:hidden">
-            <ChatWidget 
-                t={t}
-                pricingData={pricingData}
-                staffList={staffList}
-                knowledgeBase={knowledgeBase}
-            />
-          </div>
-      )}
 
       <footer className="bg-pearl-white text-center p-6 border-t border-gold-leaf/20 mt-auto print:hidden">
          <p className="text-charcoal/60 text-sm font-sans">
