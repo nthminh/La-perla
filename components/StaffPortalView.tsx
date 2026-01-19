@@ -161,6 +161,40 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
     const [dateRange, setDateRange] = useState<'today' | 'week' | 'month' | 'custom'>('today');
     const [customStartDate, setCustomStartDate] = useState<string>('');
     const [customEndDate, setCustomEndDate] = useState<string>('');
+    const [dateError, setDateError] = useState<string>('');
+    
+    // Validate custom date range
+    const validateCustomDateRange = (start: string, end: string) => {
+        if (!start || !end) {
+            setDateError('Please select both start and end dates');
+            return false;
+        }
+        if (start > end) {
+            setDateError('Start date cannot be after end date');
+            return false;
+        }
+        const today = getSydneyDateStr(new Date().toISOString());
+        if (start > today || end > today) {
+            setDateError('Cannot select future dates');
+            return false;
+        }
+        setDateError('');
+        return true;
+    };
+    
+    const handleCustomStartDateChange = (value: string) => {
+        setCustomStartDate(value);
+        if (value && customEndDate) {
+            validateCustomDateRange(value, customEndDate);
+        }
+    };
+    
+    const handleCustomEndDateChange = (value: string) => {
+        setCustomEndDate(value);
+        if (customStartDate && value) {
+            validateCustomDateRange(customStartDate, value);
+        }
+    };
     
     // Subscribe to real-time data when in Earnings tab
     useEffect(() => {
@@ -759,7 +793,7 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
                         {/* Date Range Selector */}
                         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
                             <label className="block text-xs font-bold text-gold-leaf uppercase mb-3">Period</label>
-                            <div className="grid grid-cols-2 gap-2 mb-3">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
                                 <button 
                                     onClick={() => setDateRange('today')}
                                     className={`py-2.5 px-4 rounded-xl text-sm font-bold transition-all ${
@@ -804,13 +838,14 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
                             
                             {/* Custom Date Range Inputs */}
                             {dateRange === 'custom' && (
-                                <div className="space-y-3 p-3 bg-gray-50 rounded-xl border border-gray-200 animate-fade-in">
+                                <div className="space-y-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
                                     <div>
                                         <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Start Date</label>
                                         <input 
                                             type="date" 
                                             value={customStartDate}
-                                            onChange={(e) => setCustomStartDate(e.target.value)}
+                                            max={getSydneyDateStr(new Date().toISOString())}
+                                            onChange={(e) => handleCustomStartDateChange(e.target.value)}
                                             className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-gold-leaf focus:ring-2 focus:ring-gold-leaf/20 outline-none text-sm"
                                         />
                                     </div>
@@ -819,13 +854,19 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
                                         <input 
                                             type="date" 
                                             value={customEndDate}
-                                            onChange={(e) => setCustomEndDate(e.target.value)}
+                                            max={getSydneyDateStr(new Date().toISOString())}
+                                            onChange={(e) => handleCustomEndDateChange(e.target.value)}
                                             className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-gold-leaf focus:ring-2 focus:ring-gold-leaf/20 outline-none text-sm"
                                         />
                                     </div>
-                                    {customStartDate && customEndDate && (
-                                        <p className="text-xs text-gray-500 text-center">
-                                            Showing data from {customStartDate} to {customEndDate}
+                                    {dateError && (
+                                        <p className="text-xs text-red-500 font-bold text-center">
+                                            {dateError}
+                                        </p>
+                                    )}
+                                    {customStartDate && customEndDate && !dateError && (
+                                        <p className="text-xs text-green-600 font-medium text-center">
+                                            ✓ Showing data from {customStartDate} to {customEndDate}
                                         </p>
                                     )}
                                 </div>
