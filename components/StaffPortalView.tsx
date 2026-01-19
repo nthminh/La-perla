@@ -37,7 +37,7 @@ const getSydneyDayName = (isoDate: string) => {
 };
 
 // Get date range start and end dates in Sydney Time
-const getDateRange = (range: 'today' | 'week' | 'month') => {
+const getDateRange = (range: 'today' | 'week' | 'month' | 'custom', customStart?: string, customEnd?: string) => {
     const now = new Date();
     const sydneyToday = getSydneyDateStr(now.toISOString());
     
@@ -57,15 +57,24 @@ const getDateRange = (range: 'today' | 'week' | 'month') => {
         return { start: getSydneyDateStr(monthAgo.toISOString()), end: sydneyToday };
     }
     
+    if (range === 'custom' && customStart && customEnd) {
+        return { start: customStart, end: customEnd };
+    }
+    
     return { start: sydneyToday, end: sydneyToday };
 };
 
 // Get label for date range
-const getDateRangeLabel = (range: 'today' | 'week' | 'month'): string => {
+const getDateRangeLabel = (range: 'today' | 'week' | 'month' | 'custom', customStart?: string, customEnd?: string): string => {
     switch (range) {
         case 'today': return 'Today';
         case 'week': return 'Last 7 Days';
         case 'month': return 'Last 30 Days';
+        case 'custom': 
+            if (customStart && customEnd) {
+                return `${customStart} to ${customEnd}`;
+            }
+            return 'Custom Range';
         default: return 'Today';
     }
 };
@@ -149,7 +158,47 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
     const [cloudTransactions, setCloudTransactions] = useState<Transaction[]>([]);
     
     // Date Range State
-    const [dateRange, setDateRange] = useState<'today' | 'week' | 'month'>('today');
+    const [dateRange, setDateRange] = useState<'today' | 'week' | 'month' | 'custom'>('today');
+    const [customStartDate, setCustomStartDate] = useState<string>('');
+    const [customEndDate, setCustomEndDate] = useState<string>('');
+    const [dateError, setDateError] = useState<string>('');
+    
+    // Memoize today's date in Sydney timezone for validation
+    const sydneyToday = useMemo(() => getSydneyDateStr(new Date().toISOString()), []);
+    
+    // Validate custom date range
+    const validateCustomDateRange = (start: string, end: string) => {
+        if (!start || !end) {
+            setDateError('Please select both start and end dates');
+            return false;
+        }
+        if (start > end) {
+            setDateError('Start date cannot be after end date');
+            return false;
+        }
+        if (start > sydneyToday || end > sydneyToday) {
+            setDateError('Cannot select future dates');
+            return false;
+        }
+        setDateError('');
+        return true;
+    };
+    
+    // Unified date change handler
+    const handleCustomDateChange = (dateType: 'start' | 'end', value: string) => {
+        if (dateType === 'start') {
+            setCustomStartDate(value);
+        } else {
+            setCustomEndDate(value);
+        }
+        
+        // Validate when both dates are available
+        const start = dateType === 'start' ? value : customStartDate;
+        const end = dateType === 'end' ? value : customEndDate;
+        if (start && end) {
+            validateCustomDateRange(start, end);
+        }
+    };
     
     // Subscribe to real-time data when in Earnings tab
     useEffect(() => {
@@ -185,7 +234,7 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
         const allTransactions = Array.from(txMap.values());
         
         // 3. Calculate date range in Sydney Time
-        const { start: startDate, end: endDate } = getDateRange(dateRange);
+        const { start: startDate, end: endDate } = getDateRange(dateRange, customStartDate, customEndDate);
 
         const myItems: {
             displayTime: string;
@@ -261,7 +310,7 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
         // Sort by Time Descending (Newest first)
         return myItems.sort((a, b) => b.sortTime - a.sortTime);
 
-    }, [cloudTransactions, currentUser.id, currentUser.name, t.serviceNames, dateRange]);
+    }, [cloudTransactions, currentUser.id, currentUser.name, t.serviceNames, dateRange, customStartDate, customEndDate]);
 
     const handleAddTag = () => {
         const tag = newTag.trim();
@@ -748,7 +797,7 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
                         {/* Date Range Selector */}
                         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
                             <label className="block text-xs font-bold text-gold-leaf uppercase mb-3">Period</label>
-                            <div className="grid grid-cols-3 gap-2">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
                                 <button 
                                     onClick={() => setDateRange('today')}
                                     className={`py-2.5 px-4 rounded-xl text-sm font-bold transition-all ${
@@ -779,7 +828,53 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
                                 >
                                     Last 30 Days
                                 </button>
+                                <button 
+                                    onClick={() => setDateRange('custom')}
+                                    className={`py-2.5 px-4 rounded-xl text-sm font-bold transition-all ${
+                                        dateRange === 'custom' 
+                                            ? 'bg-gold-leaf text-white shadow-md' 
+                                            : 'bg-gray-50 text-charcoal border border-gray-200 hover:border-gold-leaf'
+                                    }`}
+                                >
+                                    Custom Range
+                                </button>
                             </div>
+                            
+                            {/* Custom Date Range Inputs */}
+                            {dateRange === 'custom' && (
+                                <div className="space-y-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Start Date</label>
+                                        <input 
+                                            type="date" 
+                                            value={customStartDate}
+                                            max={sydneyToday}
+                                            onChange={(e) => handleCustomDateChange('start', e.target.value)}
+                                            className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-gold-leaf focus:ring-2 focus:ring-gold-leaf/20 outline-none text-sm"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-600 uppercase mb-1">End Date</label>
+                                        <input 
+                                            type="date" 
+                                            value={customEndDate}
+                                            max={sydneyToday}
+                                            onChange={(e) => handleCustomDateChange('end', e.target.value)}
+                                            className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-gold-leaf focus:ring-2 focus:ring-gold-leaf/20 outline-none text-sm"
+                                        />
+                                    </div>
+                                    {dateError && (
+                                        <p className="text-xs text-red-500 font-bold text-center">
+                                            {dateError}
+                                        </p>
+                                    )}
+                                    {customStartDate && customEndDate && !dateError && (
+                                        <p className="text-xs text-green-600 font-medium text-center">
+                                            ✓ Showing data from {customStartDate} to {customEndDate}
+                                        </p>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                         {isLoadingEarnings && dailyTransactions.length === 0 ? (
@@ -793,7 +888,7 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
                                             <div className="flex justify-between items-start mb-4">
                                                 <div>
                                                     <p className="text-gold-leaf text-xs font-bold uppercase tracking-widest mb-1">
-                                                        Total Revenue {getDateRangeLabel(dateRange)}
+                                                        Total Revenue {getDateRangeLabel(dateRange, customStartDate, customEndDate)}
                                                     </p>
                                                     <h3 className="text-4xl font-serif font-bold text-white">${totalRevenue.toFixed(2)}</h3>
                                                 </div>
@@ -849,7 +944,7 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
                                     <div className="bg-gradient-to-br from-charcoal to-gray-800 text-white p-6 rounded-3xl shadow-xl border border-gold-leaf/20 relative overflow-hidden">
                                         <div className="relative z-10">
                                             <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">
-                                                {getDateRangeLabel(dateRange)} Revenue
+                                                {getDateRangeLabel(dateRange, customStartDate, customEndDate)} Revenue
                                             </p>
                                             <h3 className="text-5xl font-serif font-bold text-gold-leaf mb-2">${totalRevenue.toFixed(2)}</h3>
                                             <div className="inline-flex items-center gap-2 bg-white/10 px-3 py-1 rounded-full text-sm font-medium text-gray-300">
@@ -878,7 +973,7 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
                                                     <ReceiptIcon className="w-6 h-6 text-gray-300" />
                                                 </div>
                                                 <p className="text-sm font-medium">
-                                                    No services found for {getDateRangeLabel(dateRange).toLowerCase()}.
+                                                    No services found for {getDateRangeLabel(dateRange, customStartDate, customEndDate).toLowerCase()}.
                                                 </p>
                                                 <p className="text-xs mt-1">Assignments will appear here automatically.</p>
                                             </div>

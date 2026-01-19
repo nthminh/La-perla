@@ -1383,8 +1383,64 @@ export const PricingView: React.FC<PricingViewProps> = ({
       {showHistoryModal && (
         <div className="fixed inset-0 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" style={{ zIndex: 100 }}>
             <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
-                 <div className="bg-white p-4 flex justify-between items-center border-b border-gray-200"><h3 className="text-xl font-serif font-bold text-charcoal flex items-center gap-2"><ReceiptIcon className="w-6 h-6 text-gold-leaf" />{t.recentTransactions}</h3><button onClick={() => setShowHistoryModal(false)} className="text-charcoal/60 hover:text-charcoal"><XMarkIcon className="w-6 h-6" /></button></div>
-                 <div className="p-4 overflow-y-auto flex-grow bg-white custom-scrollbar">{isLoadingHistory ? <div className="text-center py-10"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gold-leaf mx-auto mb-4"></div><p className="text-sm text-gray-500">Syncing with Firebase...</p></div> : recentTransactions.length === 0 ? <div className="text-center py-10 opacity-50"><ReceiptIcon className="w-12 h-12 mx-auto mb-2 text-gray-300" /><p>No recent transactions found today.</p></div> : <div className="divide-y divide-gray-100">{recentTransactions.map((tx) => { const sydneyDate = formatDateSydney(tx.date); return <div key={tx.id} onClick={() => handleViewHistoryItem(tx)} className="flex justify-between items-start py-3 cursor-pointer group hover:bg-gray-50 px-2 rounded-lg transition-colors"><div><p className="font-bold text-charcoal text-base group-hover:text-gold-leaf transition-colors">${tx.total.toFixed(2)}{tx.customerName && <span className="ml-2 font-normal text-gray-500 text-sm">- {tx.customerName}</span>}</p><p className="text-xs text-charcoal/50 mt-1">{sydneyDate.time}</p><p className="text-[10px] text-gray-400 mt-0.5">{tx.items.length} items {tx.discountPercentage ? `(-${tx.discountPercentage}%)` : ''}</p></div></div>; })}</div>}</div>
+                 <div className="bg-white p-4 flex justify-between items-center border-b border-gray-200">
+                    <h3 className="text-xl font-serif font-bold text-charcoal flex items-center gap-2">
+                        <ReceiptIcon className="w-6 h-6 text-gold-leaf" />
+                        {t.recentTransactions}
+                    </h3>
+                    <button onClick={() => setShowHistoryModal(false)} className="text-charcoal/60 hover:text-charcoal">
+                        <XMarkIcon className="w-6 h-6" />
+                    </button>
+                </div>
+                 <div className="p-4 overflow-y-auto flex-grow bg-white custom-scrollbar">
+                    {isLoadingHistory ? (
+                        <div className="text-center py-10">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gold-leaf mx-auto mb-4"></div>
+                            <p className="text-sm text-gray-500">Syncing with Firebase...</p>
+                        </div>
+                    ) : recentTransactions.length === 0 ? (
+                        <div className="text-center py-10 opacity-50">
+                            <ReceiptIcon className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                            <p>No recent transactions found today.</p>
+                        </div>
+                    ) : (
+                        <div className="divide-y divide-gray-100">
+                            {recentTransactions.map((tx, index) => {
+                                const sydneyDate = formatDateSydney(tx.date);
+                                // Sequential display number showing position in current filtered/sorted list
+                                // This number represents the order in which transactions appear on screen
+                                // and will reset when the modal is reopened or the data is refreshed
+                                const orderNumber = index + 1;
+                                return (
+                                    <div 
+                                        key={tx.id} 
+                                        onClick={() => handleViewHistoryItem(tx)} 
+                                        className="flex items-start gap-3 py-3 cursor-pointer group hover:bg-gray-50 px-2 rounded-lg transition-colors"
+                                    >
+                                        {/* Order Number */}
+                                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gold-leaf/10 flex items-center justify-center">
+                                            <span className="text-xs font-bold text-gold-leaf">#{orderNumber}</span>
+                                        </div>
+                                        
+                                        {/* Transaction Details */}
+                                        <div className="flex-grow">
+                                            <p className="font-bold text-charcoal text-base group-hover:text-gold-leaf transition-colors">
+                                                ${tx.total.toFixed(2)}
+                                                {tx.customerName && (
+                                                    <span className="ml-2 font-normal text-gray-500 text-sm">- {tx.customerName}</span>
+                                                )}
+                                            </p>
+                                            <p className="text-xs text-charcoal/50 mt-1">{sydneyDate.time}</p>
+                                            <p className="text-[10px] text-gray-400 mt-0.5">
+                                                {tx.items.length} items {tx.discountPercentage ? `(-${tx.discountPercentage}%)` : ''}
+                                            </p>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
       )}
