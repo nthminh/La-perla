@@ -1409,8 +1409,8 @@ export const PricingView: React.FC<PricingViewProps> = ({
                         <div className="divide-y divide-gray-100">
                             {recentTransactions.map((tx, index) => {
                                 const sydneyDate = formatDateSydney(tx.date);
-                                // Use actual ticket number if available, otherwise fallback to sequential index
-                                const displayNumber = tx.ticketNumber || `#${index + 1}`;
+                                // Use actual ticket number if available, otherwise fallback to sequential order number (A01, A02, etc.)
+                                const displayNumber = tx.ticketNumber || `A${String(index + 1).padStart(2, '0')}`;
                                 return (
                                     <div 
                                         key={tx.id} 
