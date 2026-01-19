@@ -1407,8 +1407,9 @@ export const PricingView: React.FC<PricingViewProps> = ({
                         <div className="divide-y divide-gray-100">
                             {recentTransactions.map((tx, index) => {
                                 const sydneyDate = formatDateSydney(tx.date);
-                                // Sequential display order number (1-based index for visual purposes)
-                                // Note: This is for display only and will change if transactions are filtered/reordered
+                                // Sequential display number showing position in current filtered/sorted list
+                                // This number represents the order in which transactions appear on screen
+                                // and will reset when the modal is reopened or the data is refreshed
                                 const orderNumber = index + 1;
                                 return (
                                     <div 

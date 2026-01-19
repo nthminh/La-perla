@@ -163,6 +163,9 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
     const [customEndDate, setCustomEndDate] = useState<string>('');
     const [dateError, setDateError] = useState<string>('');
     
+    // Memoize today's date in Sydney timezone for validation
+    const sydneyToday = useMemo(() => getSydneyDateStr(new Date().toISOString()), []);
+    
     // Validate custom date range
     const validateCustomDateRange = (start: string, end: string) => {
         if (!start || !end) {
@@ -173,8 +176,7 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
             setDateError('Start date cannot be after end date');
             return false;
         }
-        const today = getSydneyDateStr(new Date().toISOString());
-        if (start > today || end > today) {
+        if (start > sydneyToday || end > sydneyToday) {
             setDateError('Cannot select future dates');
             return false;
         }
@@ -182,17 +184,18 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
         return true;
     };
     
-    const handleCustomStartDateChange = (value: string) => {
-        setCustomStartDate(value);
-        if (value && customEndDate) {
-            validateCustomDateRange(value, customEndDate);
-        }
-    };
-    
-    const handleCustomEndDateChange = (value: string) => {
-        setCustomEndDate(value);
-        if (customStartDate && value) {
-            validateCustomDateRange(customStartDate, value);
+    // Unified date change handler
+    const handleCustomDateChange = (dateType: 'start' | 'end', value: string) => {
+        if (dateType === 'start') {
+            setCustomStartDate(value);
+            if (value && customEndDate) {
+                validateCustomDateRange(value, customEndDate);
+            }
+        } else {
+            setCustomEndDate(value);
+            if (customStartDate && value) {
+                validateCustomDateRange(customStartDate, value);
+            }
         }
     };
     
@@ -845,7 +848,7 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
                                             type="date" 
                                             value={customStartDate}
                                             max={getSydneyDateStr(new Date().toISOString())}
-                                            onChange={(e) => handleCustomStartDateChange(e.target.value)}
+                                            onChange={(e) => handleCustomDateChange('start', e.target.value)}
                                             className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-gold-leaf focus:ring-2 focus:ring-gold-leaf/20 outline-none text-sm"
                                         />
                                     </div>
@@ -855,7 +858,7 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
                                             type="date" 
                                             value={customEndDate}
                                             max={getSydneyDateStr(new Date().toISOString())}
-                                            onChange={(e) => handleCustomEndDateChange(e.target.value)}
+                                            onChange={(e) => handleCustomDateChange('end', e.target.value)}
                                             className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-gold-leaf focus:ring-2 focus:ring-gold-leaf/20 outline-none text-sm"
                                         />
                                     </div>
