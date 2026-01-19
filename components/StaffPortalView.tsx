@@ -188,14 +188,15 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
     const handleCustomDateChange = (dateType: 'start' | 'end', value: string) => {
         if (dateType === 'start') {
             setCustomStartDate(value);
-            if (value && customEndDate) {
-                validateCustomDateRange(value, customEndDate);
-            }
         } else {
             setCustomEndDate(value);
-            if (customStartDate && value) {
-                validateCustomDateRange(customStartDate, value);
-            }
+        }
+        
+        // Validate when both dates are available
+        const start = dateType === 'start' ? value : customStartDate;
+        const end = dateType === 'end' ? value : customEndDate;
+        if (start && end) {
+            validateCustomDateRange(start, end);
         }
     };
     
