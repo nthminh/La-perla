@@ -847,7 +847,7 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
                                         <input 
                                             type="date" 
                                             value={customStartDate}
-                                            max={getSydneyDateStr(new Date().toISOString())}
+                                            max={sydneyToday}
                                             onChange={(e) => handleCustomDateChange('start', e.target.value)}
                                             className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-gold-leaf focus:ring-2 focus:ring-gold-leaf/20 outline-none text-sm"
                                         />
@@ -857,7 +857,7 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
                                         <input 
                                             type="date" 
                                             value={customEndDate}
-                                            max={getSydneyDateStr(new Date().toISOString())}
+                                            max={sydneyToday}
                                             onChange={(e) => handleCustomDateChange('end', e.target.value)}
                                             className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-gold-leaf focus:ring-2 focus:ring-gold-leaf/20 outline-none text-sm"
                                         />
