@@ -878,6 +878,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
         const transactionId = `tx_${currentBillId}`;
         
         const items: TransactionItem[] = cartItems.map(({ id, ...rest }) => rest);
+        const currentBill = activeBills.find(b => b.id === currentBillId);
         const transaction = { 
             id: transactionId, 
             date: new Date().toISOString(), 
@@ -887,7 +888,8 @@ export const PricingView: React.FC<PricingViewProps> = ({
             customerName, 
             customerPhone, 
             customerNotes, 
-            lastUpdated: Date.now() 
+            lastUpdated: Date.now(),
+            ticketNumber: currentBill?.ticketNumber
         };
         
         // Save locally first
@@ -1407,10 +1409,8 @@ export const PricingView: React.FC<PricingViewProps> = ({
                         <div className="divide-y divide-gray-100">
                             {recentTransactions.map((tx, index) => {
                                 const sydneyDate = formatDateSydney(tx.date);
-                                // Sequential display number showing position in current filtered/sorted list
-                                // This number represents the order in which transactions appear on screen
-                                // and will reset when the modal is reopened or the data is refreshed
-                                const orderNumber = index + 1;
+                                // Use actual ticket number if available, otherwise fallback to sequential index
+                                const displayNumber = tx.ticketNumber || `#${index + 1}`;
                                 return (
                                     <div 
                                         key={tx.id} 
@@ -1419,7 +1419,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
                                     >
                                         {/* Order Number */}
                                         <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gold-leaf/10 flex items-center justify-center">
-                                            <span className="text-xs font-bold text-gold-leaf">#{orderNumber}</span>
+                                            <span className="text-xs font-bold text-gold-leaf">{displayNumber}</span>
                                         </div>
                                         
                                         {/* Transaction Details */}
