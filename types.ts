@@ -86,6 +86,7 @@ export interface Transaction {
   // Conflict Resolution
   lastUpdated?: number; // Epoch timestamp of the last edit
   deleted?: boolean; // Soft delete flag to prevent reappearing after deletion
+  ticketNumber?: string; // Queue Ticket Number from ActiveBill (e.g. #A01)
 }
 
 export interface ActiveBill {
