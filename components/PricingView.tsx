@@ -382,12 +382,11 @@ export const PricingView: React.FC<PricingViewProps> = ({
       SoundManager.playTap();
       
       // Open cash drawer before printing
-      try {
-          await openCashDrawer();
+      const drawerOpened = await openCashDrawer();
+      if (drawerOpened) {
           console.log('Cash drawer opened successfully');
-      } catch (error) {
-          console.error('Failed to open cash drawer:', error);
-          // Continue with printing even if drawer fails to open
+      } else {
+          console.warn('Failed to open cash drawer, continuing with print');
       }
       
       window.print();

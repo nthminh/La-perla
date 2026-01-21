@@ -69,7 +69,9 @@ export class CashDrawerManager {
 
         // Clean up after printing
         setTimeout(() => {
-          document.body.removeChild(iframe);
+          if (iframe.parentNode) {
+            document.body.removeChild(iframe);
+          }
         }, 1000);
       }
 
@@ -94,7 +96,7 @@ export class CashDrawerManager {
       }
 
       // Request access to serial port (RJ12/USB printer)
-      const port = await (navigator as any).serial.requestPort();
+      const port = await (navigator as Navigator & { serial: any }).serial.requestPort();
       await port.open({ baudRate: 9600 });
 
       // ESC/POS command to open drawer
