@@ -56,6 +56,7 @@ import {
 import { saveTransaction, searchCustomers, getTransactions } from '../services/storageService';
 import { SoundManager } from '../utils/sound';
 import { SHOP_LOCATION } from '../constants';
+import { openCashDrawer } from '../utils/cashDrawer';
 
 export interface PricingViewProps {
   t: Translation;
@@ -377,8 +378,17 @@ export const PricingView: React.FC<PricingViewProps> = ({
         return `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(appUrl)}`;
   };
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
       SoundManager.playTap();
+      
+      // Open cash drawer before printing
+      const drawerOpened = await openCashDrawer();
+      if (drawerOpened) {
+          console.log('Cash drawer opened successfully');
+      } else {
+          console.warn('Failed to open cash drawer, continuing with print');
+      }
+      
       window.print();
   };
 
@@ -1377,7 +1387,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
                       )}
                       {groupedCartItems.length > 0 && <div className="text-center p-4 bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col items-center justify-center"><p className="text-[10px] uppercase font-bold text-gray-400 mb-2">Scan for Receipt</p><img src={getQrCodeUrl()} alt="Receipt QR" className="w-32 h-32" /></div>}
                   </div>
-                  <div className="bg-white p-4 border-t border-gray-100 space-y-3"><div className="flex gap-2"><button onClick={() => handleDownloadBill()} className="flex-1 py-3 bg-gray-100 text-charcoal font-bold rounded-xl hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 text-sm"><DownloadIcon className="w-5 h-5" />Save Receipt</button><button onClick={handlePrint} className="flex-1 py-3 bg-gray-100 text-charcoal font-bold rounded-xl hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 text-sm"><PrinterIcon className="w-5 h-5" />Print</button></div>{isStaffMode && !viewingHistoryBill && <button onClick={handleCompletePayment} disabled={isSaving} className="w-full py-3 bg-charcoal text-white font-bold rounded-xl shadow-lg hover:bg-black transition-colors disabled:opacity-50">{isSaving ? "Processing..." : t.completePayment}</button>}</div>
+                  <div className="bg-white p-4 border-t border-gray-100 space-y-3"><div className="flex gap-2"><button onClick={() => handleDownloadBill()} className="flex-1 py-3 bg-gray-100 text-charcoal font-bold rounded-xl hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 text-sm"><DownloadIcon className="w-5 h-5" />Save Receipt</button><button onClick={handlePrint} className="flex-1 py-3 bg-gray-100 text-charcoal font-bold rounded-xl hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 text-sm"><PrinterIcon className="w-5 h-5" />Open / Print</button></div>{isStaffMode && !viewingHistoryBill && <button onClick={handleCompletePayment} disabled={isSaving} className="w-full py-3 bg-charcoal text-white font-bold rounded-xl shadow-lg hover:bg-black transition-colors disabled:opacity-50">{isSaving ? "Processing..." : t.completePayment}</button>}</div>
               </div>
           </div>
       )}
