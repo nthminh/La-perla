@@ -6,6 +6,9 @@ import { DEFAULT_GLOBAL_PAYROLL, DEFAULT_ADMIN_PASSWORDS, DEFAULT_MARQUEE_SETTIN
 import { deleteLocalTransaction, clearTransactions, pruneOldLocalTransactions } from "./storageService";
 import { logger } from "../utils/logger";
 
+// Confirmation text required for dangerous operations
+const DELETE_ALL_CONFIRMATION = "DELETE ALL TRANSACTIONS";
+
 // Đường dẫn lưu trữ trong database
 const BILLS_REF = "systemState/activeBills";
 const WAITLIST_REF = "systemState/waitlist";
@@ -547,7 +550,26 @@ export const deleteTransactionFromFirebase = async (transactionId: string): Prom
     }
 };
 
-export const deleteAllTransactions = async (): Promise<boolean> => {
+/**
+ * ⚠️ DANGEROUS: Deletes ALL transactions from Firebase and local storage
+ * This function should ONLY be called with explicit user confirmation
+ * Use deleteTransactionFromFirebase() for individual transaction deletion
+ * 
+ * @param confirmationText - Must be DELETE_ALL_CONFIRMATION constant to proceed
+ * @returns Promise<boolean> - true if successful, false if confirmation failed
+ */
+export const deleteAllTransactions = async (confirmationText: string): Promise<boolean> => {
+    // SAFETY CHECK: Require explicit confirmation text
+    if (confirmationText !== DELETE_ALL_CONFIRMATION) {
+        logger.error("deleteAllTransactions() called without proper confirmation - BLOCKED");
+        console.error(`❌ BLOCKED: deleteAllTransactions() requires confirmation text '${DELETE_ALL_CONFIRMATION}'`);
+        return false;
+    }
+
+    // Log the dangerous operation
+    logger.warn("⚠️ CRITICAL: Deleting ALL transactions from database");
+    console.warn("⚠️ CRITICAL: Proceeding to delete ALL transactions...");
+
     clearTransactions();
     await waitForAuth();
     if (!db) return true;
@@ -555,10 +577,13 @@ export const deleteAllTransactions = async (): Promise<boolean> => {
     try {
         const txRef = ref(db, TRANSACTIONS_REF);
         await remove(txRef);
+        logger.warn("✅ All transactions deleted from Firebase");
+        console.warn("✅ All transactions deleted successfully");
         return true;
     } catch (error: any) {
-        console.warn("Error deleting all transactions from Cloud:", error.message);
-        return true;
+        logger.error("Error deleting all transactions from Cloud:", error.message);
+        console.error("Error deleting all transactions from Cloud:", error.message);
+        return false;
     }
 };
 
