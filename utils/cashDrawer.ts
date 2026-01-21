@@ -35,6 +35,12 @@ export class CashDrawerManager {
         .map(byte => String.fromCharCode(byte))
         .join('');
 
+      // Remove any existing cash drawer command element first to avoid duplicate IDs
+      const existingElement = document.getElementById('cash-drawer-command');
+      if (existingElement) {
+        existingElement.remove();
+      }
+
       // Create a hidden element in the main document that will be included when window.print() is called
       // This ensures the cash drawer command is sent with the actual invoice print job
       const hiddenElement = document.createElement('div');
@@ -45,13 +51,13 @@ export class CashDrawerManager {
       // Add to document body
       document.body.appendChild(hiddenElement);
 
-      // Clean up after a short delay (will be printed with the main document)
+      // Clean up after printing completes (500ms is sufficient for the print dialog to capture the content)
       setTimeout(() => {
         const element = document.getElementById('cash-drawer-command');
-        if (element && element.parentNode) {
-          document.body.removeChild(element);
+        if (element) {
+          element.remove();
         }
-      }, 2000);
+      }, 500);
 
       console.log('Cash drawer command prepared for next print job');
       return true;
