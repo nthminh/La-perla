@@ -136,19 +136,22 @@ export const deleteAllTransactions = async (): Promise<boolean> => {
 
 **After:**
 ```typescript
+// Confirmation text required for dangerous operations
+const DELETE_ALL_CONFIRMATION = "DELETE ALL TRANSACTIONS";
+
 /**
  * ⚠️ DANGEROUS: Deletes ALL transactions from Firebase and local storage
  * This function should ONLY be called with explicit user confirmation
  * Use deleteTransactionFromFirebase() for individual transaction deletion
  * 
- * @param confirmationText - Must be "DELETE ALL TRANSACTIONS" to proceed
+ * @param confirmationText - Must be DELETE_ALL_CONFIRMATION constant to proceed
  * @returns Promise<boolean> - true if successful, false if confirmation failed
  */
-export const deleteAllTransactions = async (confirmationText?: string): Promise<boolean> => {
+export const deleteAllTransactions = async (confirmationText: string): Promise<boolean> => {
     // SAFETY CHECK: Require explicit confirmation text
-    if (confirmationText !== "DELETE ALL TRANSACTIONS") {
+    if (confirmationText !== DELETE_ALL_CONFIRMATION) {
         logger.error("deleteAllTransactions() called without proper confirmation - BLOCKED");
-        console.error("❌ BLOCKED: deleteAllTransactions() requires confirmation text 'DELETE ALL TRANSACTIONS'");
+        console.error(`❌ BLOCKED: deleteAllTransactions() requires confirmation text '${DELETE_ALL_CONFIRMATION}'`);
         return false;
     }
 
@@ -168,18 +171,19 @@ export const deleteAllTransactions = async (confirmationText?: string): Promise<
         return true;
     } catch (error: any) {
         logger.error("Error deleting all transactions from Cloud:", error.message);
-        console.warn("Error deleting all transactions from Cloud:", error.message);
+        console.error("Error deleting all transactions from Cloud:", error.message);
         return false;
     }
 };
 ```
 
 **Key Changes:**
-1. ✅ Requires confirmation text parameter
-2. ✅ Blocks execution without confirmation
-3. ✅ Adds comprehensive logging
-4. ✅ Returns false on unauthorized attempts
-5. ✅ Documents the danger clearly
+1. ✅ Added named constant `DELETE_ALL_CONFIRMATION` for maintainability
+2. ✅ Made confirmationText a REQUIRED parameter (not optional)
+3. ✅ Blocks execution without exact confirmation constant
+4. ✅ Adds comprehensive logging with proper error levels
+5. ✅ Returns false on unauthorized attempts or errors
+6. ✅ Documents the danger clearly with detailed JSDoc
 
 ## 🎯 NEXT STEPS FOR USER
 
