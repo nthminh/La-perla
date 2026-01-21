@@ -54,6 +54,10 @@ View your app in AI Studio: https://ai.studio/apps/drive/1Ay5kinG8NgbB3wU-5ZvKuk
 
 ## 📚 Documentation
 
+### 🆘 Emergency Data Recovery
+- **[🆘 Emergency Data Recovery (Vietnamese)](./DATA_RECOVERY_GUIDE_VI.md)** - **NEW!** Hướng dẫn phục hồi dữ liệu khẩn cấp
+- **[🆘 Emergency Data Recovery (English)](./DATA_RECOVERY_GUIDE_EN.md)** - **NEW!** Emergency data recovery guide
+
 ### 🆕 Backup & Restore
 - **[🔄 Backup & Restore Guide (Vietnamese)](./FIREBASE_BACKUP_RESTORE_VI.md)** - **NEW!** Sao lưu & phục hồi Firebase
 - **[🔄 Backup & Restore Guide (English)](./FIREBASE_BACKUP_RESTORE_EN.md)** - **NEW!** Firebase backup & restore
