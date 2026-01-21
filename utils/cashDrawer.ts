@@ -16,7 +16,7 @@
 export class CashDrawerManager {
   /**
    * Opens the cash drawer by sending ESC/POS commands through the printer
-   * This works by embedding the drawer kick command in a print job
+   * This works by embedding the drawer kick command that will be sent with the next print job
    */
   static async openDrawer(): Promise<boolean> {
     try {
@@ -35,50 +35,34 @@ export class CashDrawerManager {
         .map(byte => String.fromCharCode(byte))
         .join('');
 
-      // Create a hidden iframe to send the print command
-      const iframe = document.createElement('iframe');
-      iframe.style.position = 'absolute';
-      iframe.style.width = '0';
-      iframe.style.height = '0';
-      iframe.style.border = 'none';
-      document.body.appendChild(iframe);
-
-      const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-      if (iframeDoc) {
-        iframeDoc.open();
-        iframeDoc.write(`
-          <html>
-          <head>
-            <style>
-              @page { margin: 0; size: auto; }
-              body { margin: 0; }
-            </style>
-          </head>
-          <body>
-            <pre style="display: none;">${commandString}</pre>
-          </body>
-          </html>
-        `);
-        iframeDoc.close();
-
-        // Wait a moment for the document to be ready
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        // Trigger print which will send the ESC/POS command to the printer
-        iframe.contentWindow?.print();
-
-        // Clean up after printing
-        setTimeout(() => {
-          if (iframe.parentNode) {
-            document.body.removeChild(iframe);
-          }
-        }, 1000);
+      // Remove any existing cash drawer command element first to avoid duplicate IDs
+      const existingElement = document.getElementById('cash-drawer-command');
+      if (existingElement) {
+        existingElement.remove();
       }
 
-      console.log('Cash drawer command sent successfully');
+      // Create a hidden element in the main document that will be included when window.print() is called
+      // This ensures the cash drawer command is sent with the actual invoice print job
+      const hiddenElement = document.createElement('div');
+      hiddenElement.id = 'cash-drawer-command';
+      hiddenElement.style.display = 'none';
+      hiddenElement.innerHTML = `<pre>${commandString}</pre>`;
+      
+      // Add to document body
+      document.body.appendChild(hiddenElement);
+
+      // Clean up after printing completes (500ms is sufficient for the print dialog to capture the content)
+      setTimeout(() => {
+        const element = document.getElementById('cash-drawer-command');
+        if (element) {
+          element.remove();
+        }
+      }, 500);
+
+      console.log('Cash drawer command prepared for next print job');
       return true;
     } catch (error) {
-      console.error('Failed to open cash drawer:', error);
+      console.error('Failed to prepare cash drawer command:', error);
       return false;
     }
   }
