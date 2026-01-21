@@ -16,7 +16,7 @@
 export class CashDrawerManager {
   /**
    * Opens the cash drawer by sending ESC/POS commands through the printer
-   * This works by embedding the drawer kick command in a print job
+   * This works by embedding the drawer kick command that will be sent with the next print job
    */
   static async openDrawer(): Promise<boolean> {
     try {
@@ -35,50 +35,28 @@ export class CashDrawerManager {
         .map(byte => String.fromCharCode(byte))
         .join('');
 
-      // Create a hidden iframe to send the print command
-      const iframe = document.createElement('iframe');
-      iframe.style.position = 'absolute';
-      iframe.style.width = '0';
-      iframe.style.height = '0';
-      iframe.style.border = 'none';
-      document.body.appendChild(iframe);
+      // Create a hidden element in the main document that will be included when window.print() is called
+      // This ensures the cash drawer command is sent with the actual invoice print job
+      const hiddenElement = document.createElement('div');
+      hiddenElement.id = 'cash-drawer-command';
+      hiddenElement.style.display = 'none';
+      hiddenElement.innerHTML = `<pre>${commandString}</pre>`;
+      
+      // Add to document body
+      document.body.appendChild(hiddenElement);
 
-      const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-      if (iframeDoc) {
-        iframeDoc.open();
-        iframeDoc.write(`
-          <html>
-          <head>
-            <style>
-              @page { margin: 0; size: auto; }
-              body { margin: 0; }
-            </style>
-          </head>
-          <body>
-            <pre style="display: none;">${commandString}</pre>
-          </body>
-          </html>
-        `);
-        iframeDoc.close();
+      // Clean up after a short delay (will be printed with the main document)
+      setTimeout(() => {
+        const element = document.getElementById('cash-drawer-command');
+        if (element && element.parentNode) {
+          document.body.removeChild(element);
+        }
+      }, 2000);
 
-        // Wait a moment for the document to be ready
-        await new Promise(resolve => setTimeout(resolve, 100));
-
-        // Trigger print which will send the ESC/POS command to the printer
-        iframe.contentWindow?.print();
-
-        // Clean up after printing
-        setTimeout(() => {
-          if (iframe.parentNode) {
-            document.body.removeChild(iframe);
-          }
-        }, 1000);
-      }
-
-      console.log('Cash drawer command sent successfully');
+      console.log('Cash drawer command prepared for next print job');
       return true;
     } catch (error) {
-      console.error('Failed to open cash drawer:', error);
+      console.error('Failed to prepare cash drawer command:', error);
       return false;
     }
   }

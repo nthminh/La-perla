@@ -17,7 +17,7 @@ Created a new utility module that handles cash drawer communication using ESC/PO
 - Uses standard ESC/POS command sequence: `[27, 112, 0, 25, 250]`
 - Sends electrical signal through the printer's RJ12 port
 - Implements two methods:
-  1. **Primary method**: Embeds ESC/POS commands in a hidden print job
+  1. **Primary method**: Embeds ESC/POS commands in the main document to be sent with the invoice print job
   2. **Alternative method**: Direct serial port communication (Web Serial API)
 
 **ESC/POS Command Breakdown:**
@@ -26,6 +26,12 @@ Created a new utility module that handles cash drawer communication using ESC/PO
 - `m (0)`: Pin 2 (most common configuration)
 - `t1 (25)`: ON time (25ms × 2 = 50ms pulse)
 - `t2 (250)`: OFF time (250ms × 2 = 500ms)
+
+**Implementation Details:**
+- The primary method creates a hidden `div` element in the main document containing the ESC/POS command
+- This element is included when `window.print()` is called, ensuring the command is sent with the invoice
+- The element is automatically removed after 2 seconds
+- This approach avoids triggering a separate print dialog that would interfere with the invoice preview
 
 ### 2. Integration with Print Button (`components/PricingView.tsx`)
 
