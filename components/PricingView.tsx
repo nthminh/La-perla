@@ -56,6 +56,7 @@ import {
 import { saveTransaction, searchCustomers, getTransactions } from '../services/storageService';
 import { SoundManager } from '../utils/sound';
 import { SHOP_LOCATION } from '../constants';
+import { openCashDrawer } from '../utils/cashDrawer';
 
 export interface PricingViewProps {
   t: Translation;
@@ -377,8 +378,18 @@ export const PricingView: React.FC<PricingViewProps> = ({
         return `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(appUrl)}`;
   };
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
       SoundManager.playTap();
+      
+      // Open cash drawer before printing
+      try {
+          await openCashDrawer();
+          console.log('Cash drawer opened successfully');
+      } catch (error) {
+          console.error('Failed to open cash drawer:', error);
+          // Continue with printing even if drawer fails to open
+      }
+      
       window.print();
   };
 
