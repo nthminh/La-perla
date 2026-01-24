@@ -184,6 +184,12 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
     }
   };
 
+  const handleSkipPhone = () => {
+    SoundManager.playTap();
+    // Skip phone number entry and go directly to create walk-in
+    setStep('checkin_create');
+  };
+
   const convertServicesToCartItems = (serviceNames: string[]): CartItem[] => {
     return serviceNames.map(serviceName => {
       let foundService = null;
@@ -344,7 +350,10 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
                     className="w-full text-center text-3xl p-4 border-b-2 border-gray-300 focus:border-green-500 bg-transparent outline-none font-bold mb-8" 
                     autoFocus 
                 />
-                <button onClick={handleCheckInSearch} disabled={phone.length < 8} className="w-full bg-green-600 text-white font-bold py-4 rounded-xl shadow-lg disabled:opacity-50 text-xl">Next</button>
+                <div className="flex gap-4">
+                    <button onClick={handleSkipPhone} className="flex-1 bg-gray-200 text-gray-700 font-bold py-4 rounded-xl shadow-lg hover:bg-gray-300 text-xl">Skip</button>
+                    <button onClick={handleCheckInSearch} disabled={phone.length < 8} className="flex-1 bg-green-600 text-white font-bold py-4 rounded-xl shadow-lg disabled:opacity-50 text-xl">Next</button>
+                </div>
             </div>
         )}
 
