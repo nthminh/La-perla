@@ -263,7 +263,26 @@ export const AdminView: React.FC<AdminViewProps> = ({
             });
         });
         const topStylists = Object.entries(stylistStats).map(([name, stat]) => ({ name, ...stat })).sort((a, b) => b.revenue - a.revenue);
-        return { revenue, orders, topServices, topStylists };
+        
+        // Calculate daily revenue for chart
+        const dailyRevenueData: Array<{ date: string, revenue: number }> = Object.entries(txByDate).map(([dateStr, dailyTxs]) => {
+            let dailyRevenue = 0;
+            dailyTxs.forEach(tx => {
+                tx.items.forEach(item => {
+                    if (selectedStylistId !== 'all') {
+                        const staff = staffList.find(s => s.id === selectedStylistId);
+                        const isMyItem = item.staffId === selectedStylistId || (staff && item.staffName === staff.name);
+                        if (!isMyItem) return;
+                    }
+                    const amount = item.price * item.quantity;
+                    const discountFactor = tx.discountPercentage ? (1 - tx.discountPercentage / 100) : 1;
+                    dailyRevenue += (amount * discountFactor);
+                });
+            });
+            return { date: dateStr, revenue: dailyRevenue };
+        }).sort((a, b) => a.date.localeCompare(b.date));
+        
+        return { revenue, orders, topServices, topStylists, dailyRevenueData };
     }, [filteredTransactions, staffList, editGlobalPayroll, selectedStylistId, t.serviceNames]);
 
     const handleManualRefresh = async () => {
@@ -642,6 +661,55 @@ export const AdminView: React.FC<AdminViewProps> = ({
                             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><p className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">{t.revenue}</p><div className="flex items-end justify-between"><h3 className="text-3xl font-serif font-bold text-charcoal">${stats.revenue.toFixed(2)}</h3><ChartIcon className="w-8 h-8 text-gold-leaf opacity-20" /></div></div>
                             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><p className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">{t.orders}</p><div className="flex items-end justify-between"><h3 className="text-3xl font-serif font-bold text-charcoal">{stats.orders}</h3><ReceiptIcon className="w-8 h-8 text-gold-leaf opacity-20" /></div></div>
                             <div className="bg-charcoal text-white p-6 rounded-2xl shadow-md col-span-2 relative overflow-hidden"><div className="relative z-10"><p className="text-gold-leaf text-xs font-bold uppercase tracking-wider mb-2">TOP STYLIST (REVENUE)</p>{stats.topStylists.length > 0 ? (<><h3 className="text-3xl font-serif font-bold">{stats.topStylists[0].name}</h3><p className="text-gray-400 text-sm mt-1">${stats.topStylists[0].revenue.toFixed(2)} generated</p></>) : <p className="text-gray-500 italic">No data</p>}</div></div>
+                        </div>
+
+                        {/* Daily Revenue Chart */}
+                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                            <h3 className="text-xl font-serif font-bold text-charcoal mb-4 flex items-center gap-2">
+                                <ChartIcon className="w-6 h-6 text-gold-leaf" />
+                                Daily Revenue Breakdown
+                            </h3>
+                            {stats.dailyRevenueData.length > 0 ? (
+                                <div className="space-y-3">
+                                    {(() => {
+                                        const maxRevenue = Math.max(...stats.dailyRevenueData.map(d => d.revenue), 1);
+                                        return stats.dailyRevenueData.map((day, idx) => {
+                                            const percentage = (day.revenue / maxRevenue) * 100;
+                                            const formattedDate = new Date(day.date).toLocaleDateString('en-AU', {
+                                                timeZone: 'Australia/Sydney',
+                                                month: 'short',
+                                                day: 'numeric',
+                                                weekday: 'short'
+                                            });
+                                            return (
+                                                <div key={idx} className="group">
+                                                    <div className="flex items-center justify-between mb-1">
+                                                        <span className="text-sm font-bold text-gray-600 min-w-[120px]">{formattedDate}</span>
+                                                        <span className="text-sm font-bold text-charcoal">${day.revenue.toFixed(2)}</span>
+                                                    </div>
+                                                    <div className="w-full bg-gray-100 rounded-full h-8 overflow-hidden relative">
+                                                        <div 
+                                                            className="h-full bg-gradient-to-r from-gold-leaf to-yellow-400 rounded-full transition-all duration-500 ease-out flex items-center justify-end pr-3"
+                                                            style={{ width: `${Math.max(percentage, 2)}%` }}
+                                                        >
+                                                            {percentage > 15 && (
+                                                                <span className="text-xs font-bold text-white drop-shadow">
+                                                                    ${day.revenue.toFixed(0)}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        });
+                                    })()}
+                                </div>
+                            ) : (
+                                <div className="text-center py-8 text-gray-400">
+                                    <ChartIcon className="w-12 h-12 mx-auto mb-2 opacity-20" />
+                                    <p className="text-sm italic">No revenue data for selected period</p>
+                                </div>
+                            )}
                         </div>
 
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
