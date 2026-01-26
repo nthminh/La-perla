@@ -1594,24 +1594,16 @@ export const PricingView: React.FC<PricingViewProps> = ({
                 <p style={{ fontSize: '12px', margin: '0', fontWeight: 'bold' }}>Customer</p>
                 <p style={{ fontSize: '18px', margin: '0' }}>{tempIsVip ? '★ ' : ''}{tempCustomerName || 'Guest'}</p>
             </div>
-            <div style={{ marginBottom: '10px' }}>
+            {tempCustomerPhone && (
+                <div style={{ marginBottom: '10px' }}>
+                    <p style={{ fontSize: '12px', margin: '0', fontWeight: 'bold' }}>Phone</p>
+                    <p style={{ fontSize: '14px', margin: '0' }}>{tempCustomerPhone}</p>
+                </div>
+            )}
+            <div>
                 <p style={{ fontSize: '12px', margin: '0', fontWeight: 'bold' }}>Time</p>
                 <p style={{ fontSize: '14px', margin: '0' }}>{new Date().toLocaleDateString('en-AU')} {new Date().toLocaleTimeString('en-AU', {hour: '2-digit', minute:'2-digit'})}</p>
             </div>
-            {tempCustomerNotes && (
-                <div style={{ marginBottom: '10px' }}>
-                    <p style={{ fontSize: '12px', margin: '0', fontWeight: 'bold' }}>Notes</p>
-                    <p style={{ fontSize: '12px', margin: '0' }}>{tempCustomerNotes}</p>
-                </div>
-            )}
-        </div>
-
-        <div style={{ textAlign: 'center', borderTop: '2px dashed black', paddingTop: '15px', fontSize: '10px' }}>
-            <p style={{ margin: '0 0 10px 0', fontWeight: 'bold', fontStyle: 'italic', lineHeight: '1.4' }}>
-                Please wait for your number to be called. Our staff will consult with you about services.
-            </p>
-            <p style={{ margin: '5px 0' }}>Thank you for visiting La Perla Nails & Beauty!</p>
-            <p style={{ fontSize: '8px', color: '#999', marginTop: '10px' }}>Powered by La Perla Stylist AI</p>
         </div>
     </div>
 
