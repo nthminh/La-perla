@@ -1026,7 +1026,13 @@ export const PricingView: React.FC<PricingViewProps> = ({
   const handlePrintTicket = async () => {
     try {
         SoundManager.playSuccess();
-        const ticketNumber = await getNextTicketNumber('checkin');
+        // Use existing ticket number from current bill, don't generate a new one
+        const ticketNumber = currentBill?.ticketNumber || '';
+        if (!ticketNumber) {
+            SoundManager.playError();
+            alert('No ticket number available. Please save customer first.');
+            return;
+        }
         setGeneratedTicket(ticketNumber);
         // Use requestAnimationFrame to ensure DOM has updated before printing
         requestAnimationFrame(() => {
@@ -1035,10 +1041,9 @@ export const PricingView: React.FC<PricingViewProps> = ({
             });
         });
     } catch (error) {
-        console.error('Error generating ticket:', error);
+        console.error('Error printing ticket:', error);
         SoundManager.playError();
-        // TODO: Replace with toast notification when design system supports it
-        alert('Failed to generate ticket number. Please try again.');
+        alert('Failed to print ticket. Please try again.');
     }
   };
 
@@ -1582,10 +1587,6 @@ export const PricingView: React.FC<PricingViewProps> = ({
                 <p style={{ fontSize: '18px', margin: '0' }}>{tempIsVip ? '★ ' : ''}{tempCustomerName || 'Guest'}</p>
             </div>
             <div style={{ marginBottom: '10px' }}>
-                <p style={{ fontSize: '12px', margin: '0', fontWeight: 'bold' }}>Phone</p>
-                <p style={{ fontSize: '14px', margin: '0' }}>{tempCustomerPhone || 'N/A'}</p>
-            </div>
-            <div style={{ marginBottom: '10px' }}>
                 <p style={{ fontSize: '12px', margin: '0', fontWeight: 'bold' }}>Time</p>
                 <p style={{ fontSize: '14px', margin: '0' }}>{new Date().toLocaleDateString('en-AU')} {new Date().toLocaleTimeString('en-AU', {hour: '2-digit', minute:'2-digit'})}</p>
             </div>
@@ -1608,7 +1609,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
 
     <div ref={receiptRef} className="printable-area hidden" style={{ width: '500px', padding: '40px', backgroundColor: 'white', color: 'black', fontFamily: 'serif', boxSizing: 'border-box' }}>
         <div className="text-center mb-8 border-b-2 border-black pb-4"><h1 className="text-4xl font-bold uppercase tracking-widest mb-2">LA PERLA</h1><p className="text-sm font-sans uppercase tracking-wider">Nails & Beauty</p><p className="text-xs mt-2 font-sans text-gray-600">Shop 10/260 Jersey Rd, Plumpton NSW 2761</p><p className="text-xs font-sans text-gray-600">(02) 9625 8194</p></div>
-        <div className="flex justify-between items-end mb-8 font-sans"><div><p className="text-xs font-bold uppercase text-gray-500">Bill To:</p><p className="text-lg font-bold">{isVip ? '★ ' : ''}{customerName || 'Guest'}</p>{customerPhone && <p className="text-sm">{customerPhone}</p>}</div><div className="text-right"><p className="text-sm">Date: {billDateString}</p>{targetBill?.ticketNumber && <p className="text-sm font-mono">Ticket #: {targetBill.ticketNumber}</p>}{currentBillId && <p className="text-xs text-gray-400 mt-1">Ref: {currentBillId.slice(-6)}</p>}</div></div>
+        <div className="flex justify-between items-end mb-8 font-sans"><div><p className="text-xs font-bold uppercase text-gray-500">Bill To:</p><p className="text-lg font-bold">{isVip ? '★ ' : ''}{customerName || 'Guest'}</p>{customerPhone && <p className="text-sm">{customerPhone}</p>}</div><div className="text-right"><p className="text-sm">Date: {billDateString}</p>{currentBillId && <p className="text-xs text-gray-400 mt-1">Ref: {currentBillId.slice(-6)}</p>}</div></div>
         <div className="mb-8"><table className="w-full text-left font-sans text-sm"><thead className="border-b-2 border-black"><tr><th className="py-2 w-12">Qty</th><th className="py-2">Description</th><th className="py-2 text-right w-24">Price</th><th className="py-2 text-right w-24">Amount</th></tr></thead><tbody className="divide-y divide-gray-200">{groupedCartItems.map((item, i) => <tr key={i}><td className="py-3 align-top">{item.quantity}</td><td className="py-3 align-top"><p className="font-bold">{item.displayName || t.serviceNames[item.nameKey] || item.nameKey}</p>{item.staffName && <p className="text-xs text-gray-500 italic">Stylist: {item.staffName}</p>}</td><td className="py-3 align-top text-right">${item.price.toFixed(2)}</td><td className="py-3 align-top text-right font-bold">${(item.price * item.quantity).toFixed(2)}</td></tr>)}</tbody></table></div>
         <div className="flex justify-end mb-12"><div className="w-1/2 border-t border-black pt-4 font-sans"><div className="flex justify-between text-sm mb-2"><span className="font-bold text-gray-600">Subtotal</span><span>${cartTotal.toFixed(2)}</span></div>{discountPercentage > 0 && <div className="flex justify-between text-sm mb-2 text-gray-600"><span>Discount ({discountPercentage}%)</span><span>-${discountAmount.toFixed(2)}</span></div>}<div className="flex justify-between text-xl font-bold mt-4 pt-4 border-t border-gray-300"><span>Total : </span><span>${finalTotal.toFixed(2)}</span></div>
                 {parseFloat(cashTendered || '0') > 0 && <div className="mt-4 pt-2 border-t border-dashed border-gray-300 text-sm"><div className="flex justify-between mb-1"><span className="text-gray-600">Cash Tendered</span><span>${parseFloat(cashTendered).toFixed(2)}</span></div><div className="flex justify-between font-bold"><span>Change Due</span><span>${changeDue >= 0 ? changeDue.toFixed(2) : '0.00'}</span></div></div>}
