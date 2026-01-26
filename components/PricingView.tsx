@@ -1028,13 +1028,17 @@ export const PricingView: React.FC<PricingViewProps> = ({
         SoundManager.playSuccess();
         const ticketNumber = await getNextTicketNumber('checkin');
         setGeneratedTicket(ticketNumber);
-        // Wait for state to update before printing
-        setTimeout(() => {
-            window.print();
-        }, 100);
+        // Use requestAnimationFrame to ensure DOM has updated before printing
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                window.print();
+            });
+        });
     } catch (error) {
         console.error('Error generating ticket:', error);
-        alert('Failed to generate ticket number');
+        SoundManager.playError();
+        // TODO: Replace with toast notification when design system supports it
+        alert('Failed to generate ticket number. Please try again.');
     }
   };
 
