@@ -385,6 +385,8 @@ export const PricingView: React.FC<PricingViewProps> = ({
       const drawerOpened = await openCashDrawer();
       if (drawerOpened) {
           console.log('Cash drawer opened successfully');
+          // Wait a bit for the drawer command to be processed before printing invoice
+          await new Promise(resolve => setTimeout(resolve, 500));
       } else {
           console.warn('Failed to open cash drawer, continuing with print');
       }
