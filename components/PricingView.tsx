@@ -209,6 +209,10 @@ export const PricingView: React.FC<PricingViewProps> = ({
 
   const [showCalculator, setShowCalculator] = useState(false);
   const [calcDisplay, setCalcDisplay] = useState("");
+  
+  // Ticket printing state
+  const [generatedTicket, setGeneratedTicket] = useState<string>('');
+  const ticketRef = useRef<HTMLDivElement>(null);
 
   const longPressTimer = useRef<any>(null);
   const isLongPress = useRef(false);
@@ -1019,6 +1023,21 @@ export const PricingView: React.FC<PricingViewProps> = ({
     setShowCustomerEntry(false);
   };
 
+  const handlePrintTicket = async () => {
+    try {
+        SoundManager.playSuccess();
+        const ticketNumber = await getNextTicketNumber('checkin');
+        setGeneratedTicket(ticketNumber);
+        // Wait for state to update before printing
+        setTimeout(() => {
+            window.print();
+        }, 100);
+    } catch (error) {
+        console.error('Error generating ticket:', error);
+        alert('Failed to generate ticket number');
+    }
+  };
+
   const handleConfirmBooking = (bookingId: string) => {
       SoundManager.playSuccess();
       onUpdateBookingStatus?.(bookingId, 'confirmed');
@@ -1497,7 +1516,15 @@ export const PricingView: React.FC<PricingViewProps> = ({
                             <div className="space-y-2"><label className="flex items-center gap-2 text-gold-leaf font-bold uppercase text-xs tracking-widest"><BriefcaseIcon className="w-4 h-4" /> Notes</label><input type="text" value={tempCustomerNotes} onChange={(e) => setTempCustomerNotes(e.target.value)} className="w-full bg-white border-b-2 border-dusty-rose/30 px-2 py-3 text-lg font-serif text-charcoal focus:outline-none focus:border-gold-leaf transition-colors placeholder:text-gray-300" placeholder="Preferences..." /></div>
                             {showWaitlistAddModal && <><div className="space-y-2"><label className="flex items-center gap-2 text-gold-leaf font-bold uppercase text-xs tracking-widest"><ClockIcon className="w-4 h-4" /> Estimated Return Time</label><input type="text" value={tempReturnTime} onChange={(e) => setTempReturnTime(e.target.value)} className="w-full bg-white border-b-2 border-dusty-rose/30 px-2 py-3 text-xl font-serif text-charcoal focus:outline-none focus:border-gold-leaf transition-colors placeholder:text-gray-300" placeholder="e.g. 10 mins" /></div><div className="space-y-2"><label className="flex items-center gap-2 text-gold-leaf font-bold uppercase text-xs tracking-widest"><SparklesIcon className="w-4 h-4" /> What would you like to do?</label><button onClick={() => setShowServiceSelector(true)} className="w-full bg-white border-b-2 border-dusty-rose/30 px-2 py-3 text-left focus:outline-none focus:border-gold-leaf transition-colors flex justify-between items-center group"><span className={`text-lg font-serif ${tempSelectedServices.length > 0 ? 'text-charcoal' : 'text-gray-300'}`}>{tempSelectedServices.length > 0 ? `${tempSelectedServices.length} services selected` : 'Select Services...'}</span><span className="text-xs bg-gold-leaf/10 text-gold-leaf px-2 py-1 rounded-full group-hover:bg-gold-leaf group-hover:text-white transition-colors">{tempSelectedServices.length > 0 ? 'Edit' : 'Add'}</span></button>{tempSelectedServices.length > 0 && <div className="flex flex-wrap gap-2 mt-2">{tempSelectedServices.map(s => <span key={s} className="bg-gold-leaf/10 text-charcoal text-xs px-2 py-1 rounded-full border border-gold-leaf/20 flex items-center gap-1">{s}<button onClick={() => setTempSelectedServices(prev => prev.filter(item => item !== s))} className="hover:text-red-500 ml-1"><XMarkIcon className="w-3 h-3"/></button></span>)}</div>}</div></>}
                       </div>
-                      <button onClick={showWaitlistAddModal ? handleAddToWaitlist : handleSaveCustomerEntry} className="w-full mt-8 bg-charcoal text-white font-bold py-4 rounded-xl shadow-lg hover:bg-black transition-colors text-lg">{showWaitlistAddModal ? 'Add to Waitlist' : 'Save Customer'}</button>
+                      {!showWaitlistAddModal && (
+                          <button 
+                              onClick={handlePrintTicket} 
+                              className="w-full mt-8 bg-white border-2 border-charcoal text-charcoal font-bold py-4 rounded-xl shadow-lg hover:bg-charcoal hover:text-white transition-colors text-lg flex items-center justify-center gap-2"
+                          >
+                              <ReceiptIcon className="w-5 h-5" /> Print Ticket
+                          </button>
+                      )}
+                      <button onClick={showWaitlistAddModal ? handleAddToWaitlist : handleSaveCustomerEntry} className="w-full mt-4 bg-charcoal text-white font-bold py-4 rounded-xl shadow-lg hover:bg-black transition-colors text-lg">{showWaitlistAddModal ? 'Add to Waitlist' : 'Save Customer'}</button>
                   </div>
               </div>
          </div>
@@ -1531,6 +1558,48 @@ export const PricingView: React.FC<PricingViewProps> = ({
               </div>
           </div>
       )}
+    </div>
+
+    {/* Printable Ticket Area (similar to KioskView) */}
+    <div ref={ticketRef} className="printable-area hidden" style={{ width: '400px', margin: '0 auto', padding: '20px', backgroundColor: 'white', color: 'black' }}>
+        <div style={{ textAlign: 'center', borderBottom: '2px dashed black', paddingBottom: '15px', marginBottom: '20px' }}>
+            <h1 style={{ fontSize: '28px', margin: '0', fontWeight: 'bold' }}>LA PERLA</h1>
+            <p style={{ fontSize: '10px', margin: '5px 0', letterSpacing: '2px' }}>QUEUE TICKET</p>
+        </div>
+
+        <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+            <p style={{ fontSize: '10px', fontWeight: 'bold', margin: '0' }}>YOUR NUMBER</p>
+            <h2 style={{ fontSize: '80px', margin: '0', fontWeight: 'bold', fontFamily: 'monospace' }}>{generatedTicket || '---'}</h2>
+        </div>
+
+        <div style={{ padding: '15px', backgroundColor: '#f9f9f9', borderRadius: '10px', marginBottom: '20px' }}>
+            <div style={{ marginBottom: '10px' }}>
+                <p style={{ fontSize: '12px', margin: '0', fontWeight: 'bold' }}>Customer</p>
+                <p style={{ fontSize: '18px', margin: '0' }}>{tempIsVip ? '★ ' : ''}{tempCustomerName || 'Guest'}</p>
+            </div>
+            <div style={{ marginBottom: '10px' }}>
+                <p style={{ fontSize: '12px', margin: '0', fontWeight: 'bold' }}>Phone</p>
+                <p style={{ fontSize: '14px', margin: '0' }}>{tempCustomerPhone || 'N/A'}</p>
+            </div>
+            <div style={{ marginBottom: '10px' }}>
+                <p style={{ fontSize: '12px', margin: '0', fontWeight: 'bold' }}>Time</p>
+                <p style={{ fontSize: '14px', margin: '0' }}>{new Date().toLocaleDateString('en-AU')} {new Date().toLocaleTimeString('en-AU', {hour: '2-digit', minute:'2-digit'})}</p>
+            </div>
+            {tempCustomerNotes && (
+                <div style={{ marginBottom: '10px' }}>
+                    <p style={{ fontSize: '12px', margin: '0', fontWeight: 'bold' }}>Notes</p>
+                    <p style={{ fontSize: '12px', margin: '0' }}>{tempCustomerNotes}</p>
+                </div>
+            )}
+        </div>
+
+        <div style={{ textAlign: 'center', borderTop: '2px dashed black', paddingTop: '15px', fontSize: '10px' }}>
+            <p style={{ margin: '0 0 10px 0', fontWeight: 'bold', fontStyle: 'italic', lineHeight: '1.4' }}>
+                Please wait for your number to be called. Our staff will consult with you about services.
+            </p>
+            <p style={{ margin: '5px 0' }}>Thank you for visiting La Perla Nails & Beauty!</p>
+            <p style={{ fontSize: '8px', color: '#999', marginTop: '10px' }}>Powered by La Perla Stylist AI</p>
+        </div>
     </div>
 
     <div ref={receiptRef} className="printable-area hidden" style={{ width: '500px', padding: '40px', backgroundColor: 'white', color: 'black', fontFamily: 'serif', boxSizing: 'border-box' }}>
