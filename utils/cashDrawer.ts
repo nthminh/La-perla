@@ -14,6 +14,8 @@
  */
 
 export class CashDrawerManager {
+  private static cleanupTimeoutId: number | null = null;
+
   /**
    * Opens the cash drawer by sending ESC/POS commands through the printer
    * This creates a separate print job specifically for the drawer kick command
@@ -41,6 +43,12 @@ export class CashDrawerManager {
         existingIframe.remove();
       }
 
+      // Clear any pending cleanup timeout
+      if (this.cleanupTimeoutId !== null) {
+        clearTimeout(this.cleanupTimeoutId);
+        this.cleanupTimeoutId = null;
+      }
+
       // Create a hidden iframe with the drawer kick command
       const iframe = document.createElement('iframe');
       iframe.id = 'cash-drawer-iframe';
@@ -53,12 +61,25 @@ export class CashDrawerManager {
       // Add iframe to body
       document.body.appendChild(iframe);
 
-      // Wait for iframe to be ready
-      await new Promise(resolve => {
-        iframe.onload = resolve;
-        // Create a minimal HTML document with the ESC/POS command
-        const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-        if (iframeDoc) {
+      // Wait for iframe to be ready and create content
+      await new Promise<void>((resolve, reject) => {
+        // Set up load handler before writing content
+        iframe.onload = () => resolve();
+        
+        // Add a timeout to prevent hanging
+        const timeoutId = setTimeout(() => {
+          reject(new Error('Iframe load timeout'));
+        }, 5000);
+
+        try {
+          // Create a minimal HTML document with the ESC/POS command
+          const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+          if (!iframeDoc) {
+            clearTimeout(timeoutId);
+            reject(new Error('Cannot access iframe document'));
+            return;
+          }
+
           iframeDoc.open();
           iframeDoc.write(`
             <!DOCTYPE html>
@@ -75,29 +96,55 @@ export class CashDrawerManager {
             </html>
           `);
           iframeDoc.close();
+          
+          // Clear timeout since document write succeeded
+          clearTimeout(timeoutId);
+          // If onload doesn't fire, resolve anyway after a short delay
+          setTimeout(() => resolve(), 100);
+        } catch (error) {
+          clearTimeout(timeoutId);
+          reject(error);
         }
       });
 
       // Print the iframe (which sends the ESC/POS command to the printer)
       const iframeWindow = iframe.contentWindow;
-      if (iframeWindow) {
+      if (!iframeWindow) {
+        console.error('Cannot access iframe window');
+        // Clean up iframe
+        iframe.remove();
+        return false;
+      }
+
+      try {
         // Focus the iframe and print
         iframeWindow.focus();
         iframeWindow.print();
+      } catch (error) {
+        console.error('Failed to print iframe:', error);
+        // Clean up iframe
+        iframe.remove();
+        return false;
       }
 
       // Clean up after a delay to ensure print job is sent
-      setTimeout(() => {
+      this.cleanupTimeoutId = window.setTimeout(() => {
         const element = document.getElementById('cash-drawer-iframe');
         if (element) {
           element.remove();
         }
+        this.cleanupTimeoutId = null;
       }, 1000);
 
       console.log('Cash drawer command sent via print job');
       return true;
     } catch (error) {
       console.error('Failed to send cash drawer command:', error);
+      // Clean up any leftover iframe
+      const iframe = document.getElementById('cash-drawer-iframe');
+      if (iframe) {
+        iframe.remove();
+      }
       return false;
     }
   }
