@@ -995,10 +995,11 @@ export const PricingView: React.FC<PricingViewProps> = ({
       }
   };
 
-  const handleSaveCustomerEntry = () => {
+  const handleSaveCustomerEntry = async () => {
     SoundManager.playSuccess();
     if (entryMode === 'new') {
         const newId = Date.now().toString();
+        const ticketNum = await getNextTicketNumber('checkin');
         const newBill: ActiveBill = {
             id: newId,
             customerName: tempCustomerName,
@@ -1007,6 +1008,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
             items: [],
             discountPercentage: 0,
             createdByStaffId: currentUser?.id,
+            ticketNumber: ticketNum,
             isVip: tempIsVip
         };
         setActiveBills(prev => Array.isArray(prev) ? [...prev, newBill] : [newBill]);
