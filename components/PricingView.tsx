@@ -1015,10 +1015,16 @@ export const PricingView: React.FC<PricingViewProps> = ({
         setCurrentBillId(newId);
         upsertActiveBill(newBill);
     } else {
+        // Ensure existing bill has a ticket number
+        let ticketNumber = currentBill?.ticketNumber;
+        if (!ticketNumber) {
+            ticketNumber = await getNextTicketNumber('checkin');
+        }
         updateCurrentBill({
             customerName: tempCustomerName,
             customerPhone: tempCustomerPhone,
             customerNotes: tempCustomerNotes,
+            ticketNumber: ticketNumber,
             isVip: tempIsVip
         });
     }
@@ -1029,8 +1035,8 @@ export const PricingView: React.FC<PricingViewProps> = ({
     try {
         SoundManager.playSuccess();
         // Use existing ticket number from current bill, don't generate a new one
-        const ticketNumber = currentBill?.ticketNumber || '';
-        if (!ticketNumber) {
+        const ticketNumber = currentBill?.ticketNumber;
+        if (!ticketNumber || ticketNumber.trim() === '') {
             SoundManager.playError();
             alert('No ticket number available. Please save customer first.');
             return;
