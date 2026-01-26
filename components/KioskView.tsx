@@ -442,9 +442,8 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
                 <div className="border-b-2 border-dashed border-gray-200 pb-6 mb-6"><LaPerlaLogo className="w-32 mx-auto mb-2 opacity-80" /><p className="text-[10px] text-gray-400 uppercase font-bold">Queue Ticket</p></div>
                 <h1 className="text-6xl font-mono font-bold text-charcoal mb-2 tracking-tighter">{generatedTicket || "---"}</h1>
                 <div className="bg-gray-50 rounded-xl p-4 mb-6 border border-gray-100 text-left">
-                    <div className="text-center border-b border-gray-200 pb-2 mb-2"><p className="text-xl font-bold text-charcoal">{isVip && "★ "}{name}</p><p className="text-sm text-gray-500">{new Date().toLocaleTimeString('en-AU', {hour: '2-digit', minute:'2-digit'})}</p></div>
+                    <div className="text-center border-b border-gray-200 pb-2 mb-2"><p className="text-xl font-bold text-charcoal">{isVip && "★ "}{name}</p></div>
                     {selectedServices.length > 0 && <div className="mb-2"><p className="text-[10px] font-bold text-gray-400 uppercase">Services</p><ul className="text-sm text-charcoal font-medium list-none">{selectedServices.map(s => <li key={s}>• {s}</li>)}</ul></div>}
-                    {estimatedTotal > 0 && <div className="mt-2 text-right"><p className="text-[10px] font-bold text-gray-400 uppercase">Estimated Total</p><p className="text-lg font-bold text-gold-leaf">${estimatedTotal.toFixed(2)}</p></div>}
                     <div className="flex justify-center mb-2">{step === 'success_waitlist' && <span className="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-1 rounded font-bold">Waitlist</span>}</div>
                 </div>
                 <div className="flex items-center gap-4 bg-blush-pink/30 p-3 rounded-xl mb-6 text-left"><div className="bg-white p-1 rounded-lg"><img src={qrCodeUrl} alt="Scan" className="w-12 h-12" /></div><div><p className="text-xs font-bold text-charcoal">Design while you wait</p><p className="text-[10px] text-gray-500">Scan to use AI Stylist</p></div></div>
@@ -510,10 +509,6 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
                 <p style={{ fontSize: '12px', margin: '0', fontWeight: 'bold' }}>Customer</p>
                 <p style={{ fontSize: '18px', margin: '0' }}>{isVip ? '★ ' : ''}{name}</p>
             </div>
-            <div style={{ marginBottom: '10px' }}>
-                <p style={{ fontSize: '12px', margin: '0', fontWeight: 'bold' }}>Time</p>
-                <p style={{ fontSize: '14px', margin: '0' }}>{new Date().toLocaleDateString('en-AU')} {new Date().toLocaleTimeString('en-AU', {hour: '2-digit', minute:'2-digit'})}</p>
-            </div>
             {selectedServices.length > 0 && (
                 <div style={{ marginBottom: '10px' }}>
                     <p style={{ fontSize: '12px', margin: '0', fontWeight: 'bold' }}>Requested Services</p>
@@ -524,18 +519,9 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
                     </div>
                 </div>
             )}
-            {estimatedTotal > 0 && (
-                <div style={{ borderTop: '1px solid #ddd', paddingTop: '10px', marginTop: '5px' }}>
-                    <p style={{ fontSize: '12px', margin: '0', fontWeight: 'bold' }}>Estimated Total</p>
-                    <p style={{ fontSize: '22px', margin: '0', fontWeight: 'bold', color: '#D4AF37' }}>${estimatedTotal.toFixed(2)}</p>
-                </div>
-            )}
         </div>
 
         <div style={{ textAlign: 'center', borderTop: '2px dashed black', paddingTop: '15px', fontSize: '10px' }}>
-            <p style={{ margin: '0 0 10px 0', fontWeight: 'bold', fontStyle: 'italic', lineHeight: '1.4' }}>
-                This is an estimated price. Our staff will consult and finalize the actual total after your service is completed.
-            </p>
             <p style={{ margin: '5px 0' }}>Thank you for visiting La Perla Nails & Beauty!</p>
             <p style={{ fontSize: '8px', color: '#999', marginTop: '10px' }}>Powered by La Perla Stylist AI</p>
         </div>
