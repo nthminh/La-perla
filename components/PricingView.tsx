@@ -218,7 +218,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
   // Print mode constants
   const PRINT_MODE_RESET_DELAY = 100; // ms - delay to reset print mode after printing
   const isLongPress = useRef(false);
-  const longPressTimer = useRef<number | null>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isStaffMode = !!currentUser; 
   const isAdmin = currentUser?.id === 'admin_master';
