@@ -46,6 +46,7 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
   const [printMode, setPrintMode] = useState<'ticket' | null>(null);
   
   // Constants
+  const PRINT_MODE_SET_DELAY = 50; // ms - delay to set print mode before printing
   const PRINT_MODE_RESET_DELAY = 100; // ms - delay to reset print mode after printing
   
   // Loading state for async operations
@@ -297,7 +298,7 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
       setTimeout(() => {
         window.print();
         setTimeout(() => setPrintMode(null), PRINT_MODE_RESET_DELAY);
-      }, 50);
+      }, PRINT_MODE_SET_DELAY);
     } catch (error) {
       console.error('Error printing ticket:', error);
       SoundManager.playError();
