@@ -521,6 +521,11 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
             )}
         </div>
 
+        <div style={{ padding: '12px', backgroundColor: '#fffbf0', border: '1px solid #e5d4a0', borderRadius: '8px', marginBottom: '20px' }}>
+            <p style={{ fontSize: '10px', margin: '0 0 8px 0', fontWeight: 'bold', color: '#8b7355', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Important Notice</p>
+            <p style={{ fontSize: '10px', margin: '0', lineHeight: '1.6', color: '#333' }}>Please keep this ticket with you throughout your service. Your technician will continuously update pricing based on this ticket. Kindly present this ticket to our staff when proceeding to payment.</p>
+        </div>
+
         <div style={{ textAlign: 'center', borderTop: '2px dashed black', paddingTop: '15px', fontSize: '10px' }}>
             <p style={{ margin: '5px 0' }}>Thank you for visiting La Perla Nails & Beauty!</p>
             <p style={{ fontSize: '8px', color: '#999', marginTop: '10px' }}>Powered by La Perla Stylist AI</p>

@@ -1627,6 +1627,11 @@ export const PricingView: React.FC<PricingViewProps> = ({
                 <p style={{ fontSize: '14px', margin: '0' }}>{new Date().toLocaleDateString('en-AU')} {new Date().toLocaleTimeString('en-AU', {hour: '2-digit', minute:'2-digit'})}</p>
             </div>
         </div>
+
+        <div style={{ padding: '12px', backgroundColor: '#fffbf0', border: '1px solid #e5d4a0', borderRadius: '8px', marginBottom: '20px' }}>
+            <p style={{ fontSize: '10px', margin: '0 0 8px 0', fontWeight: 'bold', color: '#8b7355', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Important Notice</p>
+            <p style={{ fontSize: '10px', margin: '0', lineHeight: '1.6', color: '#333' }}>Please keep this ticket with you throughout your service. Your technician will continuously update pricing based on this ticket. Kindly present this ticket to our staff when proceeding to payment.</p>
+        </div>
     </div>
 
     <div ref={receiptRef} className="printable-area printable-bill hidden" data-print-type="bill" style={{ width: '500px', padding: '40px', backgroundColor: 'white', color: 'black', fontFamily: 'serif', boxSizing: 'border-box' }}>
