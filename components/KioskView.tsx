@@ -43,6 +43,11 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
   const [showReassuranceModal, setShowReassuranceModal] = useState(false);
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({});
   const ticketRef = useRef<HTMLDivElement>(null);
+  const [printMode, setPrintMode] = useState<'ticket' | null>(null);
+  
+  // Constants
+  const PRINT_MODE_SET_DELAY = 50; // ms - delay to set print mode before printing
+  const PRINT_MODE_RESET_DELAY = 100; // ms - delay to reset print mode after printing
   
   // Loading state for async operations
   const { isLoading, withLoading } = useAsyncLoading();
@@ -71,6 +76,14 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
     }
     return () => clearTimeout(timer);
   }, [step]);
+
+  useEffect(() => {
+    if (printMode) {
+      document.body.setAttribute('data-print-mode', printMode);
+    } else {
+      document.body.removeAttribute('data-print-mode');
+    }
+  }, [printMode]);
 
   const handleReset = () => {
     setStep('welcome');
@@ -274,6 +287,25 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
     });
   };
 
+  const handlePrintTicket = () => {
+    try {
+      if (!generatedTicket) {
+        SoundManager.playError();
+        alert('No ticket number available.');
+        return;
+      }
+      setPrintMode('ticket');
+      setTimeout(() => {
+        window.print();
+        setTimeout(() => setPrintMode(null), PRINT_MODE_RESET_DELAY);
+      }, PRINT_MODE_SET_DELAY);
+    } catch (error) {
+      console.error('Error printing ticket:', error);
+      SoundManager.playError();
+      alert('Failed to print ticket. Please try again.');
+    }
+  };
+
   const estimatedTotal = useMemo(() => {
     let total = 0;
     selectedServices.forEach(sName => {
@@ -447,7 +479,7 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
                     <div className="flex justify-center mb-2">{step === 'success_waitlist' && <span className="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-1 rounded font-bold">Waitlist</span>}</div>
                 </div>
                 <div className="flex items-center gap-4 bg-blush-pink/30 p-3 rounded-xl mb-6 text-left"><div className="bg-white p-1 rounded-lg"><img src={qrCodeUrl} alt="Scan" className="w-12 h-12" /></div><div><p className="text-xs font-bold text-charcoal">Design while you wait</p><p className="text-[10px] text-gray-500">Scan to use AI Stylist</p></div></div>
-                <div className="flex gap-2"><button onClick={() => window.print()} className="flex-1 bg-charcoal text-white py-3 rounded-xl font-bold shadow-md flex items-center justify-center gap-2"><ReceiptIcon className="w-4 h-4" /> Print Ticket</button><button onClick={handleReset} className="px-4 py-3 border rounded-xl font-bold text-gray-400">Close</button></div>
+                <div className="flex gap-2"><button onClick={handlePrintTicket} className="flex-1 bg-charcoal text-white py-3 rounded-xl font-bold shadow-md flex items-center justify-center gap-2"><ReceiptIcon className="w-4 h-4" /> Print Ticket</button><button onClick={handleReset} className="px-4 py-3 border rounded-xl font-bold text-gray-400">Close</button></div>
             </div>
         )}
       </div>
@@ -493,7 +525,7 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
     </div>
 
     {/* --- DEDICATED PRINT AREA (FIXED CONTENT) --- */}
-    <div className="printable-area hidden" style={{ width: '400px', margin: '0 auto', padding: '20px', backgroundColor: 'white', color: 'black' }}>
+    <div className="printable-area printable-ticket hidden" style={{ width: '400px', margin: '0 auto', padding: '20px', backgroundColor: 'white', color: 'black' }}>
         <div style={{ textAlign: 'center', borderBottom: '2px dashed black', paddingBottom: '15px', marginBottom: '20px' }}>
             <h1 style={{ fontSize: '28px', margin: '0', fontWeight: 'bold' }}>LA PERLA</h1>
             <p style={{ fontSize: '10px', margin: '5px 0', letterSpacing: '2px' }}>QUEUE TICKET</p>
