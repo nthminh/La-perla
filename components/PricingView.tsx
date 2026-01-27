@@ -1000,12 +1000,12 @@ export const PricingView: React.FC<PricingViewProps> = ({
   const handleLongPressStart = (billId: string) => {
       isLongPress.current = false;
       if (longPressTimer.current) clearTimeout(longPressTimer.current);
-      longPressTimer.current = setTimeout(() => {
+      longPressTimer.current = window.setTimeout(() => {
           isLongPress.current = true;
           if (window.confirm("Close this bill order?")) {
               closeBill(billId);
           }
-      }, 700) as unknown as number;
+      }, 700);
   };
 
   const handleLongPressEnd = () => {
