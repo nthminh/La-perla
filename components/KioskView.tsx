@@ -45,6 +45,9 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
   const ticketRef = useRef<HTMLDivElement>(null);
   const [printMode, setPrintMode] = useState<'ticket' | null>(null);
   
+  // Constants
+  const PRINT_MODE_RESET_DELAY = 100; // ms - delay to reset print mode after printing
+  
   // Loading state for async operations
   const { isLoading, withLoading } = useAsyncLoading();
 
@@ -284,11 +287,17 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
   };
 
   const handlePrintTicket = () => {
-    setPrintMode('ticket');
-    setTimeout(() => {
-      window.print();
-      setTimeout(() => setPrintMode(null), 100);
-    }, 50);
+    try {
+      setPrintMode('ticket');
+      setTimeout(() => {
+        window.print();
+        setTimeout(() => setPrintMode(null), PRINT_MODE_RESET_DELAY);
+      }, 50);
+    } catch (error) {
+      console.error('Error printing ticket:', error);
+      SoundManager.playError();
+      alert('Failed to print ticket. Please try again.');
+    }
   };
 
   const estimatedTotal = useMemo(() => {
