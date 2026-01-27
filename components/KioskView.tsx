@@ -288,6 +288,11 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
 
   const handlePrintTicket = () => {
     try {
+      if (!generatedTicket) {
+        SoundManager.playError();
+        alert('No ticket number available.');
+        return;
+      }
       setPrintMode('ticket');
       setTimeout(() => {
         window.print();
