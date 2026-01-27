@@ -287,7 +287,7 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
     setPrintMode('ticket');
     setTimeout(() => {
       window.print();
-      setTimeout(() => setPrintMode(null), 500);
+      setTimeout(() => setPrintMode(null), 100);
     }, 50);
   };
 
