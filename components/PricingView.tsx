@@ -213,6 +213,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
   // Ticket printing state
   const [generatedTicket, setGeneratedTicket] = useState<string>('');
   const ticketRef = useRef<HTMLDivElement>(null);
+  const [printMode, setPrintMode] = useState<'ticket' | 'bill' | null>(null);
 
   const longPressTimer = useRef<any>(null);
   const isLongPress = useRef(false);
@@ -234,6 +235,15 @@ export const PricingView: React.FC<PricingViewProps> = ({
           setSplitAmount2((total / 2).toFixed(2));
       }
   }, [showStaffModal, pendingService]);
+
+  // Update body data attribute based on print mode
+  useEffect(() => {
+      if (printMode) {
+          document.body.setAttribute('data-print-mode', printMode);
+      } else {
+          document.body.removeAttribute('data-print-mode');
+      }
+  }, [printMode]);
 
   const handleSplitAmountChange = (val: string, slot: 1 | 2) => {
       if (!pendingService) return;
@@ -385,6 +395,9 @@ export const PricingView: React.FC<PricingViewProps> = ({
   const handlePrint = async () => {
       SoundManager.playTap();
       
+      // Set print mode to bill (invoice)
+      setPrintMode('bill');
+      
       // Open cash drawer before printing
       const drawerOpened = await openCashDrawer();
       if (drawerOpened) {
@@ -395,7 +408,14 @@ export const PricingView: React.FC<PricingViewProps> = ({
           console.warn('Failed to open cash drawer, continuing with print');
       }
       
-      window.print();
+      // Wait for state to update before printing
+      requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+              window.print();
+              // Reset print mode after printing
+              setTimeout(() => setPrintMode(null), 100);
+          });
+      });
   };
 
   const handleDownloadBill = async () => {
@@ -1042,10 +1062,14 @@ export const PricingView: React.FC<PricingViewProps> = ({
             return;
         }
         setGeneratedTicket(ticketNumber);
+        // Set print mode to ticket
+        setPrintMode('ticket');
         // Use requestAnimationFrame to ensure DOM has updated before printing
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
                 window.print();
+                // Reset print mode after printing
+                setTimeout(() => setPrintMode(null), 100);
             });
         });
     } catch (error) {
@@ -1578,7 +1602,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
     </div>
 
     {/* Printable Ticket Area (similar to KioskView) */}
-    <div ref={ticketRef} className="printable-area hidden" style={{ width: '400px', margin: '0 auto', padding: '20px', backgroundColor: 'white', color: 'black' }}>
+    <div ref={ticketRef} className="printable-area printable-ticket hidden" data-print-type="ticket" style={{ width: '400px', margin: '0 auto', padding: '20px', backgroundColor: 'white', color: 'black' }}>
         <div style={{ textAlign: 'center', borderBottom: '2px dashed black', paddingBottom: '15px', marginBottom: '20px' }}>
             <h1 style={{ fontSize: '28px', margin: '0', fontWeight: 'bold' }}>LA PERLA</h1>
             <p style={{ fontSize: '10px', margin: '5px 0', letterSpacing: '2px' }}>QUEUE TICKET</p>
@@ -1607,7 +1631,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
         </div>
     </div>
 
-    <div ref={receiptRef} className="printable-area hidden" style={{ width: '500px', padding: '40px', backgroundColor: 'white', color: 'black', fontFamily: 'serif', boxSizing: 'border-box' }}>
+    <div ref={receiptRef} className="printable-area printable-bill hidden" data-print-type="bill" style={{ width: '500px', padding: '40px', backgroundColor: 'white', color: 'black', fontFamily: 'serif', boxSizing: 'border-box' }}>
         <div className="text-center mb-8 border-b-2 border-black pb-4"><h1 className="text-4xl font-bold uppercase tracking-widest mb-2">LA PERLA</h1><p className="text-sm font-sans uppercase tracking-wider">Nails & Beauty</p><p className="text-xs mt-2 font-sans text-gray-600">Shop 10/260 Jersey Rd, Plumpton NSW 2761</p><p className="text-xs font-sans text-gray-600">(02) 9625 8194</p></div>
         <div className="flex justify-between items-end mb-8 font-sans"><div><p className="text-xs font-bold uppercase text-gray-500">Bill To:</p><p className="text-lg font-bold">{isVip ? '★ ' : ''}{customerName || 'Guest'}</p>{customerPhone && <p className="text-sm">{customerPhone}</p>}</div><div className="text-right"><p className="text-sm">Date: {billDateString}</p>{currentBillId && <p className="text-xs text-gray-400 mt-1">Ref: {currentBillId.slice(-6)}</p>}</div></div>
         <div className="mb-8"><table className="w-full text-left font-sans text-sm"><thead className="border-b-2 border-black"><tr><th className="py-2 w-12">Qty</th><th className="py-2">Description</th><th className="py-2 text-right w-24">Price</th><th className="py-2 text-right w-24">Amount</th></tr></thead><tbody className="divide-y divide-gray-200">{groupedCartItems.map((item, i) => <tr key={i}><td className="py-3 align-top">{item.quantity}</td><td className="py-3 align-top"><p className="font-bold">{item.displayName || t.serviceNames[item.nameKey] || item.nameKey}</p>{item.staffName && <p className="text-xs text-gray-500 italic">Stylist: {item.staffName}</p>}</td><td className="py-3 align-top text-right">${item.price.toFixed(2)}</td><td className="py-3 align-top text-right font-bold">${(item.price * item.quantity).toFixed(2)}</td></tr>)}</tbody></table></div>
