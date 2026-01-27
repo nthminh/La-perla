@@ -218,7 +218,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
   // Print mode constants
   const PRINT_MODE_RESET_DELAY = 100; // ms - delay to reset print mode after printing
   const isLongPress = useRef(false);
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTimer = useRef<number | null>(null);
 
   const isStaffMode = !!currentUser; 
   const isAdmin = currentUser?.id === 'admin_master';
@@ -1005,7 +1005,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
           if (window.confirm("Close this bill order?")) {
               closeBill(billId);
           }
-      }, 700);
+      }, 700) as unknown as number;
   };
 
   const handleLongPressEnd = () => {
