@@ -215,7 +215,8 @@ export const PricingView: React.FC<PricingViewProps> = ({
   const ticketRef = useRef<HTMLDivElement>(null);
   const [printMode, setPrintMode] = useState<'ticket' | 'bill' | null>(null);
 
-  const longPressTimer = useRef<any>(null);
+  // Print mode constants
+  const PRINT_MODE_RESET_DELAY = 100; // ms - delay to reset print mode after printing
   const isLongPress = useRef(false);
 
   const isStaffMode = !!currentUser; 
@@ -408,14 +409,12 @@ export const PricingView: React.FC<PricingViewProps> = ({
           console.warn('Failed to open cash drawer, continuing with print');
       }
       
-      // Wait for state to update before printing
-      requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-              window.print();
-              // Reset print mode after printing
-              setTimeout(() => setPrintMode(null), 100);
-          });
-      });
+      // Wait for state to update and DOM to reflect the data-print-mode attribute
+      setTimeout(() => {
+          window.print();
+          // Reset print mode after printing
+          setTimeout(() => setPrintMode(null), PRINT_MODE_RESET_DELAY);
+      }, 50);
   };
 
   const handleDownloadBill = async () => {
@@ -1064,14 +1063,12 @@ export const PricingView: React.FC<PricingViewProps> = ({
         setGeneratedTicket(ticketNumber);
         // Set print mode to ticket
         setPrintMode('ticket');
-        // Use requestAnimationFrame to ensure DOM has updated before printing
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-                window.print();
-                // Reset print mode after printing
-                setTimeout(() => setPrintMode(null), 100);
-            });
-        });
+        // Wait for state to update and DOM to reflect the data-print-mode attribute
+        setTimeout(() => {
+            window.print();
+            // Reset print mode after printing
+            setTimeout(() => setPrintMode(null), PRINT_MODE_RESET_DELAY);
+        }, 50);
     } catch (error) {
         console.error('Error printing ticket:', error);
         SoundManager.playError();
