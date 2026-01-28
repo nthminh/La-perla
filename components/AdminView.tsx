@@ -620,7 +620,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                           <span className="text-gold-leaf text-[10px] pl-3 ml-1 uppercase font-bold tracking-wider">{adminRole === 'master' ? 'Master Access' : 'Store Manager'}</span>
                       </div>
                   </div>
-                  <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0 md:flex-wrap">
+                  <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
                       <button onClick={() => setActiveTab('dashboard')} className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors whitespace-nowrap ${activeTab === 'dashboard' ? 'bg-gold-leaf text-white' : 'hover:bg-white/10'}`}>Dashboard</button>
                       <button onClick={() => setActiveTab('bookings')} className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors whitespace-nowrap ${activeTab === 'bookings' ? 'bg-gold-leaf text-white' : 'hover:bg-white/10'}`}>Bookings ({bookings.filter(b=>b.status==='pending').length})</button>
                       <button onClick={() => setActiveTab('customers')} className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors whitespace-nowrap ${activeTab === 'customers' ? 'bg-gold-leaf text-white' : 'hover:bg-white/10'}`}>Customers</button>
@@ -938,9 +938,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                             {isOpen && (
                                                 <div className="p-3 bg-white space-y-2 animate-fade-in">
                                                     {cat.services.map((svc, srvIndex) => (
-                                                        <div key={srvIndex} className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+                                                        <div key={srvIndex} className="flex gap-2 items-center">
                                                             {/* SERVICE REORDER CONTROLS */}
-                                                            <div className="flex flex-row sm:flex-col gap-0.5 sm:gap-0.5">
+                                                            <div className="flex flex-col gap-0.5">
                                                                 <button 
                                                                     onClick={() => handleMoveService(catIndex, srvIndex, 'up')}
                                                                     disabled={srvIndex === 0}
@@ -956,11 +956,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                                                     <ChevronDownIcon className="w-3 h-3" />
                                                                 </button>
                                                             </div>
-                                                            <div className="flex-grow flex gap-2">
-                                                                <input type="text" value={svc.displayName || t.serviceNames[svc.nameKey] || svc.nameKey} onChange={(e) => handleUpdateService(catIndex, srvIndex, 'displayName', e.target.value)} className="flex-grow p-2 border rounded-lg text-sm min-w-0" placeholder="Service Name" />
-                                                                <input type="text" value={svc.price} onChange={(e) => handleUpdateService(catIndex, srvIndex, 'price', e.target.value)} className="w-20 sm:w-24 p-2 border rounded-lg text-sm text-right font-bold text-gold-leaf" />
-                                                            </div>
-                                                            <button onClick={() => handleRemoveService(catIndex, srvIndex)} className="p-2 text-gray-300 hover:text-red-500 self-end sm:self-auto"><XMarkIcon className="w-4 h-4" /></button>
+                                                            <input type="text" value={svc.displayName || t.serviceNames[svc.nameKey] || svc.nameKey} onChange={(e) => handleUpdateService(catIndex, srvIndex, 'displayName', e.target.value)} className="flex-grow p-2 border rounded-lg text-sm min-w-0" placeholder="Service Name" />
+                                                            <input type="text" value={svc.price} onChange={(e) => handleUpdateService(catIndex, srvIndex, 'price', e.target.value)} className="w-20 sm:w-24 p-2 border rounded-lg text-sm text-right font-bold text-gold-leaf flex-shrink-0" />
+                                                            <button onClick={() => handleRemoveService(catIndex, srvIndex)} className="p-2 text-gray-300 hover:text-red-500 flex-shrink-0"><XMarkIcon className="w-4 h-4" /></button>
                                                         </div>
                                                     ))}
                                                     <button onClick={() => handleAddService(catIndex)} className="w-full py-2.5 border border-dashed border-gray-300 rounded-xl text-xs font-bold text-gray-400 hover:text-gold-leaf hover:border-gold-leaf transition-colors mt-2">
