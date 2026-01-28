@@ -612,7 +612,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
             <header className="bg-charcoal text-white p-4 sticky top-0 z-30 shadow-md">
-              <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+              <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4 overflow-x-hidden">
                   <div className="flex items-center gap-2">
                       <LaPerlaLogo className="w-32 brightness-0 invert" />
                       <div className="flex flex-col">
@@ -620,7 +620,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                           <span className="text-gold-leaf text-[10px] pl-3 ml-1 uppercase font-bold tracking-wider">{adminRole === 'master' ? 'Master Access' : 'Store Manager'}</span>
                       </div>
                   </div>
-                  <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
+                  <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0 md:flex-wrap">
                       <button onClick={() => setActiveTab('dashboard')} className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors whitespace-nowrap ${activeTab === 'dashboard' ? 'bg-gold-leaf text-white' : 'hover:bg-white/10'}`}>Dashboard</button>
                       <button onClick={() => setActiveTab('bookings')} className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors whitespace-nowrap ${activeTab === 'bookings' ? 'bg-gold-leaf text-white' : 'hover:bg-white/10'}`}>Bookings ({bookings.filter(b=>b.status==='pending').length})</button>
                       <button onClick={() => setActiveTab('customers')} className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors whitespace-nowrap ${activeTab === 'customers' ? 'bg-gold-leaf text-white' : 'hover:bg-white/10'}`}>Customers</button>
@@ -629,7 +629,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       <button onClick={() => setActiveTab('menu')} className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors whitespace-nowrap ${activeTab === 'menu' ? 'bg-gold-leaf text-white' : 'hover:bg-white/10'}`}>Menu & Staff</button>
                       <button onClick={() => setActiveTab('settings')} className={`px-4 py-2 rounded-lg font-bold text-sm transition-colors whitespace-nowrap ${activeTab === 'settings' ? 'bg-gold-leaf text-white' : 'hover:bg-white/10'}`}>Settings</button>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 flex-wrap justify-center">
                       <button onClick={() => exportToCSV(filteredTransactions)} className="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors">
                           <DownloadIcon className="w-4 h-4" /> Export CSV
                       </button>
@@ -860,8 +860,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     <div className="space-y-6 animate-fade-in">
                         <div className="flex justify-end"><button onClick={handleSaveAllSettings} disabled={isSavingSettings} className="bg-green-600 text-white px-6 py-2 rounded-xl font-bold shadow-md hover:bg-green-700 transition-colors disabled:opacity-50">{isSavingSettings ? "Saving to Cloud..." : "Save All Changes"}</button></div>
                         
-                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                            <div className="flex justify-between items-center mb-4"><h3 className="text-xl font-serif font-bold text-charcoal">Staff & Payroll</h3><button onClick={() => { handleCancelEdit(); setEditingStaffId("new"); window.scrollTo({top:0, behavior:'smooth'}); }} className="bg-charcoal text-white px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-black"><PlusIcon className="w-4 h-4" /> Add Staff</button></div>
+                        <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 overflow-x-hidden">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4"><h3 className="text-xl font-serif font-bold text-charcoal">Staff & Payroll</h3><button onClick={() => { handleCancelEdit(); setEditingStaffId("new"); window.scrollTo({top:0, behavior:'smooth'}); }} className="bg-charcoal text-white px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-black whitespace-nowrap"><PlusIcon className="w-4 h-4" /> Add Staff</button></div>
                             {editingStaffId && (
                                 <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 mb-6 animate-fade-in">
                                     <h4 className="font-bold text-lg mb-4">{editingStaffId === 'new' ? 'New Staff Member' : 'Edit Staff'}</h4>
@@ -877,12 +877,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
                             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 bg-gray-50 p-4 rounded-xl">{DAYS_OF_WEEK.map((day, idx) => (<div key={day} className={`p-2 rounded-lg ${day === todayName ? 'bg-white shadow-sm ring-1 ring-gold-leaf' : ''}`}><label className={`block text-[10px] font-bold uppercase mb-1 ${day === todayName ? 'text-gold-leaf' : 'text-gray-400'}`}>{day} {day === todayName && '(Today)'}</label><input type="number" placeholder="0" value={editGlobalPayroll.customTargets?.[day] ?? ''} onChange={(e) => { const val = e.target.value === '' ? undefined : parseFloat(e.target.value); const newTargets = { ...editGlobalPayroll.customTargets }; if (val === undefined) delete newTargets[day]; else newTargets[day] = val; setEditGlobalPayroll({ ...editGlobalPayroll, customTargets: newTargets }); }} className="w-full p-2 border border-gray-200 rounded text-sm text-center font-bold focus:border-gold-leaf outline-none" /></div>))}</div>
                         </div>
 
-                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                            <div className="flex justify-between items-center mb-6">
+                        <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 overflow-x-hidden">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
                                 <h3 className="text-xl font-serif font-bold text-charcoal">Service Menu Pricing</h3>
                                 <button 
                                     onClick={handleAddCategory}
-                                    className="bg-charcoal text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-black transition-colors"
+                                    className="bg-charcoal text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-black transition-colors whitespace-nowrap"
                                 >
                                     <PlusIcon className="w-4 h-4" /> Add New Group
                                 </button>
@@ -938,9 +938,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                             {isOpen && (
                                                 <div className="p-3 bg-white space-y-2 animate-fade-in">
                                                     {cat.services.map((svc, srvIndex) => (
-                                                        <div key={srvIndex} className="flex gap-2 items-center">
+                                                        <div key={srvIndex} className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
                                                             {/* SERVICE REORDER CONTROLS */}
-                                                            <div className="flex flex-col gap-0.5">
+                                                            <div className="flex flex-row sm:flex-col gap-0.5 sm:gap-0.5">
                                                                 <button 
                                                                     onClick={() => handleMoveService(catIndex, srvIndex, 'up')}
                                                                     disabled={srvIndex === 0}
@@ -956,9 +956,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                                                     <ChevronDownIcon className="w-3 h-3" />
                                                                 </button>
                                                             </div>
-                                                            <input type="text" value={svc.displayName || t.serviceNames[svc.nameKey] || svc.nameKey} onChange={(e) => handleUpdateService(catIndex, srvIndex, 'displayName', e.target.value)} className="flex-grow p-2 border rounded-lg text-sm" placeholder="Service Name" />
-                                                            <input type="text" value={svc.price} onChange={(e) => handleUpdateService(catIndex, srvIndex, 'price', e.target.value)} className="w-24 p-2 border rounded-lg text-sm text-right font-bold text-gold-leaf" />
-                                                            <button onClick={() => handleRemoveService(catIndex, srvIndex)} className="p-2 text-gray-300 hover:text-red-500"><XMarkIcon className="w-4 h-4" /></button>
+                                                            <div className="flex-grow flex gap-2">
+                                                                <input type="text" value={svc.displayName || t.serviceNames[svc.nameKey] || svc.nameKey} onChange={(e) => handleUpdateService(catIndex, srvIndex, 'displayName', e.target.value)} className="flex-grow p-2 border rounded-lg text-sm min-w-0" placeholder="Service Name" />
+                                                                <input type="text" value={svc.price} onChange={(e) => handleUpdateService(catIndex, srvIndex, 'price', e.target.value)} className="w-20 sm:w-24 p-2 border rounded-lg text-sm text-right font-bold text-gold-leaf" />
+                                                            </div>
+                                                            <button onClick={() => handleRemoveService(catIndex, srvIndex)} className="p-2 text-gray-300 hover:text-red-500 self-end sm:self-auto"><XMarkIcon className="w-4 h-4" /></button>
                                                         </div>
                                                     ))}
                                                     <button onClick={() => handleAddService(catIndex)} className="w-full py-2.5 border border-dashed border-gray-300 rounded-xl text-xs font-bold text-gray-400 hover:text-gold-leaf hover:border-gold-leaf transition-colors mt-2">
