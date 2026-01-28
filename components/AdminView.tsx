@@ -938,7 +938,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                             {isOpen && (
                                                 <div className="p-3 bg-white space-y-2 animate-fade-in">
                                                     {cat.services.map((svc, srvIndex) => (
-                                                        <div key={srvIndex} className="flex gap-2 items-center min-w-fit">
+                                                        <div key={srvIndex} className="flex gap-2 items-center">
                                                             {/* SERVICE REORDER CONTROLS */}
                                                             <div className="flex flex-col gap-0.5 flex-shrink-0">
                                                                 <button 
@@ -956,7 +956,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                                                     <ChevronDownIcon className="w-3 h-3" />
                                                                 </button>
                                                             </div>
-                                                            <input type="text" value={svc.displayName || t.serviceNames[svc.nameKey] || svc.nameKey} onChange={(e) => handleUpdateService(catIndex, srvIndex, 'displayName', e.target.value)} className="flex-grow p-2 border rounded-lg text-sm min-w-0" placeholder="Service Name" />
+                                                            <input type="text" value={svc.displayName || t.serviceNames[svc.nameKey] || svc.nameKey} onChange={(e) => handleUpdateService(catIndex, srvIndex, 'displayName', e.target.value)} className="flex-1 p-2 border rounded-lg text-sm min-w-0" placeholder="Service Name" />
                                                             <input type="text" value={svc.price} onChange={(e) => handleUpdateService(catIndex, srvIndex, 'price', e.target.value)} className="w-20 sm:w-24 p-2 border rounded-lg text-sm text-right font-bold text-gold-leaf flex-shrink-0" />
                                                             <button onClick={() => handleRemoveService(catIndex, srvIndex)} className="p-2 text-gray-300 hover:text-red-500 flex-shrink-0"><XMarkIcon className="w-4 h-4" /></button>
                                                         </div>
