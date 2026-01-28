@@ -16,7 +16,7 @@ import { Transaction, ServiceCategory, StaffProfile, BookingRequest, PayrollConf
 import { 
     ChartIcon, LockIcon, ReceiptIcon, DownloadIcon, LaPerlaLogo, PlusIcon, XMarkIcon, 
     ChevronDownIcon, CameraIcon, UploadIcon, UserIcon, PencilIcon, CalendarIcon, 
-    PhoneIcon, ClockIcon, TrashIcon, StarIcon, ListBulletIcon, CloudSyncIcon, UsersIcon, BriefcaseIcon, SparklesIcon, MapPinIcon, SearchIcon, GiftIcon, ChatIcon
+    PhoneIcon, ClockIcon, TrashIcon, StarIcon, ListBulletIcon, CloudSyncIcon, UsersIcon, BriefcaseIcon, SparklesIcon, MapPinIcon, SearchIcon, GiftIcon, ChatIcon, PriceTagIcon
 } from './Icons'; 
 import { 
     isFirebaseConfigured, 
@@ -94,6 +94,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
     const [startDate, setStartDate] = useState(getSydneyToday());
     const [endDate, setEndDate] = useState(getSydneyToday());
     const [selectedStylistId, setSelectedStylistId] = useState<string>('all');
+    const [selectedDiscountFilter, setSelectedDiscountFilter] = useState<string>('all');
 
     // ... Setup State ...
     const [pasteInput, setPasteInput] = useState('');
@@ -189,10 +190,35 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 const hasItem = tx.items.some(item => item.staffId === selectedStylistId || (staff && item.staffName === staff.name));
                 if (!isOwner && !hasItem) return false;
             }
+            
+            // Apply discount filter
+            if (selectedDiscountFilter !== 'all') {
+                const discount = tx.discountPercentage || 0;
+                if (selectedDiscountFilter === 'no-discount' && discount > 0) return false;
+                if (selectedDiscountFilter === 'with-discount' && discount === 0) return false;
+                if (selectedDiscountFilter.startsWith('discount-')) {
+                    const targetDiscount = parseFloat(selectedDiscountFilter.replace('discount-', ''));
+                    // Use epsilon comparison to handle floating point precision issues
+                    if (Math.abs(discount - targetDiscount) > 0.001) return false;
+                }
+            }
+            
             return true;
         });
         return filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    }, [sheetTransactions, localTransactions, startDate, endDate, selectedStylistId, staffList]);
+    }, [sheetTransactions, localTransactions, startDate, endDate, selectedStylistId, staffList, selectedDiscountFilter]);
+
+    // Get unique discount percentages used in transactions
+    const uniqueDiscounts = useMemo(() => {
+        const source = sheetTransactions.length > 0 ? sheetTransactions : localTransactions;
+        const discountSet = new Set<number>();
+        source.forEach(tx => {
+            const discount = tx.discountPercentage || 0;
+            if (discount > 0) discountSet.add(discount);
+        });
+        return Array.from(discountSet).sort((a, b) => a - b);
+    }, [sheetTransactions, localTransactions]);
+
 
     const unsyncedTransactions = useMemo(() => {
         return localTransactions.filter(localTx => 
@@ -652,7 +678,10 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                     <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-white border border-gray-200 rounded px-2 py-1.5 text-sm outline-none focus:border-gold-leaf font-bold text-charcoal" />
                                     <button onClick={handleLoadDateRange} className="bg-gold-leaf text-white p-1.5 rounded hover:bg-charcoal transition-colors ml-1" title="Load Full History for Range"><SearchIcon className="w-4 h-4" /></button>
                                 </div>
-                                <div className="flex items-center gap-2"><div className="relative"><select value={selectedStylistId} onChange={(e) => setSelectedStylistId(e.target.value)} className="appearance-none bg-white pl-9 pr-8 py-2 rounded-lg border border-gray-200 text-sm font-bold text-charcoal focus:outline-none focus:border-gold-leaf shadow-sm cursor-pointer"><option value="all">All Stylists</option>{staffList.map(staff => (<option key={staff.id} value={staff.id}>{staff.name}</option>))}</select><UsersIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" /><ChevronDownIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" /></div></div>
+                                <div className="flex items-center gap-2">
+                                    <div className="relative"><select value={selectedStylistId} onChange={(e) => setSelectedStylistId(e.target.value)} className="appearance-none bg-white pl-9 pr-8 py-2 rounded-lg border border-gray-200 text-sm font-bold text-charcoal focus:outline-none focus:border-gold-leaf shadow-sm cursor-pointer"><option value="all">All Stylists</option>{staffList.map(staff => (<option key={staff.id} value={staff.id}>{staff.name}</option>))}</select><UsersIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" /><ChevronDownIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" /></div>
+                                    <div className="relative"><select value={selectedDiscountFilter} onChange={(e) => setSelectedDiscountFilter(e.target.value)} className="appearance-none bg-white pl-9 pr-8 py-2 rounded-lg border border-gray-200 text-sm font-bold text-charcoal focus:outline-none focus:border-gold-leaf shadow-sm cursor-pointer"><option value="all">{t.allDiscounts}</option><option value="no-discount">{t.noDiscount}</option><option value="with-discount">{t.withDiscount}</option>{uniqueDiscounts.map(discount => (<option key={discount} value={`discount-${discount}`}>{discount}% {t.discountLabel}</option>))}</select><PriceTagIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" /><ChevronDownIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" /></div>
+                                </div>
                                 <div className="flex items-center gap-2 border-l border-gray-200 pl-4"><div className="bg-gold-leaf/10 p-1.5 rounded-full"><LockIcon className="w-3 h-3 text-gold-leaf" /></div><div><div className="flex items-baseline gap-1"><span className="text-[10px] font-bold text-gray-400 uppercase">TARGET ({todayName})</span><input type="number" value={editGlobalPayroll.customTargets?.[todayName] ?? ''} placeholder="0" onChange={(e) => { const val = parseFloat(e.target.value); const newTargets = { ...editGlobalPayroll.customTargets }; if (isNaN(val)) delete newTargets[todayName]; else newTargets[todayName] = val; const newPayroll = {...editGlobalPayroll, customTargets: newTargets}; setEditGlobalPayroll(newPayroll); if (onUpdateGlobalPayroll) onUpdateGlobalPayroll(newPayroll); if (onSaveSettings) onSaveSettings(editStaffList, editPricingData, newPayroll, editKnowledgeBase, editAdminPasswords, editMarqueeSettings); }} className="font-bold text-charcoal w-16 border-b border-gray-300 focus:border-gold-leaf outline-none text-sm bg-transparent" /></div></div></div>
                             </div>
                         </div>

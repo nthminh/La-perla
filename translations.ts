@@ -135,6 +135,10 @@ export interface Translation {
   vsPrevious: string;
   revenue: string;
   orders: string;
+  filterByDiscount: string;
+  allDiscounts: string;
+  noDiscount: string;
+  withDiscount: string;
   kioskWelcome: string;
   kioskSubtitle: string;
   kioskNameLabel: string;
@@ -315,6 +319,10 @@ const baseTranslations: Omit<Translation, 'name' | 'flag'> = {
   vsPrevious: "vs previous period",
   revenue: "Revenue",
   orders: "Orders",
+  filterByDiscount: "Filter by Discount",
+  allDiscounts: "All Orders",
+  noDiscount: "No Discount (0%)",
+  withDiscount: "With Discount",
   kioskWelcome: "Welcome to La Perla",
   kioskSubtitle: "Please join our waitlist",
   kioskNameLabel: "Your Name",
@@ -558,5 +566,12 @@ export const TRANSLATIONS: Record<string, Translation> = {
     payrollTotalPayrollCost: "Tổng Chi Phí Lương",
     payrollMonth: "Tháng",
     payrollYear: "Năm",
+    revenue: "Doanh Thu",
+    orders: "Đơn Hàng",
+    filterByDiscount: "Lọc Theo Giảm Giá",
+    allDiscounts: "Tất Cả Đơn",
+    noDiscount: "Không Giảm Giá (0%)",
+    withDiscount: "Có Giảm Giá",
+    discountLabel: "Giảm Giá",
   },
 };
