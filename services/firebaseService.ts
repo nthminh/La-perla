@@ -215,7 +215,7 @@ export const deleteActiveBill = async (billId: string): Promise<void> => {
 };
 
 /**
- * Delete all ActiveBills (incomplete orders) created before today
+ * Delete all ActiveBills (incomplete orders) created before today (Sydney time)
  * Bill IDs use Date.now().toString() format, so we can identify old bills by their timestamp
  * @returns Object with success status and count of deleted bills
  */
@@ -224,12 +224,8 @@ export const deleteOldIncompleteBills = async (): Promise<{ success: boolean; co
     if (!db) return { success: false, count: 0, error: "Database not initialized" };
 
     try {
-        // Get start of today in Sydney timezone (Australia/Sydney)
-        // This creates a Date object representing midnight today in Sydney
-        const nowInSydney = new Date().toLocaleString('en-US', { timeZone: 'Australia/Sydney' });
-        const sydneyDate = new Date(nowInSydney);
-        sydneyDate.setHours(0, 0, 0, 0);
-        const todayStartTimestamp = sydneyDate.getTime();
+        // Get today's date in Sydney timezone (YYYY-MM-DD format)
+        const todayInSydney = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
 
         // Fetch all active bills
         const snapshot = await get(ref(db, BILLS_REF));
@@ -248,11 +244,16 @@ export const deleteOldIncompleteBills = async (): Promise<{ success: boolean; co
                 // Bill ID is a timestamp string (created with Date.now().toString())
                 const billTimestamp = parseInt(bill.id, 10);
                 
-                // Delete if bill was created before today (Sydney time)
-                if (!isNaN(billTimestamp) && billTimestamp < todayStartTimestamp) {
-                    updates[key] = null; // Mark for deletion
-                    count++;
-                    logger.info(`Marking old bill for deletion: ${bill.id} (${new Date(billTimestamp).toLocaleString()})`);
+                if (!isNaN(billTimestamp)) {
+                    // Get the bill's creation date in Sydney timezone
+                    const billDateInSydney = new Date(billTimestamp).toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+                    
+                    // Delete if bill was created before today (comparing date strings in YYYY-MM-DD format)
+                    if (billDateInSydney < todayInSydney) {
+                        updates[key] = null; // Mark for deletion
+                        count++;
+                        logger.info(`Marking old bill for deletion: ${bill.id} (created on ${billDateInSydney})`);
+                    }
                 }
             }
         }
