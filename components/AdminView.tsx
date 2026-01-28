@@ -196,7 +196,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 const discount = tx.discountPercentage || 0;
                 if (selectedDiscountFilter === 'no-discount' && discount > 0) return false;
                 if (selectedDiscountFilter === 'with-discount' && discount === 0) return false;
-                if (selectedDiscountFilter.startsWith('discount-') && discount !== parseFloat(selectedDiscountFilter.replace('discount-', ''))) return false;
+                if (selectedDiscountFilter.startsWith('discount-')) {
+                    const targetDiscount = parseFloat(selectedDiscountFilter.replace('discount-', ''));
+                    // Use epsilon comparison to handle floating point precision issues
+                    if (Math.abs(discount - targetDiscount) > 0.001) return false;
+                }
             }
             
             return true;

@@ -572,5 +572,6 @@ export const TRANSLATIONS: Record<string, Translation> = {
     allDiscounts: "Tất Cả Đơn",
     noDiscount: "Không Giảm Giá (0%)",
     withDiscount: "Có Giảm Giá",
+    discountLabel: "Giảm Giá",
   },
 };
