@@ -956,8 +956,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                                                     <ChevronDownIcon className="w-3 h-3" />
                                                                 </button>
                                                             </div>
-                                                            <input type="text" value={svc.displayName || t.serviceNames[svc.nameKey] || svc.nameKey} onChange={(e) => handleUpdateService(catIndex, srvIndex, 'displayName', e.target.value)} className="flex-1 p-2 border rounded-lg text-sm min-w-0" placeholder="Service Name" />
-                                                            <input type="text" value={svc.price} onChange={(e) => handleUpdateService(catIndex, srvIndex, 'price', e.target.value)} className="w-20 sm:w-24 p-2 border rounded-lg text-sm text-right font-bold text-gold-leaf flex-shrink-0" />
+                                                            <input type="text" value={svc.displayName || t.serviceNames[svc.nameKey] || svc.nameKey} onChange={(e) => handleUpdateService(catIndex, srvIndex, 'displayName', e.target.value)} className="flex-1 px-2 sm:px-3 py-2 border rounded-lg text-sm min-w-0" placeholder="Service Name" />
+                                                            <input type="text" value={svc.price} onChange={(e) => handleUpdateService(catIndex, srvIndex, 'price', e.target.value)} className="w-20 sm:w-24 px-2 py-2 border rounded-lg text-sm text-right font-bold text-gold-leaf flex-shrink-0" />
                                                             <button onClick={() => handleRemoveService(catIndex, srvIndex)} className="p-2 text-gray-300 hover:text-red-500 flex-shrink-0"><XMarkIcon className="w-4 h-4" /></button>
                                                         </div>
                                                     ))}
