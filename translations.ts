@@ -135,6 +135,7 @@ export interface Translation {
   vsPrevious: string;
   revenue: string;
   orders: string;
+  workers: string;
   filterByDiscount: string;
   allDiscounts: string;
   noDiscount: string;
@@ -319,6 +320,7 @@ const baseTranslations: Omit<Translation, 'name' | 'flag'> = {
   vsPrevious: "vs previous period",
   revenue: "Revenue",
   orders: "Orders",
+  workers: "Workers",
   filterByDiscount: "Filter by Discount",
   allDiscounts: "All Orders",
   noDiscount: "No Discount (0%)",
@@ -568,6 +570,7 @@ export const TRANSLATIONS: Record<string, Translation> = {
     payrollYear: "Năm",
     revenue: "Doanh Thu",
     orders: "Đơn Hàng",
+    workers: "Thợ Làm Việc",
     filterByDiscount: "Lọc Theo Giảm Giá",
     allDiscounts: "Tất Cả Đơn",
     noDiscount: "Không Giảm Giá (0%)",

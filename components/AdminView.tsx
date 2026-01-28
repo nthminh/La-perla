@@ -291,6 +291,17 @@ export const AdminView: React.FC<AdminViewProps> = ({
         });
         const topStylists = Object.entries(stylistStats).map(([name, stat]) => ({ name, ...stat })).sort((a, b) => b.revenue - a.revenue);
         
+        // Calculate unique workers count (staff who worked on filtered dates)
+        const uniqueWorkers = new Set<string>();
+        filteredTransactions.forEach(tx => {
+            tx.items.forEach(item => {
+                if (item.staffName) {
+                    uniqueWorkers.add(item.staffName);
+                }
+            });
+        });
+        const workersCount = uniqueWorkers.size;
+        
         // Calculate daily revenue for chart
         const dailyRevenueData: Array<{ date: string, revenue: number }> = Object.entries(txByDate).map(([dateStr, dailyTxs]) => {
             let dailyRevenue = 0;
@@ -309,7 +320,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
             return { date: dateStr, revenue: dailyRevenue };
         }).sort((a, b) => a.date.localeCompare(b.date));
         
-        return { revenue, orders, topServices, topStylists, dailyRevenueData };
+        return { revenue, orders, workersCount, topServices, topStylists, dailyRevenueData };
     }, [filteredTransactions, staffList, editGlobalPayroll, selectedStylistId, t.serviceNames]);
 
     const handleManualRefresh = async () => {
@@ -698,9 +709,10 @@ export const AdminView: React.FC<AdminViewProps> = ({
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><p className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">{t.revenue}</p><div className="flex items-end justify-between"><h3 className="text-3xl font-serif font-bold text-charcoal">${stats.revenue.toFixed(2)}</h3><ChartIcon className="w-8 h-8 text-gold-leaf opacity-20" /></div></div>
                             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><p className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">{t.orders}</p><div className="flex items-end justify-between"><h3 className="text-3xl font-serif font-bold text-charcoal">{stats.orders}</h3><ReceiptIcon className="w-8 h-8 text-gold-leaf opacity-20" /></div></div>
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><p className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-2">{t.workers}</p><div className="flex items-end justify-between"><h3 className="text-3xl font-serif font-bold text-charcoal">{stats.workersCount}</h3><UsersIcon className="w-8 h-8 text-gold-leaf opacity-20" /></div></div>
                             <div className="bg-charcoal text-white p-6 rounded-2xl shadow-md col-span-2 relative overflow-hidden"><div className="relative z-10"><p className="text-gold-leaf text-xs font-bold uppercase tracking-wider mb-2">TOP STYLIST (REVENUE)</p>{stats.topStylists.length > 0 ? (<><h3 className="text-3xl font-serif font-bold">{stats.topStylists[0].name}</h3><p className="text-gray-400 text-sm mt-1">${stats.topStylists[0].revenue.toFixed(2)} generated</p></>) : <p className="text-gray-500 italic">No data</p>}</div></div>
                         </div>
 
