@@ -893,7 +893,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                     const isOpen = openEditCategories[cat.categoryKey]; 
                                     return (
                                         <div key={catIndex} className="border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:border-gold-leaf/30 transition-colors">
-                                            <div className="w-full flex items-center p-3 bg-gray-50 gap-3 border-b border-gray-200 min-w-fit">
+                                            <div className="w-full flex items-center p-3 bg-gray-50 gap-2 sm:gap-3 border-b border-gray-200">
                                                 {/* REORDER CONTROLS */}
                                                 <div className="flex flex-col gap-1 flex-shrink-0">
                                                     <button 
@@ -915,21 +915,21 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                                 </div>
 
                                                 {/* GROUP NAME INPUT */}
-                                                <div className="flex-grow flex items-center gap-2 min-w-0">
+                                                <div className="flex-1 flex items-center gap-2 min-w-0">
                                                     <input 
                                                         type="text" 
                                                         value={cat.categoryKey}
                                                         onChange={(e) => handleUpdateCategoryName(catIndex, e.target.value)}
-                                                        className="bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm font-bold text-charcoal focus:border-gold-leaf outline-none flex-grow min-w-0"
+                                                        className="bg-white border border-gray-200 rounded-lg px-2 sm:px-3 py-1.5 text-sm font-bold text-charcoal focus:border-gold-leaf outline-none w-full min-w-0"
                                                         placeholder="Group Name"
                                                     />
                                                 </div>
 
                                                 <div className="flex items-center gap-1 flex-shrink-0">
-                                                    <button onClick={() => toggleEditCategory(cat.categoryKey)} className="p-2 text-gray-400 hover:text-charcoal transition-colors">
+                                                    <button onClick={() => toggleEditCategory(cat.categoryKey)} className="p-1.5 sm:p-2 text-gray-400 hover:text-charcoal transition-colors">
                                                         <ChevronDownIcon className={`w-5 h-5 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                                                     </button>
-                                                    <button onClick={() => handleRemoveCategory(catIndex)} className="p-2 text-gray-300 hover:text-red-500 transition-colors" title="Delete Group">
+                                                    <button onClick={() => handleRemoveCategory(catIndex)} className="p-1.5 sm:p-2 text-gray-300 hover:text-red-500 transition-colors" title="Delete Group">
                                                         <TrashIcon className="w-5 h-5" />
                                                     </button>
                                                 </div>
@@ -938,7 +938,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                             {isOpen && (
                                                 <div className="p-3 bg-white space-y-2 animate-fade-in">
                                                     {cat.services.map((svc, srvIndex) => (
-                                                        <div key={srvIndex} className="flex gap-2 items-center min-w-fit">
+                                                        <div key={srvIndex} className="flex gap-2 items-center">
                                                             {/* SERVICE REORDER CONTROLS */}
                                                             <div className="flex flex-col gap-0.5 flex-shrink-0">
                                                                 <button 
@@ -956,8 +956,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                                                     <ChevronDownIcon className="w-3 h-3" />
                                                                 </button>
                                                             </div>
-                                                            <input type="text" value={svc.displayName || t.serviceNames[svc.nameKey] || svc.nameKey} onChange={(e) => handleUpdateService(catIndex, srvIndex, 'displayName', e.target.value)} className="flex-grow p-2 border rounded-lg text-sm min-w-0" placeholder="Service Name" />
-                                                            <input type="text" value={svc.price} onChange={(e) => handleUpdateService(catIndex, srvIndex, 'price', e.target.value)} className="w-20 sm:w-24 p-2 border rounded-lg text-sm text-right font-bold text-gold-leaf flex-shrink-0" />
+                                                            <input type="text" value={svc.displayName || t.serviceNames[svc.nameKey] || svc.nameKey} onChange={(e) => handleUpdateService(catIndex, srvIndex, 'displayName', e.target.value)} className="flex-1 px-2 sm:px-3 py-2 border rounded-lg text-sm min-w-0" placeholder="Service Name" />
+                                                            <input type="text" value={svc.price} onChange={(e) => handleUpdateService(catIndex, srvIndex, 'price', e.target.value)} className="w-20 sm:w-24 px-2 sm:px-3 py-2 border rounded-lg text-sm text-right font-bold text-gold-leaf flex-shrink-0" />
                                                             <button onClick={() => handleRemoveService(catIndex, srvIndex)} className="p-2 text-gray-300 hover:text-red-500 flex-shrink-0"><XMarkIcon className="w-4 h-4" /></button>
                                                         </div>
                                                     ))}
