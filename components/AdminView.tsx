@@ -860,7 +860,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     <div className="space-y-6 animate-fade-in">
                         <div className="flex justify-end"><button onClick={handleSaveAllSettings} disabled={isSavingSettings} className="bg-green-600 text-white px-6 py-2 rounded-xl font-bold shadow-md hover:bg-green-700 transition-colors disabled:opacity-50">{isSavingSettings ? "Saving to Cloud..." : "Save All Changes"}</button></div>
                         
-                        <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 overflow-x-hidden">
+                        <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
                             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4"><h3 className="text-xl font-serif font-bold text-charcoal">Staff & Payroll</h3><button onClick={() => { handleCancelEdit(); setEditingStaffId("new"); window.scrollTo({top:0, behavior:'smooth'}); }} className="bg-charcoal text-white px-3 py-1.5 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-black whitespace-nowrap"><PlusIcon className="w-4 h-4" /> Add Staff</button></div>
                             {editingStaffId && (
                                 <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 mb-6 animate-fade-in">
@@ -877,7 +877,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 bg-gray-50 p-4 rounded-xl">{DAYS_OF_WEEK.map((day, idx) => (<div key={day} className={`p-2 rounded-lg ${day === todayName ? 'bg-white shadow-sm ring-1 ring-gold-leaf' : ''}`}><label className={`block text-[10px] font-bold uppercase mb-1 ${day === todayName ? 'text-gold-leaf' : 'text-gray-400'}`}>{day} {day === todayName && '(Today)'}</label><input type="number" placeholder="0" value={editGlobalPayroll.customTargets?.[day] ?? ''} onChange={(e) => { const val = e.target.value === '' ? undefined : parseFloat(e.target.value); const newTargets = { ...editGlobalPayroll.customTargets }; if (val === undefined) delete newTargets[day]; else newTargets[day] = val; setEditGlobalPayroll({ ...editGlobalPayroll, customTargets: newTargets }); }} className="w-full p-2 border border-gray-200 rounded text-sm text-center font-bold focus:border-gold-leaf outline-none" /></div>))}</div>
                         </div>
 
-                        <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 overflow-x-hidden">
+                        <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
                             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
                                 <h3 className="text-xl font-serif font-bold text-charcoal">Service Menu Pricing</h3>
                                 <button 
@@ -893,9 +893,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                     const isOpen = openEditCategories[cat.categoryKey]; 
                                     return (
                                         <div key={catIndex} className="border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:border-gold-leaf/30 transition-colors">
-                                            <div className="w-full flex items-center p-3 bg-gray-50 gap-3 border-b border-gray-200">
+                                            <div className="w-full flex items-center p-3 bg-gray-50 gap-3 border-b border-gray-200 min-w-fit">
                                                 {/* REORDER CONTROLS */}
-                                                <div className="flex flex-col gap-1">
+                                                <div className="flex flex-col gap-1 flex-shrink-0">
                                                     <button 
                                                         onClick={() => handleMoveCategory(catIndex, 'up')}
                                                         disabled={catIndex === 0}
@@ -915,17 +915,17 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                                 </div>
 
                                                 {/* GROUP NAME INPUT */}
-                                                <div className="flex-grow flex items-center gap-2">
+                                                <div className="flex-grow flex items-center gap-2 min-w-0">
                                                     <input 
                                                         type="text" 
                                                         value={cat.categoryKey}
                                                         onChange={(e) => handleUpdateCategoryName(catIndex, e.target.value)}
-                                                        className="bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm font-bold text-charcoal focus:border-gold-leaf outline-none flex-grow"
+                                                        className="bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm font-bold text-charcoal focus:border-gold-leaf outline-none flex-grow min-w-0"
                                                         placeholder="Group Name"
                                                     />
                                                 </div>
 
-                                                <div className="flex items-center gap-1">
+                                                <div className="flex items-center gap-1 flex-shrink-0">
                                                     <button onClick={() => toggleEditCategory(cat.categoryKey)} className="p-2 text-gray-400 hover:text-charcoal transition-colors">
                                                         <ChevronDownIcon className={`w-5 h-5 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                                                     </button>
@@ -938,9 +938,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                             {isOpen && (
                                                 <div className="p-3 bg-white space-y-2 animate-fade-in">
                                                     {cat.services.map((svc, srvIndex) => (
-                                                        <div key={srvIndex} className="flex gap-2 items-center">
+                                                        <div key={srvIndex} className="flex gap-2 items-center min-w-fit">
                                                             {/* SERVICE REORDER CONTROLS */}
-                                                            <div className="flex flex-col gap-0.5">
+                                                            <div className="flex flex-col gap-0.5 flex-shrink-0">
                                                                 <button 
                                                                     onClick={() => handleMoveService(catIndex, srvIndex, 'up')}
                                                                     disabled={srvIndex === 0}
