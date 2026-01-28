@@ -214,6 +214,62 @@ export const deleteActiveBill = async (billId: string): Promise<void> => {
     }
 };
 
+/**
+ * Delete all ActiveBills (incomplete orders) created before today (Sydney time)
+ * Bill IDs use Date.now().toString() format, so we can identify old bills by their timestamp
+ * @returns Object with success status and count of deleted bills
+ */
+export const deleteOldIncompleteBills = async (): Promise<{ success: boolean; count: number; error?: string }> => {
+    await waitForAuth();
+    if (!db) return { success: false, count: 0, error: "Database not initialized" };
+
+    try {
+        // Get today's date in Sydney timezone (YYYY-MM-DD format)
+        const todayInSydney = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+
+        // Fetch all active bills
+        const snapshot = await get(ref(db, BILLS_REF));
+        if (!snapshot.exists()) {
+            return { success: true, count: 0 };
+        }
+
+        const data = snapshot.val();
+        const keys = Object.keys(data);
+        const updates: Record<string, null> = {};
+        let count = 0;
+
+        for (const key of keys) {
+            const bill = data[key];
+            if (bill && bill.id) {
+                // Bill ID is a timestamp string (created with Date.now().toString())
+                const billTimestamp = parseInt(bill.id, 10);
+                
+                if (!isNaN(billTimestamp)) {
+                    // Get the bill's creation date in Sydney timezone
+                    const billDateInSydney = new Date(billTimestamp).toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
+                    
+                    // Delete if bill was created before today (comparing date strings in YYYY-MM-DD format)
+                    if (billDateInSydney < todayInSydney) {
+                        updates[key] = null; // Mark for deletion
+                        count++;
+                        logger.info(`Marking old bill for deletion: ${bill.id} (created on ${billDateInSydney})`);
+                    }
+                }
+            }
+        }
+
+        if (count > 0) {
+            await update(ref(db, BILLS_REF), updates);
+            logger.info(`Deleted ${count} old incomplete bills`);
+        }
+
+        return { success: true, count };
+    } catch (error: any) {
+        logger.error("Error deleting old incomplete bills:", error.message);
+        return { success: false, count: 0, error: error.message || "Unknown error" };
+    }
+};
+
 // 2. WAITLIST
 export const upsertWaitlistEntry = async (entry: WaitlistEntry): Promise<void> => {
     await waitForAuth();
