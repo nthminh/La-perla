@@ -434,7 +434,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
     };
 
     const handleDeleteOldIncompleteBills = async () => {
-        if (window.confirm(`XÁC NHẬN: Bạn sắp xóa tất cả các đơn hàng CHƯA THANH TOÁN được tạo từ ngày hôm trước trở về trước.\n\n- Các đơn hàng chưa thanh toán từ hôm qua trở về trước sẽ bị XÓA.\n- Các đơn hàng hôm nay sẽ được GIỮ LẠI.\n- Các giao dịch đã hoàn tất sẽ KHÔNG bị ảnh hưởng.\n\nBạn có chắc chắn muốn xóa không?`)) {
+        if (window.confirm(`XÁC NHẬN: Bạn sắp xóa tất cả các đơn hàng CHƯA THANH TOÁN được tạo từ hôm qua trở về trước.\n\n- Các đơn hàng chưa thanh toán từ hôm qua trở về trước sẽ bị XÓA.\n- Các đơn hàng hôm nay sẽ được GIỮ LẠI.\n- Các giao dịch đã hoàn tất sẽ KHÔNG bị ảnh hưởng.\n\nBạn có chắc chắn muốn xóa không?`)) {
             const result = await deleteOldIncompleteBills();
             if (result.success) {
                 alert(`Đã xóa sạch ${result.count} đơn hàng chưa thanh toán cũ.`);
