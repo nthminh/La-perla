@@ -4,6 +4,10 @@ import { Translation } from '../translations';
 import { Transaction, StaffProfile, GlobalPayrollSettings, PayrollSummary } from '../types';
 import { DownloadIcon, XMarkIcon, ChevronDownIcon, UserIcon } from './Icons';
 
+// Month names for display
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 
+                     'July', 'August', 'September', 'October', 'November', 'December'];
+
 // Sydney timezone helper (same as AdminView)
 const getSydneyDateStr = (isoDate: string) => {
     try {
@@ -129,7 +133,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
             return {
                 start: selectedWeek?.start || '',
                 end: selectedWeek?.end || '',
-                label: selectedWeek?.label || ''
+                label: selectedWeek?.label || '',
+                weekNumber: selectedWeek?.weekNumber || 0
             };
         } else if (periodType === 'month') {
             // Calculate first and last day of selected month
@@ -137,15 +142,16 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
             const lastDay = new Date(selectedYear, selectedMonth, 0);
             const start = firstDay.toISOString().split('T')[0];
             const end = lastDay.toISOString().split('T')[0];
-            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
-                              'July', 'August', 'September', 'October', 'November', 'December'];
-            const label = `${monthNames[selectedMonth - 1]} ${selectedYear}`;
-            return { start, end, label };
+            const label = `${MONTH_NAMES[selectedMonth - 1]} ${selectedYear}`;
+            return { start, end, label, weekNumber: undefined };
         } else { // custom
+            // Validate that end date is not before start date
+            const isValid = customEndDate >= customStartDate;
             return {
                 start: customStartDate,
-                end: customEndDate,
-                label: `${customStartDate} to ${customEndDate}`
+                end: isValid ? customEndDate : customStartDate,
+                label: `${customStartDate} to ${isValid ? customEndDate : customStartDate}`,
+                weekNumber: undefined
             };
         }
     }, [periodType, selectedWeek, selectedYear, selectedMonth, customStartDate, customEndDate]);
@@ -229,7 +235,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
                 staffName: staff.name,
                 weekStartDate: getDateRange.start,
                 weekEndDate: getDateRange.end,
-                weekNumber: selectedWeek?.weekNumber || 0,
+                weekNumber: getDateRange.weekNumber || 0,
                 year: selectedYear,
                 daysWorked,
                 totalRevenue,
@@ -277,6 +283,12 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
             "Period"
         ];
         
+        const getPeriodTypeLabel = () => {
+            if (periodType === 'week') return 'Week';
+            if (periodType === 'month') return 'Month';
+            return 'Custom Range';
+        };
+        
         const rows = payrollData.map(p => [
             p.staffName,
             p.daysWorked,
@@ -285,8 +297,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
             p.bonusTotal.toFixed(2),
             p.adjustment.toFixed(2),
             p.finalTotal.toFixed(2),
-            periodType === 'week' ? `Week ${p.weekNumber}` : periodType === 'month' ? 'Month' : 'Custom',
-            `${p.weekStartDate} to ${p.weekEndDate}`
+            getPeriodTypeLabel(),
+            getDateRange.label
         ]);
         
         const csvContent = "data:text/csv;charset=utf-8," 
@@ -296,7 +308,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);
         const filename = periodType === 'week' 
-            ? `payroll_week${selectedWeek?.weekNumber}_${selectedYear}.csv`
+            ? `payroll_week${getDateRange.weekNumber}_${selectedYear}.csv`
             : periodType === 'month'
             ? `payroll_month${selectedMonth}_${selectedYear}.csv`
             : `payroll_${customStartDate}_to_${customEndDate}.csv`;
@@ -318,7 +330,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
             ? `Week ${summary.weekNumber}, ${summary.year}`
             : periodType === 'month'
             ? getDateRange.label
-            : 'Custom Period';
+            : getDateRange.label; // Show the full date range for custom periods
         
         printWindow.document.write(`
             <html>
@@ -523,6 +535,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
                                     type="date"
                                     value={customStartDate}
                                     onChange={(e) => setCustomStartDate(e.target.value)}
+                                    max={today}
+                                    required
                                     className="bg-white pl-3 pr-3 py-2 rounded-lg border border-gray-200 text-sm font-bold text-charcoal focus:outline-none focus:border-gold-leaf shadow-sm"
                                 />
                             </div>
@@ -532,6 +546,9 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
                                     type="date"
                                     value={customEndDate}
                                     onChange={(e) => setCustomEndDate(e.target.value)}
+                                    min={customStartDate}
+                                    max={today}
+                                    required
                                     className="bg-white pl-3 pr-3 py-2 rounded-lg border border-gray-200 text-sm font-bold text-charcoal focus:outline-none focus:border-gold-leaf shadow-sm"
                                 />
                             </div>
