@@ -63,7 +63,7 @@ This tells Firebase to create indexes on the "date" field for both paths, enabli
 
 ## How to Deploy / Cách Triển Khai
 
-### Option 1: Deploy Database Rules Only (Recommended) / Khuyến Nghị
+### Option 1: Deploy Database Rules Only (Recommended / Khuyến Nghị)
 
 ```bash
 # Login to Firebase
