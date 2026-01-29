@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { StaffProfile, Transaction, GlobalPayrollSettings, ServiceCategory } from '../types';
-import { UserIcon, StarIcon, ChartIcon, ReceiptIcon, CloudSyncIcon, ListBulletIcon, XMarkIcon } from './Icons';
-import { subscribeToTransactions } from '../services/firebaseService'; 
+import { StaffProfile, Transaction, GlobalPayrollSettings, ServiceCategory, AttendanceRecord } from '../types';
+import { UserIcon, StarIcon, ChartIcon, ReceiptIcon, CloudSyncIcon, ListBulletIcon, XMarkIcon, ClockIcon } from './Icons';
+import { subscribeToTransactions, subscribeToAttendance } from '../services/firebaseService'; 
 import { getTransactions } from '../services/storageService';
 import { Translation } from '../translations';
 import { SoundManager } from '../utils/sound';
@@ -122,7 +122,7 @@ const compressImage = (file: File): Promise<string> => {
 };
 
 export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser, onUpdateProfile, onExit, globalPayroll, pricingData }) => {
-    const [activeTab, setActiveTab] = useState<'profile' | 'portfolio' | 'earnings'>('profile');
+    const [activeTab, setActiveTab] = useState<'profile' | 'portfolio' | 'earnings' | 'attendance'>('profile');
     
     const [bio, setBio] = useState(currentUser.bio || "");
     const [specialties, setSpecialties] = useState<string[]>(currentUser.specialties || []);
@@ -156,6 +156,14 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
 
     const [isLoadingEarnings, setIsLoadingEarnings] = useState(false);
     const [cloudTransactions, setCloudTransactions] = useState<Transaction[]>([]);
+    
+    // Attendance State
+    const [isLoadingAttendance, setIsLoadingAttendance] = useState(false);
+    const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+    const [attendanceDateRange, setAttendanceDateRange] = useState<'today' | 'week' | 'month' | 'custom'>('month');
+    const [attendanceCustomStartDate, setAttendanceCustomStartDate] = useState<string>('');
+    const [attendanceCustomEndDate, setAttendanceCustomEndDate] = useState<string>('');
+    const [attendanceDateError, setAttendanceDateError] = useState<string>('');
     
     // Date Range State
     const [dateRange, setDateRange] = useState<'today' | 'week' | 'month' | 'custom'>('today');
@@ -200,6 +208,40 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
         }
     };
     
+    // Validate attendance custom date range
+    const validateAttendanceCustomDateRange = (start: string, end: string) => {
+        if (!start || !end) {
+            setAttendanceDateError('Please select both start and end dates');
+            return false;
+        }
+        if (start > end) {
+            setAttendanceDateError('Start date cannot be after end date');
+            return false;
+        }
+        if (start > sydneyToday || end > sydneyToday) {
+            setAttendanceDateError('Cannot select future dates');
+            return false;
+        }
+        setAttendanceDateError('');
+        return true;
+    };
+    
+    // Attendance date change handler
+    const handleAttendanceCustomDateChange = (dateType: 'start' | 'end', value: string) => {
+        if (dateType === 'start') {
+            setAttendanceCustomStartDate(value);
+        } else {
+            setAttendanceCustomEndDate(value);
+        }
+        
+        // Validate when both dates are available
+        const start = dateType === 'start' ? value : attendanceCustomStartDate;
+        const end = dateType === 'end' ? value : attendanceCustomEndDate;
+        if (start && end) {
+            validateAttendanceCustomDateRange(start, end);
+        }
+    };
+    
     // Subscribe to real-time data when in Earnings tab
     useEffect(() => {
         if (activeTab === 'earnings') {
@@ -212,6 +254,25 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
             return () => unsubscribe();
         }
     }, [activeTab]);
+
+    // Subscribe to attendance data when in Attendance tab
+    useEffect(() => {
+        if (activeTab === 'attendance') {
+            setIsLoadingAttendance(true);
+            
+            // Calculate date range based on selected range
+            const { start, end } = getDateRange(attendanceDateRange, attendanceCustomStartDate, attendanceCustomEndDate);
+            
+            const unsubscribe = subscribeToAttendance((records) => {
+                // Filter to only show current user's records
+                const userRecords = records.filter(r => r.staffId === currentUser.id);
+                setAttendanceRecords(userRecords);
+                setIsLoadingAttendance(false);
+            }, start, end);
+            
+            return () => unsubscribe();
+        }
+    }, [activeTab, attendanceDateRange, attendanceCustomStartDate, attendanceCustomEndDate, currentUser.id]);
 
     // Process transactions whenever cloud data or local data changes
     const dailyTransactions = useMemo(() => {
@@ -560,6 +621,42 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
 
     const totalRevenue = useMemo(() => dailyTransactions.reduce((sum, i) => sum + i.netPrice, 0), [dailyTransactions]);
 
+    // Attendance calculations
+    const STANDARD_WORKING_MINUTES_PER_DAY = 510; // 8.5 hours per day
+    
+    const formatMinutes = (minutes: number): string => {
+        if (minutes === 0) return '0m';
+        const hours = Math.floor(minutes / 60);
+        const mins = minutes % 60;
+        if (hours === 0) return `${mins}m`;
+        if (mins === 0) return `${hours}h`;
+        return `${hours}h ${mins}m`;
+    };
+    
+    const attendanceSummary = useMemo(() => {
+        const totalLateMinutes = attendanceRecords.reduce((sum, r) => sum + r.lateMinutes, 0);
+        const totalEarlyLeaveMinutes = attendanceRecords.reduce((sum, r) => sum + r.earlyLeaveMinutes, 0);
+        
+        // Calculate monetary deduction
+        let totalDeduction = 0;
+        if (currentUser.payroll?.baseSalary) {
+            const perMinuteRate = currentUser.payroll.baseSalary / STANDARD_WORKING_MINUTES_PER_DAY;
+            const totalMinutes = totalLateMinutes + totalEarlyLeaveMinutes;
+            totalDeduction = perMinuteRate * totalMinutes;
+        }
+        
+        // Calculate total extra amount (bonuses and deductions)
+        const totalExtraAmount = attendanceRecords.reduce((sum, r) => sum + (r.extraAmount || 0), 0);
+        
+        return {
+            totalLateMinutes,
+            totalEarlyLeaveMinutes,
+            totalDeduction,
+            totalExtraAmount,
+            recordCount: attendanceRecords.length
+        };
+    }, [attendanceRecords, currentUser.payroll]);
+
     const payrollData = useMemo(() => {
         if (!currentUser.payroll || !currentUser.payroll.enabled) return null;
 
@@ -604,10 +701,13 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
                     {activeTab === 'earnings' && (
                         <div className={`w-3 h-3 rounded-full ${isLoadingEarnings ? 'bg-yellow-400 animate-pulse' : 'bg-green-500'}`} title="Live Data" />
                     )}
+                    {activeTab === 'attendance' && (
+                        <div className={`w-3 h-3 rounded-full ${isLoadingAttendance ? 'bg-yellow-400 animate-pulse' : 'bg-green-500'}`} title="Live Data" />
+                    )}
                 </div>
             </div>
 
-            <div className="flex p-4 gap-4 max-w-md mx-auto w-full">
+            <div className="flex p-4 gap-2 max-w-md mx-auto w-full">
                 <button onClick={() => { SoundManager.playTap(); setActiveTab('profile'); }} className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'profile' ? 'bg-gold-leaf text-white shadow-md' : 'bg-white text-charcoal border border-gray-200'}`}>
                     <UserIcon className="w-4 h-4" /> Profile
                 </button>
@@ -616,6 +716,9 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
                 </button>
                 <button onClick={() => { SoundManager.playTap(); setActiveTab('earnings'); }} className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'earnings' ? 'bg-gold-leaf text-white shadow-md' : 'bg-white text-charcoal border border-gray-200'}`}>
                     <ChartIcon className="w-4 h-4" /> Earnings
+                </button>
+                <button onClick={() => { SoundManager.playTap(); setActiveTab('attendance'); }} className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'attendance' ? 'bg-gold-leaf text-white shadow-md' : 'bg-white text-charcoal border border-gray-200'}`}>
+                    <ClockIcon className="w-4 h-4" /> Attendance
                 </button>
             </div>
 
@@ -1002,6 +1105,219 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
                                                     </div>
                                                 ))}
                                             </>
+                                        )}
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                )}
+
+                {activeTab === 'attendance' && (
+                    <div className="space-y-4 animate-fade-in-up">
+                        {/* Date Range Selector */}
+                        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+                            <label className="block text-xs font-bold text-gold-leaf uppercase mb-3">Period</label>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+                                <button 
+                                    onClick={() => setAttendanceDateRange('today')}
+                                    className={`py-2.5 px-4 rounded-xl text-sm font-bold transition-all ${
+                                        attendanceDateRange === 'today' 
+                                            ? 'bg-gold-leaf text-white shadow-md' 
+                                            : 'bg-gray-50 text-charcoal border border-gray-200 hover:border-gold-leaf'
+                                    }`}
+                                >
+                                    Today
+                                </button>
+                                <button 
+                                    onClick={() => setAttendanceDateRange('week')}
+                                    className={`py-2.5 px-4 rounded-xl text-sm font-bold transition-all ${
+                                        attendanceDateRange === 'week' 
+                                            ? 'bg-gold-leaf text-white shadow-md' 
+                                            : 'bg-gray-50 text-charcoal border border-gray-200 hover:border-gold-leaf'
+                                    }`}
+                                >
+                                    Last 7 Days
+                                </button>
+                                <button 
+                                    onClick={() => setAttendanceDateRange('month')}
+                                    className={`py-2.5 px-4 rounded-xl text-sm font-bold transition-all ${
+                                        attendanceDateRange === 'month' 
+                                            ? 'bg-gold-leaf text-white shadow-md' 
+                                            : 'bg-gray-50 text-charcoal border border-gray-200 hover:border-gold-leaf'
+                                    }`}
+                                >
+                                    Last 30 Days
+                                </button>
+                                <button 
+                                    onClick={() => setAttendanceDateRange('custom')}
+                                    className={`py-2.5 px-4 rounded-xl text-sm font-bold transition-all ${
+                                        attendanceDateRange === 'custom' 
+                                            ? 'bg-gold-leaf text-white shadow-md' 
+                                            : 'bg-gray-50 text-charcoal border border-gray-200 hover:border-gold-leaf'
+                                    }`}
+                                >
+                                    Custom Range
+                                </button>
+                            </div>
+                            
+                            {/* Custom Date Range Inputs */}
+                            {attendanceDateRange === 'custom' && (
+                                <div className="space-y-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Start Date</label>
+                                        <input 
+                                            type="date" 
+                                            value={attendanceCustomStartDate}
+                                            max={sydneyToday}
+                                            onChange={(e) => handleAttendanceCustomDateChange('start', e.target.value)}
+                                            className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-gold-leaf focus:ring-2 focus:ring-gold-leaf/20 outline-none text-sm"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-600 uppercase mb-1">End Date</label>
+                                        <input 
+                                            type="date" 
+                                            value={attendanceCustomEndDate}
+                                            max={sydneyToday}
+                                            onChange={(e) => handleAttendanceCustomDateChange('end', e.target.value)}
+                                            className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-gold-leaf focus:ring-2 focus:ring-gold-leaf/20 outline-none text-sm"
+                                        />
+                                    </div>
+                                    {attendanceDateError && (
+                                        <p className="text-xs text-red-500 font-bold text-center">
+                                            {attendanceDateError}
+                                        </p>
+                                    )}
+                                    {attendanceCustomStartDate && attendanceCustomEndDate && !attendanceDateError && (
+                                        <p className="text-xs text-green-600 font-medium text-center">
+                                            ✓ Showing data from {attendanceCustomStartDate} to {attendanceCustomEndDate}
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {isLoadingAttendance && attendanceRecords.length === 0 ? (
+                            <div className="text-center py-12">
+                                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gold-leaf mx-auto mb-4"></div>
+                                <p className="text-sm text-gray-500">Loading attendance data...</p>
+                            </div>
+                        ) : (
+                            <>
+                                {/* Attendance Summary Card */}
+                                <div className="bg-gradient-to-br from-charcoal to-gray-800 text-white p-6 rounded-3xl shadow-xl border border-gold-leaf/20">
+                                    <div className="relative z-10">
+                                        <p className="text-gold-leaf text-xs font-bold uppercase tracking-widest mb-3">
+                                            Attendance Summary - {getDateRangeLabel(attendanceDateRange, attendanceCustomStartDate, attendanceCustomEndDate)}
+                                        </p>
+                                        <div className="grid grid-cols-2 gap-4 mb-4">
+                                            <div>
+                                                <p className="text-gray-400 text-xs">Total Records</p>
+                                                <p className="text-2xl font-bold">{attendanceSummary.recordCount}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-gray-400 text-xs">Late Time</p>
+                                                <p className="text-2xl font-bold text-red-400">{formatMinutes(attendanceSummary.totalLateMinutes)}</p>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4 border-t border-gray-700 pt-4">
+                                            <div>
+                                                <p className="text-gray-400 text-xs">Early Leave</p>
+                                                <p className="text-lg font-bold text-orange-400">{formatMinutes(attendanceSummary.totalEarlyLeaveMinutes)}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-gray-400 text-xs">Time Deduction</p>
+                                                <p className="text-lg font-bold text-red-400">-${attendanceSummary.totalDeduction.toFixed(2)}</p>
+                                            </div>
+                                        </div>
+                                        {attendanceSummary.totalExtraAmount !== 0 && (
+                                            <div className="border-t border-gray-700 pt-4 mt-4">
+                                                <div className="flex justify-between items-center">
+                                                    <p className="text-gray-400 text-xs">Extra Amount</p>
+                                                    <p className={`text-lg font-bold ${attendanceSummary.totalExtraAmount > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                        {attendanceSummary.totalExtraAmount > 0 ? '+' : ''}${attendanceSummary.totalExtraAmount.toFixed(2)}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Attendance Records List */}
+                                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                                    <div className="p-4 border-b border-gray-100 bg-gray-50">
+                                        <h3 className="text-sm font-bold text-charcoal uppercase tracking-wide">Attendance Records</h3>
+                                    </div>
+                                    <div className="divide-y divide-gray-100">
+                                        {attendanceRecords.length === 0 ? (
+                                            <div className="p-8 text-center">
+                                                <ClockIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                                                <p className="text-gray-500 text-sm">No attendance records for this period</p>
+                                            </div>
+                                        ) : (
+                                            attendanceRecords
+                                                .sort((a, b) => b.date.localeCompare(a.date))
+                                                .map((record) => (
+                                                    <div key={record.id} className="p-4 hover:bg-gray-50 transition-colors">
+                                                        <div className="flex justify-between items-start mb-2">
+                                                            <div>
+                                                                <p className="font-bold text-charcoal">{record.date}</p>
+                                                                <p className="text-xs text-gray-500">{getSydneyDayName(record.date + 'T00:00:00')}</p>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                {(record.lateMinutes > 0 || record.earlyLeaveMinutes > 0) && (
+                                                                    <div className="space-y-1">
+                                                                        {record.lateMinutes > 0 && (
+                                                                            <p className="text-xs text-red-600 font-bold bg-red-50 px-2 py-1 rounded">
+                                                                                Late: {formatMinutes(record.lateMinutes)}
+                                                                            </p>
+                                                                        )}
+                                                                        {record.earlyLeaveMinutes > 0 && (
+                                                                            <p className="text-xs text-orange-600 font-bold bg-orange-50 px-2 py-1 rounded">
+                                                                                Early: {formatMinutes(record.earlyLeaveMinutes)}
+                                                                            </p>
+                                                                        )}
+                                                                    </div>
+                                                                )}
+                                                                {record.lateMinutes === 0 && record.earlyLeaveMinutes === 0 && (
+                                                                    <p className="text-xs text-green-600 font-bold bg-green-50 px-2 py-1 rounded">
+                                                                        On Time ✓
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        {/* Deduction info */}
+                                                        {currentUser.payroll?.baseSalary && (record.lateMinutes > 0 || record.earlyLeaveMinutes > 0) && (
+                                                            <div className="mt-2 pt-2 border-t border-gray-100">
+                                                                <p className="text-xs text-gray-500">
+                                                                    Time deduction: <span className="text-red-600 font-bold">
+                                                                        -${((currentUser.payroll.baseSalary / STANDARD_WORKING_MINUTES_PER_DAY) * (record.lateMinutes + record.earlyLeaveMinutes)).toFixed(2)}
+                                                                    </span>
+                                                                </p>
+                                                            </div>
+                                                        )}
+                                                        
+                                                        {/* Extra amount */}
+                                                        {record.extraAmount !== undefined && record.extraAmount !== 0 && (
+                                                            <div className="mt-2 pt-2 border-t border-gray-100">
+                                                                <p className="text-xs text-gray-500">
+                                                                    Extra amount: <span className={`font-bold ${record.extraAmount > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                                        {record.extraAmount > 0 ? '+' : ''}${record.extraAmount.toFixed(2)}
+                                                                    </span>
+                                                                </p>
+                                                            </div>
+                                                        )}
+                                                        
+                                                        {/* Notes */}
+                                                        {record.notes && (
+                                                            <div className="mt-2 pt-2 border-t border-gray-100">
+                                                                <p className="text-xs text-gray-600 italic">Note: {record.notes}</p>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))
                                         )}
                                     </div>
                                 </div>
