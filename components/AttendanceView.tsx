@@ -79,8 +79,21 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ t, staffList }) 
     const totals = useMemo(() => {
         const totalLate = filteredRecords.reduce((sum, r) => sum + r.lateMinutes, 0);
         const totalEarly = filteredRecords.reduce((sum, r) => sum + r.earlyLeaveMinutes, 0);
-        return { totalLate, totalEarly };
-    }, [filteredRecords]);
+        
+        // Calculate monetary deduction
+        // Formula: (baseSalary / 510 minutes) * (late + early minutes)
+        let totalDeduction = 0;
+        filteredRecords.forEach(record => {
+            const staff = staffList.find(s => s.id === record.staffId);
+            if (staff?.payroll?.baseSalary) {
+                const perMinuteRate = staff.payroll.baseSalary / 510;
+                const totalMinutes = record.lateMinutes + record.earlyLeaveMinutes;
+                totalDeduction += perMinuteRate * totalMinutes;
+            }
+        });
+        
+        return { totalLate, totalEarly, totalDeduction };
+    }, [filteredRecords, staffList]);
     
     // Format minutes to hours and minutes
     const formatMinutes = (minutes: number): string => {
@@ -90,6 +103,21 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ t, staffList }) 
         if (hours === 0) return `${mins}m`;
         if (mins === 0) return `${hours}h`;
         return `${hours}h ${mins}m`;
+    };
+    
+    // Calculate deduction for a single record
+    const calculateRecordDeduction = (record: AttendanceRecord): number => {
+        const staff = staffList.find(s => s.id === record.staffId);
+        if (!staff?.payroll?.baseSalary) return 0;
+        
+        const perMinuteRate = staff.payroll.baseSalary / 510;
+        const totalMinutes = record.lateMinutes + record.earlyLeaveMinutes;
+        return perMinuteRate * totalMinutes;
+    };
+    
+    // Format currency
+    const formatCurrency = (amount: number): string => {
+        return `$${amount.toFixed(2)}`;
     };
     
     // Open modal for adding new record
@@ -249,7 +277,7 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ t, staffList }) 
                 </div>
                 
                 {/* Summary Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
                     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                         <div className="text-sm font-bold uppercase text-gray-500 mb-2">
                             Total Records
@@ -274,6 +302,18 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ t, staffList }) 
                         </div>
                         <div className="text-3xl font-bold text-blue-600">
                             {formatMinutes(totals.totalEarly)}
+                        </div>
+                    </div>
+                    
+                    <div className="bg-white rounded-xl shadow-sm border border-orange-100 p-6">
+                        <div className="text-sm font-bold uppercase text-gray-500 mb-2">
+                            Total Deduction
+                        </div>
+                        <div className="text-3xl font-bold text-orange-600">
+                            {formatCurrency(totals.totalDeduction)}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                            Based on base salary ÷ 510 min
                         </div>
                     </div>
                 </div>
@@ -304,6 +344,9 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ t, staffList }) 
                                         </th>
                                         <th className="px-6 py-3 text-left text-xs font-bold uppercase text-gray-600">
                                             Early Leave
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-bold uppercase text-gray-600">
+                                            Deduction
                                         </th>
                                         <th className="px-6 py-3 text-left text-xs font-bold uppercase text-gray-600">
                                             Notes
@@ -355,6 +398,21 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ t, staffList }) 
                                                     <div className={`text-sm font-bold ${record.earlyLeaveMinutes > 0 ? 'text-blue-600' : 'text-gray-400'}`}>
                                                         {formatMinutes(record.earlyLeaveMinutes)}
                                                     </div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    {(() => {
+                                                        const deduction = calculateRecordDeduction(record);
+                                                        const staff = staffList.find(s => s.id === record.staffId);
+                                                        return deduction > 0 ? (
+                                                            <div className="text-sm font-bold text-orange-600">
+                                                                {formatCurrency(deduction)}
+                                                            </div>
+                                                        ) : (
+                                                            <div className="text-xs text-gray-400">
+                                                                {staff?.payroll?.baseSalary ? 'No time' : 'No salary'}
+                                                            </div>
+                                                        );
+                                                    })()}
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     <div className="text-sm text-gray-600 max-w-md truncate">
