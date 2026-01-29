@@ -186,9 +186,10 @@ export interface PayrollSummary {
     baseSalaryTotal: number; // baseSalary * daysWorked
     bonusTotal: number;
     attendanceDeduction: number; // Deduction from attendance tracking (late/early leave)
+    extra: number; // Extra amount from attendance tracking (bonuses/deductions)
     adjustment: number; // Manual adjustment (+/-)
     adjustmentNote: string;
-    finalTotal: number; // baseSalaryTotal + bonusTotal - attendanceDeduction + adjustment
+    finalTotal: number; // baseSalaryTotal + bonusTotal - attendanceDeduction + extra + adjustment
 }
 
 export interface PayrollDailyBreakdown {

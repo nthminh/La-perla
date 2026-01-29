@@ -254,23 +254,26 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
                 });
             }
             
-            // Calculate attendance deduction
+            // Calculate attendance deduction and extra amount
             const staffAttendanceRecords = attendanceRecords.filter(r => r.staffId === staff.id);
             let attendanceDeduction = 0;
+            let extra = 0;
             
             if (staff.payroll?.baseSalary) {
                 const perMinuteRate = staff.payroll.baseSalary / STANDARD_WORKING_MINUTES_PER_DAY;
                 staffAttendanceRecords.forEach(record => {
                     const totalMinutes = record.lateMinutes + record.earlyLeaveMinutes;
                     attendanceDeduction += perMinuteRate * totalMinutes;
+                    // Add extra amount (can be positive or negative)
+                    extra += (record.extraAmount || 0);
                 });
             }
             
             // Get adjustment
             const adjustment = adjustments[staff.id] || { amount: 0, note: '' };
             
-            // Calculate final total (deduct attendance from total)
-            const finalTotal = baseSalaryTotal + bonusTotal - attendanceDeduction + adjustment.amount;
+            // Calculate final total (deduct attendance, add extra, add adjustment)
+            const finalTotal = baseSalaryTotal + bonusTotal - attendanceDeduction + extra + adjustment.amount;
             
             summaries.push({
                 staffId: staff.id,
@@ -284,6 +287,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
                 baseSalaryTotal,
                 bonusTotal,
                 attendanceDeduction,
+                extra,
                 adjustment: adjustment.amount,
                 adjustmentNote: adjustment.note,
                 finalTotal,
@@ -321,6 +325,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
             "Base Salary",
             "Bonus",
             "Attendance Deduction",
+            "Extra",
             "Adjustment",
             "Total",
             "Period Type",
@@ -340,6 +345,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
             p.baseSalaryTotal.toFixed(2),
             p.bonusTotal.toFixed(2),
             p.attendanceDeduction.toFixed(2),
+            p.extra.toFixed(2),
             p.adjustment.toFixed(2),
             p.finalTotal.toFixed(2),
             getPeriodTypeLabel(),
@@ -450,6 +456,14 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
                         <span class="label">Attendance Deduction (Late/Early):</span>
                         <span class="value" style="color: #E74C3C">
                             -$${summary.attendanceDeduction.toFixed(2)}
+                        </span>
+                    </div>
+                    ` : ''}
+                    ${summary.extra !== 0 ? `
+                    <div class="row">
+                        <span class="label">Extra (From Attendance):</span>
+                        <span class="value" style="color: ${summary.extra > 0 ? '#27AE60' : '#E74C3C'}">
+                            ${summary.extra > 0 ? '+' : ''}$${summary.extra.toFixed(2)}
                         </span>
                     </div>
                     ` : ''}
@@ -652,6 +666,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
                                         <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">Base Salary</th>
                                         <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">Bonus</th>
                                         <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">Attendance Deduction</th>
+                                        <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">Extra</th>
                                         <th className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase">Adjustment</th>
                                         <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">Total</th>
                                         <th className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase">Actions</th>
@@ -680,6 +695,11 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
                                                 <td className="px-6 py-4 text-right font-bold text-purple-600">${summary.bonusTotal.toFixed(2)}</td>
                                                 <td className="px-6 py-4 text-right font-bold text-red-600">
                                                     {summary.attendanceDeduction > 0 ? `-$${summary.attendanceDeduction.toFixed(2)}` : '$0.00'}
+                                                </td>
+                                                <td className="px-6 py-4 text-right font-bold">
+                                                    <span className={summary.extra > 0 ? 'text-green-600' : summary.extra < 0 ? 'text-red-600' : 'text-gray-400'}>
+                                                        {summary.extra > 0 ? '+' : ''}{summary.extra !== 0 ? `$${summary.extra.toFixed(2)}` : '$0.00'}
+                                                    </span>
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     <input
@@ -772,6 +792,16 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
                                                     Attendance Deduction (Late/Early Leave)
                                                 </span>
                                                 <span className="font-bold text-red-600">-${detailStaff.attendanceDeduction.toFixed(2)}</span>
+                                            </div>
+                                        )}
+                                        {detailStaff.extra !== 0 && (
+                                            <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                                                <span className="text-gray-600">
+                                                    Extra (From Attendance)
+                                                </span>
+                                                <span className={`font-bold ${detailStaff.extra > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                    {detailStaff.extra > 0 ? '+' : ''}${detailStaff.extra.toFixed(2)}
+                                                </span>
                                             </div>
                                         )}
                                     </div>
