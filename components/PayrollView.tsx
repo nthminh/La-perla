@@ -273,22 +273,49 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
             let attendanceDeduction = 0;
             let extra = 0;
             
+            console.log(`[PayrollView] Staff: ${staff.name} (ID: ${staff.id})`);
+            console.log(`[PayrollView] Total attendance records loaded: ${attendanceRecords.length}`);
+            console.log(`[PayrollView] Filtered records for this staff: ${staffAttendanceRecords.length}`);
+            
             if (staffAttendanceRecords.length > 0) {
                 console.log(`[PayrollView] Processing ${staffAttendanceRecords.length} attendance records for ${staff.name}`);
+                staffAttendanceRecords.forEach(record => {
+                    console.log(`[PayrollView] Record:`, {
+                        date: record.date,
+                        staffId: record.staffId,
+                        staffName: record.staffName,
+                        lateMinutes: record.lateMinutes,
+                        earlyLeaveMinutes: record.earlyLeaveMinutes,
+                        extraAmount: record.extraAmount
+                    });
+                });
             }
             
             // Calculate extra amount (always, regardless of base salary)
             staffAttendanceRecords.forEach(record => {
-                extra += (record.extraAmount || 0);
+                const recordExtra = record.extraAmount || 0;
+                extra += recordExtra;
+                if (recordExtra !== 0) {
+                    console.log(`[PayrollView] Adding extra amount: ${recordExtra} for date ${record.date}`);
+                }
             });
+            console.log(`[PayrollView] Total extra for ${staff.name}: ${extra}`);
             
             // Calculate attendance deduction (only if base salary exists)
             if (staff.payroll?.baseSalary) {
                 const perMinuteRate = staff.payroll.baseSalary / STANDARD_WORKING_MINUTES_PER_DAY;
+                console.log(`[PayrollView] Base salary: ${staff.payroll.baseSalary}, Per minute rate: ${perMinuteRate}`);
                 staffAttendanceRecords.forEach(record => {
                     const totalMinutes = record.lateMinutes + record.earlyLeaveMinutes;
-                    attendanceDeduction += perMinuteRate * totalMinutes;
+                    const deduction = perMinuteRate * totalMinutes;
+                    attendanceDeduction += deduction;
+                    if (totalMinutes > 0) {
+                        console.log(`[PayrollView] Date ${record.date}: ${totalMinutes} minutes late/early = $${deduction.toFixed(2)} deduction`);
+                    }
                 });
+                console.log(`[PayrollView] Total attendance deduction for ${staff.name}: ${attendanceDeduction}`);
+            } else {
+                console.log(`[PayrollView] No base salary set for ${staff.name}, skipping deduction calculation`);
             }
             
             // Get adjustment

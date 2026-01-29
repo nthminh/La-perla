@@ -987,6 +987,14 @@ export const fetchAttendanceByDateRange = async (
                 first: records[0].date,
                 last: records[records.length - 1].date
             });
+            console.log('[firebaseService] Sample records:', records.slice(0, 3).map(r => ({
+                date: r.date,
+                staffId: r.staffId,
+                staffName: r.staffName,
+                lateMinutes: r.lateMinutes,
+                earlyLeaveMinutes: r.earlyLeaveMinutes,
+                extraAmount: r.extraAmount
+            })));
         }
         return records;
     } catch (error) {
