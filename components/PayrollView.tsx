@@ -259,13 +259,17 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
             let attendanceDeduction = 0;
             let extra = 0;
             
+            // Calculate extra amount (always, regardless of base salary)
+            staffAttendanceRecords.forEach(record => {
+                extra += (record.extraAmount || 0);
+            });
+            
+            // Calculate attendance deduction (only if base salary exists)
             if (staff.payroll?.baseSalary) {
                 const perMinuteRate = staff.payroll.baseSalary / STANDARD_WORKING_MINUTES_PER_DAY;
                 staffAttendanceRecords.forEach(record => {
                     const totalMinutes = record.lateMinutes + record.earlyLeaveMinutes;
                     attendanceDeduction += perMinuteRate * totalMinutes;
-                    // Add extra amount (can be positive or negative)
-                    extra += (record.extraAmount || 0);
                 });
             }
             
@@ -463,7 +467,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
                     <div class="row">
                         <span class="label">Extra (From Attendance):</span>
                         <span class="value" style="color: ${summary.extra > 0 ? '#27AE60' : '#E74C3C'}">
-                            ${summary.extra > 0 ? '+' : ''}$${summary.extra.toFixed(2)}
+                            ${summary.extra > 0 ? `+$${summary.extra.toFixed(2)}` : `-$${Math.abs(summary.extra).toFixed(2)}`}
                         </span>
                     </div>
                     ` : ''}
@@ -698,7 +702,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
                                                 </td>
                                                 <td className="px-6 py-4 text-right font-bold">
                                                     <span className={summary.extra > 0 ? 'text-green-600' : summary.extra < 0 ? 'text-red-600' : 'text-gray-400'}>
-                                                        {summary.extra > 0 ? '+' : ''}{summary.extra !== 0 ? `$${summary.extra.toFixed(2)}` : '$0.00'}
+                                                        {summary.extra !== 0 ? (summary.extra > 0 ? `+$${summary.extra.toFixed(2)}` : `-$${Math.abs(summary.extra).toFixed(2)}`) : '$0.00'}
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4">
@@ -800,7 +804,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
                                                     Extra (From Attendance)
                                                 </span>
                                                 <span className={`font-bold ${detailStaff.extra > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                                    {detailStaff.extra > 0 ? '+' : ''}${detailStaff.extra.toFixed(2)}
+                                                    {detailStaff.extra > 0 ? `+$${detailStaff.extra.toFixed(2)}` : `-$${Math.abs(detailStaff.extra).toFixed(2)}`}
                                                 </span>
                                             </div>
                                         )}
