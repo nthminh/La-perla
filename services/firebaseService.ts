@@ -1,7 +1,7 @@
 
 import { ref, onValue, set, update, remove, Unsubscribe, push, query, limitToLast, get, orderByChild, startAt, endAt } from "firebase/database";
 import { db, waitForAuth } from "./firebaseConfig";
-import { ActiveBill, WaitlistEntry, AppSettings, ServiceCategory, StaffProfile, BookingRequest, GlobalPayrollSettings, Transaction, AdminPasswords, SettingsSnapshot, MarqueeSettings } from "../types";
+import { ActiveBill, WaitlistEntry, AppSettings, ServiceCategory, StaffProfile, BookingRequest, GlobalPayrollSettings, Transaction, AdminPasswords, SettingsSnapshot, MarqueeSettings, AttendanceRecord } from "../types";
 import { DEFAULT_GLOBAL_PAYROLL, DEFAULT_ADMIN_PASSWORDS, DEFAULT_MARQUEE_SETTINGS } from "../constants";
 import { deleteLocalTransaction, clearTransactions, pruneOldLocalTransactions } from "./storageService";
 import { logger } from "../utils/logger";
@@ -18,6 +18,7 @@ const TICKET_COUNTERS_REF = "systemState/ticketCounters"; // New path for counte
 const SETTINGS_REF = "settings";
 const SETTINGS_HISTORY_REF = "settingsHistory";
 const TRANSACTIONS_REF = "transactions";
+const ATTENDANCE_REF = "attendance"; // New: Attendance records
 
 export interface SystemState {
   activeBills: ActiveBill[];
@@ -877,6 +878,130 @@ export const restoreSettingsFromHistory = async (snapshot: SettingsSnapshot): Pr
         return true;
     } catch (error) {
         console.error("Restore Error:", error);
+        return false;
+    }
+};
+
+// ============================================
+// ATTENDANCE TRACKING FUNCTIONS
+// ============================================
+
+/**
+ * Save or update an attendance record
+ */
+export const saveAttendanceRecord = async (record: AttendanceRecord): Promise<boolean> => {
+    if (!db) {
+        console.warn("Firebase not configured. Attendance not saved.");
+        return false;
+    }
+    
+    try {
+        await waitForAuth();
+        const recordRef = ref(db, `${ATTENDANCE_REF}/${record.id}`);
+        await set(recordRef, sanitizeData(record));
+        logger.log(`Attendance record saved: ${record.staffName} - ${record.date}`);
+        return true;
+    } catch (error) {
+        console.error("Error saving attendance record:", error);
+        return false;
+    }
+};
+
+/**
+ * Subscribe to attendance records with optional date filtering
+ */
+export const subscribeToAttendance = (
+    onUpdate: (records: AttendanceRecord[]) => void,
+    startDate?: string,
+    endDate?: string
+): Unsubscribe => {
+    if (!db) {
+        console.warn("Firebase not configured. Returning empty attendance.");
+        onUpdate([]);
+        return () => {};
+    }
+    
+    let attendanceQuery;
+    
+    if (startDate && endDate) {
+        // Query with date range filter
+        attendanceQuery = query(
+            ref(db, ATTENDANCE_REF),
+            orderByChild('date'),
+            startAt(startDate),
+            endAt(endDate)
+        );
+    } else {
+        // Get all records
+        attendanceQuery = ref(db, ATTENDANCE_REF);
+    }
+    
+    return onValue(attendanceQuery, (snapshot) => {
+        const data = snapshot.val();
+        if (!data) {
+            onUpdate([]);
+            return;
+        }
+        
+        const records = Object.values(data) as AttendanceRecord[];
+        onUpdate(records);
+    }, (error) => {
+        console.error("Error subscribing to attendance:", error);
+        onUpdate([]);
+    });
+};
+
+/**
+ * Fetch attendance records once for a date range
+ */
+export const fetchAttendanceByDateRange = async (
+    startDate: string,
+    endDate: string
+): Promise<AttendanceRecord[]> => {
+    if (!db) {
+        console.warn("Firebase not configured.");
+        return [];
+    }
+    
+    try {
+        await waitForAuth();
+        const attendanceQuery = query(
+            ref(db, ATTENDANCE_REF),
+            orderByChild('date'),
+            startAt(startDate),
+            endAt(endDate)
+        );
+        
+        const snapshot = await get(attendanceQuery);
+        if (!snapshot.exists()) {
+            return [];
+        }
+        
+        const data = snapshot.val();
+        return Object.values(data) as AttendanceRecord[];
+    } catch (error) {
+        console.error("Error fetching attendance:", error);
+        return [];
+    }
+};
+
+/**
+ * Delete an attendance record
+ */
+export const deleteAttendanceRecord = async (recordId: string): Promise<boolean> => {
+    if (!db) {
+        console.warn("Firebase not configured.");
+        return false;
+    }
+    
+    try {
+        await waitForAuth();
+        const recordRef = ref(db, `${ATTENDANCE_REF}/${recordId}`);
+        await remove(recordRef);
+        logger.log(`Attendance record deleted: ${recordId}`);
+        return true;
+    } catch (error) {
+        console.error("Error deleting attendance record:", error);
         return false;
     }
 };
