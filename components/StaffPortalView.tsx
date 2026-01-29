@@ -694,7 +694,7 @@ export const StaffPortalView: React.FC<StaffPortalViewProps> = ({ t, currentUser
                     ← Back
                 </button>
                 <span className="font-serif font-bold text-gold-leaf tracking-wider uppercase">
-                    My Portal
+                    {currentUser.name}
                 </span>
                 <div className="w-8 flex items-center justify-center">
                     {/* Live Indicator */}
