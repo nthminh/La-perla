@@ -1,12 +1,16 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Translation } from '../translations';
-import { Transaction, StaffProfile, GlobalPayrollSettings, PayrollSummary } from '../types';
+import { Transaction, StaffProfile, GlobalPayrollSettings, PayrollSummary, AttendanceRecord } from '../types';
 import { DownloadIcon, XMarkIcon, ChevronDownIcon, UserIcon } from './Icons';
+import { fetchAttendanceByDateRange } from '../services/firebaseService';
 
 // Month names for display
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 
                      'July', 'August', 'September', 'October', 'November', 'December'];
+
+// Standard working minutes per day (same as AttendanceView)
+const STANDARD_WORKING_MINUTES_PER_DAY = 510; // 8.5 hours per day
 
 // Sydney timezone helper (same as AdminView)
 const getSydneyDateStr = (isoDate: string) => {
@@ -113,6 +117,9 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
     // State for adjustments (temporary, not saved to database in Phase 1)
     const [adjustments, setAdjustments] = useState<Record<string, { amount: number; note: string }>>({});
 
+    // State for attendance records
+    const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
+
     // Period type: 'week', 'month', or 'custom'
     const [periodType, setPeriodType] = useState<'week' | 'month' | 'custom'>('week');
     
@@ -155,6 +162,29 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
             };
         }
     }, [periodType, selectedWeek, selectedYear, selectedMonth, customStartDate, customEndDate]);
+
+    // Fetch attendance records for the selected period
+    useEffect(() => {
+        const loadAttendance = async () => {
+            if (!getDateRange.start || !getDateRange.end) {
+                setAttendanceRecords([]);
+                return;
+            }
+            
+            try {
+                const records = await fetchAttendanceByDateRange(
+                    getDateRange.start,
+                    getDateRange.end
+                );
+                setAttendanceRecords(records);
+            } catch (error) {
+                console.error('Error fetching attendance records:', error);
+                setAttendanceRecords([]);
+            }
+        };
+        
+        loadAttendance();
+    }, [getDateRange.start, getDateRange.end]);
 
     // Calculate payroll for all staff for the selected period
     const payrollData = useMemo(() => {
@@ -224,11 +254,23 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
                 });
             }
             
+            // Calculate attendance deduction
+            const staffAttendanceRecords = attendanceRecords.filter(r => r.staffId === staff.id);
+            let attendanceDeduction = 0;
+            
+            if (staff.payroll?.baseSalary) {
+                const perMinuteRate = staff.payroll.baseSalary / STANDARD_WORKING_MINUTES_PER_DAY;
+                staffAttendanceRecords.forEach(record => {
+                    const totalMinutes = record.lateMinutes + record.earlyLeaveMinutes;
+                    attendanceDeduction += perMinuteRate * totalMinutes;
+                });
+            }
+            
             // Get adjustment
             const adjustment = adjustments[staff.id] || { amount: 0, note: '' };
             
-            // Calculate final total
-            const finalTotal = baseSalaryTotal + bonusTotal + adjustment.amount;
+            // Calculate final total (deduct attendance from total)
+            const finalTotal = baseSalaryTotal + bonusTotal - attendanceDeduction + adjustment.amount;
             
             summaries.push({
                 staffId: staff.id,
@@ -241,6 +283,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
                 totalRevenue,
                 baseSalaryTotal,
                 bonusTotal,
+                attendanceDeduction,
                 adjustment: adjustment.amount,
                 adjustmentNote: adjustment.note,
                 finalTotal,
@@ -248,7 +291,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
         });
         
         return summaries.sort((a, b) => b.finalTotal - a.finalTotal);
-    }, [staffList, transactions, getDateRange, selectedWeek, selectedYear, globalPayroll, adjustments]);
+    }, [staffList, transactions, getDateRange, selectedWeek, selectedYear, globalPayroll, adjustments, attendanceRecords]);
 
     // Calculate total payroll cost
     const totalPayrollCost = payrollData.reduce((sum, p) => sum + p.finalTotal, 0);
@@ -277,6 +320,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
             "Revenue",
             "Base Salary",
             "Bonus",
+            "Attendance Deduction",
             "Adjustment",
             "Total",
             "Period Type",
@@ -295,6 +339,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
             p.totalRevenue.toFixed(2),
             p.baseSalaryTotal.toFixed(2),
             p.bonusTotal.toFixed(2),
+            p.attendanceDeduction.toFixed(2),
             p.adjustment.toFixed(2),
             p.finalTotal.toFixed(2),
             getPeriodTypeLabel(),
@@ -400,6 +445,14 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
                         <span class="label">Bonus:</span>
                         <span class="value">$${summary.bonusTotal.toFixed(2)}</span>
                     </div>
+                    ${summary.attendanceDeduction > 0 ? `
+                    <div class="row">
+                        <span class="label">Attendance Deduction (Late/Early):</span>
+                        <span class="value" style="color: #E74C3C">
+                            -$${summary.attendanceDeduction.toFixed(2)}
+                        </span>
+                    </div>
+                    ` : ''}
                     ${summary.adjustment !== 0 ? `
                     <div class="row">
                         <span class="label">Adjustment:</span>
@@ -598,6 +651,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
                                         <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">Revenue</th>
                                         <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">Base Salary</th>
                                         <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">Bonus</th>
+                                        <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">Attendance Deduction</th>
                                         <th className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase">Adjustment</th>
                                         <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">Total</th>
                                         <th className="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase">Actions</th>
@@ -624,6 +678,9 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
                                                 <td className="px-6 py-4 text-right font-bold text-green-600">${summary.totalRevenue.toFixed(2)}</td>
                                                 <td className="px-6 py-4 text-right font-bold text-charcoal">${summary.baseSalaryTotal.toFixed(2)}</td>
                                                 <td className="px-6 py-4 text-right font-bold text-purple-600">${summary.bonusTotal.toFixed(2)}</td>
+                                                <td className="px-6 py-4 text-right font-bold text-red-600">
+                                                    {summary.attendanceDeduction > 0 ? `-$${summary.attendanceDeduction.toFixed(2)}` : '$0.00'}
+                                                </td>
                                                 <td className="px-6 py-4">
                                                     <input
                                                         type="number"
@@ -709,6 +766,14 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
                                             </span>
                                             <span className="font-bold text-purple-600">${detailStaff.bonusTotal.toFixed(2)}</span>
                                         </div>
+                                        {detailStaff.attendanceDeduction > 0 && (
+                                            <div className="flex justify-between items-center pb-2 border-b border-gray-100">
+                                                <span className="text-gray-600">
+                                                    Attendance Deduction (Late/Early Leave)
+                                                </span>
+                                                <span className="font-bold text-red-600">-${detailStaff.attendanceDeduction.toFixed(2)}</span>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 
