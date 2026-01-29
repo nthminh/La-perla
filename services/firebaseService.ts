@@ -899,7 +899,7 @@ export const saveAttendanceRecord = async (record: AttendanceRecord): Promise<bo
         await waitForAuth();
         const recordRef = ref(db, `${ATTENDANCE_REF}/${record.id}`);
         await set(recordRef, sanitizeData(record));
-        logger.log(`Attendance record saved: ${record.staffName} - ${record.date}`);
+        logger.info(`Attendance record saved: ${record.staffName} - ${record.date}`);
         return true;
     } catch (error) {
         console.error("Error saving attendance record:", error);
@@ -998,7 +998,7 @@ export const deleteAttendanceRecord = async (recordId: string): Promise<boolean>
         await waitForAuth();
         const recordRef = ref(db, `${ATTENDANCE_REF}/${recordId}`);
         await remove(recordRef);
-        logger.log(`Attendance record deleted: ${recordId}`);
+        logger.info(`Attendance record deleted: ${recordId}`);
         return true;
     } catch (error) {
         console.error("Error deleting attendance record:", error);
