@@ -178,18 +178,10 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
             }
             
             try {
-                console.log('[PayrollView] Fetching attendance records for date range:', {
-                    start: getDateRange.start,
-                    end: getDateRange.end
-                });
                 const records = await fetchAttendanceByDateRange(
                     getDateRange.start,
                     getDateRange.end
                 );
-                console.log('[PayrollView] Fetched attendance records:', records.length, 'records');
-                if (records.length > 0) {
-                    console.log('[PayrollView] Sample record:', records[0]);
-                }
                 setAttendanceRecords(records);
             } catch (error) {
                 console.error('Error fetching attendance records:', error);
@@ -272,10 +264,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
             const staffAttendanceRecords = attendanceRecords.filter(r => r.staffId === staff.id);
             let attendanceDeduction = 0;
             let extra = 0;
-            
-            if (staffAttendanceRecords.length > 0) {
-                console.log(`[PayrollView] Processing ${staffAttendanceRecords.length} attendance records for ${staff.name}`);
-            }
             
             // Calculate extra amount (always, regardless of base salary)
             staffAttendanceRecords.forEach(record => {
