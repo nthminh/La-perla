@@ -16,6 +16,9 @@ import {
     PencilIcon
 } from './Icons';
 
+// Constants
+const STANDARD_WORKING_MINUTES_PER_DAY = 510; // 8.5 hours per day
+
 // Sydney timezone helper
 const getSydneyDateStr = (isoDate: string) => {
     try {
@@ -52,6 +55,13 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ t, staffList }) 
     const [modalEarlyMinutes, setModalEarlyMinutes] = useState('0');
     const [modalNotes, setModalNotes] = useState('');
     
+    // Create staff lookup map for better performance
+    const staffMap = useMemo(() => {
+        const map = new Map<string, StaffProfile>();
+        staffList.forEach(staff => map.set(staff.id, staff));
+        return map;
+    }, [staffList]);
+    
     // Subscribe to attendance records
     useEffect(() => {
         setIsLoading(true);
@@ -75,13 +85,6 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ t, staffList }) 
         return attendanceRecords.filter(r => r.staffId === selectedStaffId);
     }, [attendanceRecords, selectedStaffId]);
     
-    // Calculate totals
-    const totals = useMemo(() => {
-        const totalLate = filteredRecords.reduce((sum, r) => sum + r.lateMinutes, 0);
-        const totalEarly = filteredRecords.reduce((sum, r) => sum + r.earlyLeaveMinutes, 0);
-        return { totalLate, totalEarly };
-    }, [filteredRecords]);
-    
     // Format minutes to hours and minutes
     const formatMinutes = (minutes: number): string => {
         if (minutes === 0) return '0m';
@@ -91,6 +94,34 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ t, staffList }) 
         if (mins === 0) return `${hours}h`;
         return `${hours}h ${mins}m`;
     };
+    
+    // Calculate deduction for a single record
+    const calculateRecordDeduction = (record: AttendanceRecord): number => {
+        const staff = staffMap.get(record.staffId);
+        if (!staff?.payroll?.baseSalary) return 0;
+        
+        const perMinuteRate = staff.payroll.baseSalary / STANDARD_WORKING_MINUTES_PER_DAY;
+        const totalMinutes = record.lateMinutes + record.earlyLeaveMinutes;
+        return perMinuteRate * totalMinutes;
+    };
+    
+    // Format currency
+    const formatCurrency = (amount: number): string => {
+        return `$${amount.toFixed(2)}`;
+    };
+    
+    // Calculate totals
+    const totals = useMemo(() => {
+        const totalLate = filteredRecords.reduce((sum, r) => sum + r.lateMinutes, 0);
+        const totalEarly = filteredRecords.reduce((sum, r) => sum + r.earlyLeaveMinutes, 0);
+        
+        // Calculate monetary deduction using the same logic as calculateRecordDeduction
+        const totalDeduction = filteredRecords.reduce((sum, record) => {
+            return sum + calculateRecordDeduction(record);
+        }, 0);
+        
+        return { totalLate, totalEarly, totalDeduction };
+    }, [filteredRecords, staffMap]);
     
     // Open modal for adding new record
     const handleAddNew = () => {
@@ -249,7 +280,7 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ t, staffList }) 
                 </div>
                 
                 {/* Summary Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
                     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                         <div className="text-sm font-bold uppercase text-gray-500 mb-2">
                             Total Records
@@ -274,6 +305,18 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ t, staffList }) 
                         </div>
                         <div className="text-3xl font-bold text-blue-600">
                             {formatMinutes(totals.totalEarly)}
+                        </div>
+                    </div>
+                    
+                    <div className="bg-white rounded-xl shadow-sm border border-orange-100 p-6">
+                        <div className="text-sm font-bold uppercase text-gray-500 mb-2">
+                            Total Deduction
+                        </div>
+                        <div className="text-3xl font-bold text-orange-600">
+                            {formatCurrency(totals.totalDeduction)}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                            Based on base salary ÷ {STANDARD_WORKING_MINUTES_PER_DAY} min
                         </div>
                     </div>
                 </div>
@@ -306,6 +349,9 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ t, staffList }) 
                                             Early Leave
                                         </th>
                                         <th className="px-6 py-3 text-left text-xs font-bold uppercase text-gray-600">
+                                            Deduction
+                                        </th>
+                                        <th className="px-6 py-3 text-left text-xs font-bold uppercase text-gray-600">
                                             Notes
                                         </th>
                                         <th className="px-6 py-3 text-right text-xs font-bold uppercase text-gray-600">
@@ -330,9 +376,9 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ t, staffList }) 
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <div className="flex items-center gap-2">
-                                                        {staffList.find(s => s.id === record.staffId)?.avatar ? (
+                                                        {staffMap.get(record.staffId)?.avatar ? (
                                                             <img 
-                                                                src={staffList.find(s => s.id === record.staffId)?.avatar} 
+                                                                src={staffMap.get(record.staffId)?.avatar} 
                                                                 className="w-8 h-8 rounded-full object-cover" 
                                                                 alt={record.staffName}
                                                             />
@@ -355,6 +401,35 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ t, staffList }) 
                                                     <div className={`text-sm font-bold ${record.earlyLeaveMinutes > 0 ? 'text-blue-600' : 'text-gray-400'}`}>
                                                         {formatMinutes(record.earlyLeaveMinutes)}
                                                     </div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    {(() => {
+                                                        const deduction = calculateRecordDeduction(record);
+                                                        const staff = staffMap.get(record.staffId);
+                                                        const totalMinutes = record.lateMinutes + record.earlyLeaveMinutes;
+                                                        
+                                                        if (!staff?.payroll?.baseSalary) {
+                                                            return (
+                                                                <div className="text-xs text-gray-400">
+                                                                    No salary
+                                                                </div>
+                                                            );
+                                                        }
+                                                        
+                                                        if (totalMinutes === 0) {
+                                                            return (
+                                                                <div className="text-xs text-gray-400">
+                                                                    $0.00
+                                                                </div>
+                                                            );
+                                                        }
+                                                        
+                                                        return (
+                                                            <div className="text-sm font-bold text-orange-600">
+                                                                {formatCurrency(deduction)}
+                                                            </div>
+                                                        );
+                                                    })()}
                                                 </td>
                                                 <td className="px-6 py-4">
                                                     <div className="text-sm text-gray-600 max-w-md truncate">
