@@ -197,3 +197,16 @@ export interface PayrollDailyBreakdown {
     target: number;
     bonus: number;
 }
+
+// Attendance Tracking Types
+export interface AttendanceRecord {
+    id: string;
+    staffId: string;
+    staffName: string; // For easy display
+    date: string; // YYYY-MM-DD
+    lateMinutes: number; // Minutes late (0 if on time)
+    earlyLeaveMinutes: number; // Minutes left early (0 if stayed full time)
+    notes?: string; // Admin notes about the lateness/early leave
+    recordedBy?: string; // Admin who recorded this
+    recordedAt: string; // ISO timestamp when recorded
+}
