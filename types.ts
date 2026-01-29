@@ -207,6 +207,7 @@ export interface AttendanceRecord {
     date: string; // YYYY-MM-DD
     lateMinutes: number; // Minutes late (0 if on time)
     earlyLeaveMinutes: number; // Minutes left early (0 if stayed full time)
+    extraAmount?: number; // Extra amount (positive for bonuses, negative for deductions)
     notes?: string; // Admin notes about the lateness/early leave
     recordedBy?: string; // Admin who recorded this
     recordedAt: string; // ISO timestamp when recorded
