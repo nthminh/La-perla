@@ -964,6 +964,7 @@ export const fetchAttendanceByDateRange = async (
     }
     
     try {
+        console.log('[firebaseService] fetchAttendanceByDateRange called with:', { startDate, endDate });
         await waitForAuth();
         const attendanceQuery = query(
             ref(db, ATTENDANCE_REF),
@@ -974,11 +975,20 @@ export const fetchAttendanceByDateRange = async (
         
         const snapshot = await get(attendanceQuery);
         if (!snapshot.exists()) {
+            console.log('[firebaseService] No attendance records found in database for date range');
             return [];
         }
         
         const data = snapshot.val();
-        return Object.values(data) as AttendanceRecord[];
+        const records = Object.values(data) as AttendanceRecord[];
+        console.log('[firebaseService] Found', records.length, 'attendance records');
+        if (records.length > 0) {
+            console.log('[firebaseService] Date range of records:', {
+                first: records[0].date,
+                last: records[records.length - 1].date
+            });
+        }
+        return records;
     } catch (error) {
         console.error("Error fetching attendance:", error);
         return [];

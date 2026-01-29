@@ -12,13 +12,18 @@ const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
 // Standard working minutes per day (same as AttendanceView)
 const STANDARD_WORKING_MINUTES_PER_DAY = 510; // 8.5 hours per day
 
-// Sydney timezone helper (same as AdminView)
+// Sydney timezone helper (same as AdminView and AttendanceView)
 const getSydneyDateStr = (isoDate: string) => {
     try {
         return new Date(isoDate).toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
     } catch (e) {
         return isoDate.split('T')[0]; 
     }
+};
+
+// Convert a Date object to YYYY-MM-DD string in Sydney timezone
+const dateToSydneyStr = (date: Date): string => {
+    return date.toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' });
 };
 
 const getSydneyDayName = (isoDate: string) => {
@@ -61,8 +66,9 @@ const getWeekRanges = (year: number) => {
         const wednesday = new Date(thursday);
         wednesday.setDate(wednesday.getDate() + 6); // Thursday + 6 days = Wednesday
         
-        const startStr = thursday.toISOString().split('T')[0];
-        const endStr = wednesday.toISOString().split('T')[0];
+        // Use Sydney timezone for date strings
+        const startStr = dateToSydneyStr(thursday);
+        const endStr = dateToSydneyStr(wednesday);
         
         // Format label: "Week 1: Dec 28 - Jan 3"
         const startMonth = thursday.toLocaleDateString('en-US', { month: 'short', timeZone: 'Australia/Sydney' });
@@ -172,10 +178,18 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
             }
             
             try {
+                console.log('[PayrollView] Fetching attendance records for date range:', {
+                    start: getDateRange.start,
+                    end: getDateRange.end
+                });
                 const records = await fetchAttendanceByDateRange(
                     getDateRange.start,
                     getDateRange.end
                 );
+                console.log('[PayrollView] Fetched attendance records:', records.length, 'records');
+                if (records.length > 0) {
+                    console.log('[PayrollView] Sample record:', records[0]);
+                }
                 setAttendanceRecords(records);
             } catch (error) {
                 console.error('Error fetching attendance records:', error);
@@ -258,6 +272,10 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
             const staffAttendanceRecords = attendanceRecords.filter(r => r.staffId === staff.id);
             let attendanceDeduction = 0;
             let extra = 0;
+            
+            if (staffAttendanceRecords.length > 0) {
+                console.log(`[PayrollView] Processing ${staffAttendanceRecords.length} attendance records for ${staff.name}`);
+            }
             
             // Calculate extra amount (always, regardless of base salary)
             staffAttendanceRecords.forEach(record => {
