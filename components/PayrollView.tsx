@@ -4,6 +4,10 @@ import { Translation } from '../translations';
 import { Transaction, StaffProfile, GlobalPayrollSettings, PayrollSummary } from '../types';
 import { DownloadIcon, XMarkIcon, ChevronDownIcon, UserIcon } from './Icons';
 
+// Month names for display
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 
+                     'July', 'August', 'September', 'October', 'November', 'December'];
+
 // Sydney timezone helper (same as AdminView)
 const getSydneyDateStr = (isoDate: string) => {
     try {
@@ -109,18 +113,59 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
     // State for adjustments (temporary, not saved to database in Phase 1)
     const [adjustments, setAdjustments] = useState<Record<string, { amount: number; note: string }>>({});
 
+    // Period type: 'week', 'month', or 'custom'
+    const [periodType, setPeriodType] = useState<'week' | 'month' | 'custom'>('week');
+    
+    // Month selection (1-12)
+    const currentMonth = new Date().getMonth() + 1;
+    const [selectedMonth, setSelectedMonth] = useState(currentMonth);
+    
+    // Custom date range
+    const today = new Date().toISOString().split('T')[0];
+    const [customStartDate, setCustomStartDate] = useState(today);
+    const [customEndDate, setCustomEndDate] = useState(today);
+
     const selectedWeek = weekRanges[selectedWeekIndex] || weekRanges[0];
 
-    // Calculate payroll for all staff for the selected week
+    // Get the date range based on period type
+    const getDateRange = useMemo(() => {
+        if (periodType === 'week') {
+            return {
+                start: selectedWeek?.start || '',
+                end: selectedWeek?.end || '',
+                label: selectedWeek?.label || '',
+                weekNumber: selectedWeek?.weekNumber || 0
+            };
+        } else if (periodType === 'month') {
+            // Calculate first and last day of selected month
+            const firstDay = new Date(selectedYear, selectedMonth - 1, 1);
+            const lastDay = new Date(selectedYear, selectedMonth, 0);
+            const start = firstDay.toISOString().split('T')[0];
+            const end = lastDay.toISOString().split('T')[0];
+            const label = `${MONTH_NAMES[selectedMonth - 1]} ${selectedYear}`;
+            return { start, end, label, weekNumber: undefined };
+        } else { // custom
+            // Validate that end date is not before start date
+            const isValid = customEndDate >= customStartDate;
+            return {
+                start: customStartDate,
+                end: isValid ? customEndDate : customStartDate,
+                label: `${customStartDate} to ${isValid ? customEndDate : customStartDate}`,
+                weekNumber: undefined
+            };
+        }
+    }, [periodType, selectedWeek, selectedYear, selectedMonth, customStartDate, customEndDate]);
+
+    // Calculate payroll for all staff for the selected period
     const payrollData = useMemo(() => {
-        if (!selectedWeek) return [];
+        if (!getDateRange.start || !getDateRange.end) return [];
         
         const summaries: PayrollSummary[] = [];
         
-        // Filter transactions for selected week (Thursday to Wednesday)
-        const weekTransactions = transactions.filter(tx => {
+        // Filter transactions for selected period
+        const periodTransactions = transactions.filter(tx => {
             const txDate = getSydneyDateStr(tx.date);
-            return txDate >= selectedWeek.start && txDate <= selectedWeek.end;
+            return txDate >= getDateRange.start && txDate <= getDateRange.end;
         });
 
         // Calculate for each staff member
@@ -128,7 +173,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
             // Track days worked and revenue
             const dailyRevenue: Record<string, number> = {};
             
-            weekTransactions.forEach(tx => {
+            periodTransactions.forEach(tx => {
                 const dateStr = getSydneyDateStr(tx.date);
                 const dayOfWeek = getSydneyDayName(tx.date);
                 
@@ -165,7 +210,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
             if (staff.payroll?.enabled) {
                 Object.entries(dailyRevenue).forEach(([dateStr, dailyRev]) => {
                     // Find the transaction to get day of week
-                    const tx = weekTransactions.find(t => getSydneyDateStr(t.date) === dateStr);
+                    const tx = periodTransactions.find(t => getSydneyDateStr(t.date) === dateStr);
                     if (!tx) return;
                     
                     const dayOfWeek = getSydneyDayName(tx.date);
@@ -188,9 +233,9 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
             summaries.push({
                 staffId: staff.id,
                 staffName: staff.name,
-                weekStartDate: selectedWeek.start,
-                weekEndDate: selectedWeek.end,
-                weekNumber: selectedWeek.weekNumber,
+                weekStartDate: getDateRange.start,
+                weekEndDate: getDateRange.end,
+                weekNumber: getDateRange.weekNumber || 0,
                 year: selectedYear,
                 daysWorked,
                 totalRevenue,
@@ -203,7 +248,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
         });
         
         return summaries.sort((a, b) => b.finalTotal - a.finalTotal);
-    }, [staffList, transactions, selectedWeek, selectedYear, globalPayroll, adjustments]);
+    }, [staffList, transactions, getDateRange, selectedWeek, selectedYear, globalPayroll, adjustments]);
 
     // Calculate total payroll cost
     const totalPayrollCost = payrollData.reduce((sum, p) => sum + p.finalTotal, 0);
@@ -234,9 +279,15 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
             "Bonus",
             "Adjustment",
             "Total",
-            "Week",
+            "Period Type",
             "Period"
         ];
+        
+        const getPeriodTypeLabel = () => {
+            if (periodType === 'week') return 'Week';
+            if (periodType === 'month') return 'Month';
+            return 'Custom Range';
+        };
         
         const rows = payrollData.map(p => [
             p.staffName,
@@ -246,8 +297,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
             p.bonusTotal.toFixed(2),
             p.adjustment.toFixed(2),
             p.finalTotal.toFixed(2),
-            `Week ${p.weekNumber}`,
-            `${p.weekStartDate} to ${p.weekEndDate}`
+            getPeriodTypeLabel(),
+            getDateRange.label
         ]);
         
         const csvContent = "data:text/csv;charset=utf-8," 
@@ -256,7 +307,12 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `payroll_week${selectedWeek.weekNumber}_${selectedYear}.csv`);
+        const filename = periodType === 'week' 
+            ? `payroll_week${getDateRange.weekNumber}_${selectedYear}.csv`
+            : periodType === 'month'
+            ? `payroll_month${selectedMonth}_${selectedYear}.csv`
+            : `payroll_${customStartDate}_to_${customEndDate}.csv`;
+        link.setAttribute("download", filename);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -270,10 +326,16 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
         const printWindow = window.open('', '', 'width=800,height=600');
         if (!printWindow) return;
         
+        const periodLabel = periodType === 'week' 
+            ? `Week ${summary.weekNumber}, ${summary.year}`
+            : periodType === 'month'
+            ? getDateRange.label
+            : getDateRange.label; // Show the full date range for custom periods
+        
         printWindow.document.write(`
             <html>
             <head>
-                <title>Weekly Payslip - ${summary.staffName}</title>
+                <title>Payslip - ${summary.staffName}</title>
                 <style>
                     body { font-family: Arial, sans-serif; padding: 40px; }
                     .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #D4AF37; padding-bottom: 20px; }
@@ -291,8 +353,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
             <body>
                 <div class="header">
                     <h1>💎 La Perla Nails & Beauty</h1>
-                    <p>Weekly Payslip</p>
-                    <p>Week ${summary.weekNumber}, ${summary.year}</p>
+                    <p>Payslip</p>
+                    <p>${periodLabel}</p>
                     <p>${summary.weekStartDate} to ${summary.weekEndDate}</p>
                 </div>
                 
@@ -379,9 +441,9 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
                 <div className="flex justify-between items-center">
                     <div>
                         <h1 className="text-2xl font-serif font-bold text-charcoal flex items-center gap-2">
-                            💰 Weekly Payroll
+                            💰 Payroll Calculator
                         </h1>
-                        <p className="text-sm text-gray-500 mt-1">Calculate and manage weekly staff salaries (Thursday to Wednesday)</p>
+                        <p className="text-sm text-gray-500 mt-1">Calculate and manage staff salaries by week, month, or custom period</p>
                     </div>
                     <div className="flex gap-3">
                         <button
@@ -395,45 +457,125 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
                 </div>
             </div>
 
-            {/* Week/Year Selector */}
+            {/* Period Type & Date Selector */}
             <div className="px-6 py-4 bg-white border-b border-gray-100">
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-4 flex-wrap">
+                    {/* Period Type Selector */}
                     <div className="flex items-center gap-2">
-                        <label className="text-sm font-bold text-gray-500 uppercase">Pay Period:</label>
+                        <label className="text-sm font-bold text-gray-500 uppercase">Calculate By:</label>
                         <div className="relative">
                             <select
-                                value={selectedWeekIndex}
-                                onChange={(e) => setSelectedWeekIndex(parseInt(e.target.value))}
+                                value={periodType}
+                                onChange={(e) => setPeriodType(e.target.value as 'week' | 'month' | 'custom')}
                                 className="appearance-none bg-white pl-3 pr-8 py-2 rounded-lg border border-gray-200 text-sm font-bold text-charcoal focus:outline-none focus:border-gold-leaf shadow-sm cursor-pointer"
                             >
-                                {weekRanges.map((week, idx) => (
-                                    <option key={idx} value={idx}>
-                                        {week.label}
-                                    </option>
-                                ))}
-                            </select>
-                            <ChevronDownIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                        </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                        <label className="text-sm font-bold text-gray-500 uppercase">Year:</label>
-                        <div className="relative">
-                            <select
-                                value={selectedYear}
-                                onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                                className="appearance-none bg-white pl-3 pr-8 py-2 rounded-lg border border-gray-200 text-sm font-bold text-charcoal focus:outline-none focus:border-gold-leaf shadow-sm cursor-pointer"
-                            >
-                                {[2023, 2024, 2025, 2026].map(year => (
-                                    <option key={year} value={year}>{year}</option>
-                                ))}
+                                <option value="week">Week</option>
+                                <option value="month">Month</option>
+                                <option value="custom">Custom Range</option>
                             </select>
                             <ChevronDownIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                         </div>
                     </div>
 
+                    {/* Week Selector - only shown when periodType is 'week' */}
+                    {periodType === 'week' && (
+                        <div className="flex items-center gap-2">
+                            <label className="text-sm font-bold text-gray-500 uppercase">Week:</label>
+                            <div className="relative">
+                                <select
+                                    value={selectedWeekIndex}
+                                    onChange={(e) => setSelectedWeekIndex(parseInt(e.target.value))}
+                                    className="appearance-none bg-white pl-3 pr-8 py-2 rounded-lg border border-gray-200 text-sm font-bold text-charcoal focus:outline-none focus:border-gold-leaf shadow-sm cursor-pointer"
+                                >
+                                    {weekRanges.map((week, idx) => (
+                                        <option key={idx} value={idx}>
+                                            {week.label}
+                                        </option>
+                                    ))}
+                                </select>
+                                <ChevronDownIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Month Selector - only shown when periodType is 'month' */}
+                    {periodType === 'month' && (
+                        <div className="flex items-center gap-2">
+                            <label className="text-sm font-bold text-gray-500 uppercase">Month:</label>
+                            <div className="relative">
+                                <select
+                                    value={selectedMonth}
+                                    onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                                    className="appearance-none bg-white pl-3 pr-8 py-2 rounded-lg border border-gray-200 text-sm font-bold text-charcoal focus:outline-none focus:border-gold-leaf shadow-sm cursor-pointer"
+                                >
+                                    <option value="1">January</option>
+                                    <option value="2">February</option>
+                                    <option value="3">March</option>
+                                    <option value="4">April</option>
+                                    <option value="5">May</option>
+                                    <option value="6">June</option>
+                                    <option value="7">July</option>
+                                    <option value="8">August</option>
+                                    <option value="9">September</option>
+                                    <option value="10">October</option>
+                                    <option value="11">November</option>
+                                    <option value="12">December</option>
+                                </select>
+                                <ChevronDownIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Custom Date Range - only shown when periodType is 'custom' */}
+                    {periodType === 'custom' && (
+                        <>
+                            <div className="flex items-center gap-2">
+                                <label className="text-sm font-bold text-gray-500 uppercase">From:</label>
+                                <input
+                                    type="date"
+                                    value={customStartDate}
+                                    onChange={(e) => setCustomStartDate(e.target.value)}
+                                    max={today}
+                                    required
+                                    className="bg-white pl-3 pr-3 py-2 rounded-lg border border-gray-200 text-sm font-bold text-charcoal focus:outline-none focus:border-gold-leaf shadow-sm"
+                                />
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <label className="text-sm font-bold text-gray-500 uppercase">To:</label>
+                                <input
+                                    type="date"
+                                    value={customEndDate}
+                                    onChange={(e) => setCustomEndDate(e.target.value)}
+                                    min={customStartDate}
+                                    max={today}
+                                    required
+                                    className="bg-white pl-3 pr-3 py-2 rounded-lg border border-gray-200 text-sm font-bold text-charcoal focus:outline-none focus:border-gold-leaf shadow-sm"
+                                />
+                            </div>
+                        </>
+                    )}
+                    
+                    {/* Year Selector - shown for week and month */}
+                    {(periodType === 'week' || periodType === 'month') && (
+                        <div className="flex items-center gap-2">
+                            <label className="text-sm font-bold text-gray-500 uppercase">Year:</label>
+                            <div className="relative">
+                                <select
+                                    value={selectedYear}
+                                    onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                                    className="appearance-none bg-white pl-3 pr-8 py-2 rounded-lg border border-gray-200 text-sm font-bold text-charcoal focus:outline-none focus:border-gold-leaf shadow-sm cursor-pointer"
+                                >
+                                    {[2023, 2024, 2025, 2026].map(year => (
+                                        <option key={year} value={year}>{year}</option>
+                                    ))}
+                                </select>
+                                <ChevronDownIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                            </div>
+                        </div>
+                    )}
+
                     <div className="ml-auto flex items-center gap-2 border-l border-gray-200 pl-4">
-                        <span className="text-xs font-bold text-gray-400 uppercase">Total Weekly Cost:</span>
+                        <span className="text-xs font-bold text-gray-400 uppercase">Total Payroll Cost:</span>
                         <span className="text-2xl font-bold text-gold-leaf">${totalPayrollCost.toFixed(2)}</span>
                     </div>
                 </div>
@@ -444,7 +586,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                     {payrollData.length === 0 ? (
                         <div className="p-12 text-center">
-                            <p className="text-gray-400 italic">No payroll data available for this week</p>
+                            <p className="text-gray-400 italic">No payroll data available for this period</p>
                         </div>
                     ) : (
                         <div className="overflow-x-auto">
