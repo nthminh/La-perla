@@ -16,6 +16,9 @@ import {
     PencilIcon
 } from './Icons';
 
+// Constants
+const STANDARD_WORKING_MINUTES_PER_DAY = 510; // 8.5 hours per day
+
 // Sydney timezone helper
 const getSydneyDateStr = (isoDate: string) => {
     try {
@@ -52,6 +55,13 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ t, staffList }) 
     const [modalEarlyMinutes, setModalEarlyMinutes] = useState('0');
     const [modalNotes, setModalNotes] = useState('');
     
+    // Create staff lookup map for better performance
+    const staffMap = useMemo(() => {
+        const map = new Map<string, StaffProfile>();
+        staffList.forEach(staff => map.set(staff.id, staff));
+        return map;
+    }, [staffList]);
+    
     // Subscribe to attendance records
     useEffect(() => {
         setIsLoading(true);
@@ -75,26 +85,6 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ t, staffList }) 
         return attendanceRecords.filter(r => r.staffId === selectedStaffId);
     }, [attendanceRecords, selectedStaffId]);
     
-    // Calculate totals
-    const totals = useMemo(() => {
-        const totalLate = filteredRecords.reduce((sum, r) => sum + r.lateMinutes, 0);
-        const totalEarly = filteredRecords.reduce((sum, r) => sum + r.earlyLeaveMinutes, 0);
-        
-        // Calculate monetary deduction
-        // Formula: (baseSalary / 510 minutes) * (late + early minutes)
-        let totalDeduction = 0;
-        filteredRecords.forEach(record => {
-            const staff = staffList.find(s => s.id === record.staffId);
-            if (staff?.payroll?.baseSalary) {
-                const perMinuteRate = staff.payroll.baseSalary / 510;
-                const totalMinutes = record.lateMinutes + record.earlyLeaveMinutes;
-                totalDeduction += perMinuteRate * totalMinutes;
-            }
-        });
-        
-        return { totalLate, totalEarly, totalDeduction };
-    }, [filteredRecords, staffList]);
-    
     // Format minutes to hours and minutes
     const formatMinutes = (minutes: number): string => {
         if (minutes === 0) return '0m';
@@ -107,10 +97,10 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ t, staffList }) 
     
     // Calculate deduction for a single record
     const calculateRecordDeduction = (record: AttendanceRecord): number => {
-        const staff = staffList.find(s => s.id === record.staffId);
+        const staff = staffMap.get(record.staffId);
         if (!staff?.payroll?.baseSalary) return 0;
         
-        const perMinuteRate = staff.payroll.baseSalary / 510;
+        const perMinuteRate = staff.payroll.baseSalary / STANDARD_WORKING_MINUTES_PER_DAY;
         const totalMinutes = record.lateMinutes + record.earlyLeaveMinutes;
         return perMinuteRate * totalMinutes;
     };
@@ -119,6 +109,19 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ t, staffList }) 
     const formatCurrency = (amount: number): string => {
         return `$${amount.toFixed(2)}`;
     };
+    
+    // Calculate totals
+    const totals = useMemo(() => {
+        const totalLate = filteredRecords.reduce((sum, r) => sum + r.lateMinutes, 0);
+        const totalEarly = filteredRecords.reduce((sum, r) => sum + r.earlyLeaveMinutes, 0);
+        
+        // Calculate monetary deduction using the same logic as calculateRecordDeduction
+        const totalDeduction = filteredRecords.reduce((sum, record) => {
+            return sum + calculateRecordDeduction(record);
+        }, 0);
+        
+        return { totalLate, totalEarly, totalDeduction };
+    }, [filteredRecords, staffMap]);
     
     // Open modal for adding new record
     const handleAddNew = () => {
@@ -313,7 +316,7 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ t, staffList }) 
                             {formatCurrency(totals.totalDeduction)}
                         </div>
                         <div className="text-xs text-gray-500 mt-1">
-                            Based on base salary ÷ 510 min
+                            Based on base salary ÷ {STANDARD_WORKING_MINUTES_PER_DAY} min
                         </div>
                     </div>
                 </div>
@@ -373,9 +376,9 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ t, staffList }) 
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <div className="flex items-center gap-2">
-                                                        {staffList.find(s => s.id === record.staffId)?.avatar ? (
+                                                        {staffMap.get(record.staffId)?.avatar ? (
                                                             <img 
-                                                                src={staffList.find(s => s.id === record.staffId)?.avatar} 
+                                                                src={staffMap.get(record.staffId)?.avatar} 
                                                                 className="w-8 h-8 rounded-full object-cover" 
                                                                 alt={record.staffName}
                                                             />
@@ -402,14 +405,28 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ t, staffList }) 
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     {(() => {
                                                         const deduction = calculateRecordDeduction(record);
-                                                        const staff = staffList.find(s => s.id === record.staffId);
-                                                        return deduction > 0 ? (
+                                                        const staff = staffMap.get(record.staffId);
+                                                        const totalMinutes = record.lateMinutes + record.earlyLeaveMinutes;
+                                                        
+                                                        if (!staff?.payroll?.baseSalary) {
+                                                            return (
+                                                                <div className="text-xs text-gray-400">
+                                                                    No salary
+                                                                </div>
+                                                            );
+                                                        }
+                                                        
+                                                        if (totalMinutes === 0) {
+                                                            return (
+                                                                <div className="text-xs text-gray-400">
+                                                                    $0.00
+                                                                </div>
+                                                            );
+                                                        }
+                                                        
+                                                        return (
                                                             <div className="text-sm font-bold text-orange-600">
                                                                 {formatCurrency(deduction)}
-                                                            </div>
-                                                        ) : (
-                                                            <div className="text-xs text-gray-400">
-                                                                {staff?.payroll?.baseSalary ? 'No time' : 'No salary'}
                                                             </div>
                                                         );
                                                     })()}
