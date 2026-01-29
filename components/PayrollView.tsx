@@ -96,7 +96,7 @@ const getWeekRanges = (year: number) => {
 
 // Get current week (Thursday to Wednesday)
 const getCurrentWeekIndex = (weeks: Array<{ start: string; end: string }>) => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = dateToSydneyStr(new Date());
     const idx = weeks.findIndex(w => today >= w.start && today <= w.end);
     return idx >= 0 ? idx : weeks.length - 1;
 };
@@ -134,7 +134,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
     const [selectedMonth, setSelectedMonth] = useState(currentMonth);
     
     // Custom date range
-    const today = new Date().toISOString().split('T')[0];
+    const today = dateToSydneyStr(new Date());
     const [customStartDate, setCustomStartDate] = useState(today);
     const [customEndDate, setCustomEndDate] = useState(today);
 
@@ -153,8 +153,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
             // Calculate first and last day of selected month
             const firstDay = new Date(selectedYear, selectedMonth - 1, 1);
             const lastDay = new Date(selectedYear, selectedMonth, 0);
-            const start = firstDay.toISOString().split('T')[0];
-            const end = lastDay.toISOString().split('T')[0];
+            const start = dateToSydneyStr(firstDay);
+            const end = dateToSydneyStr(lastDay);
             const label = `${MONTH_NAMES[selectedMonth - 1]} ${selectedYear}`;
             return { start, end, label, weekNumber: undefined };
         } else { // custom
