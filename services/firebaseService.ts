@@ -925,11 +925,14 @@ export const subscribeToAttendance = (
     
     if (startDate && endDate) {
         // Query with date range filter
+        // Add Unicode high character to endDate to ensure all records on that date are included
+        const endDateWithSuffix = endDate + "\uf8ff";
+        
         attendanceQuery = query(
             ref(db, ATTENDANCE_REF),
             orderByChild('date'),
             startAt(startDate),
-            endAt(endDate)
+            endAt(endDateWithSuffix)
         );
     } else {
         // Get all records
@@ -966,11 +969,15 @@ export const fetchAttendanceByDateRange = async (
     try {
         console.log('[firebaseService] fetchAttendanceByDateRange called with:', { startDate, endDate });
         await waitForAuth();
+        
+        // Add Unicode high character to endDate to ensure all records on that date are included
+        const endDateWithSuffix = endDate + "\uf8ff";
+        
         const attendanceQuery = query(
             ref(db, ATTENDANCE_REF),
             orderByChild('date'),
             startAt(startDate),
-            endAt(endDate)
+            endAt(endDateWithSuffix)
         );
         
         const snapshot = await get(attendanceQuery);
