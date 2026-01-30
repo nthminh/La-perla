@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Translation } from '../translations';
 import { LaPerlaLogo, ClockIcon, PhoneIcon, UserIcon, SparklesIcon, ChevronDownIcon, GiftIcon, HeartIcon, CalendarIcon, XMarkIcon, BriefcaseIcon, ReceiptIcon, InfoIcon, StarIcon } from './Icons';
 import { WaitlistEntry, ServiceCategory, BookingRequest, ActiveBill, CartItem, Transaction, CustomerProfile, MarqueeSettings } from '../types';
-import { upsertWaitlistEntry, upsertActiveBill, upsertBooking, getNextTicketNumber } from '../services/firebaseService';
+import { upsertWaitlistEntry, upsertActiveBill, upsertBooking, getNextTicketNumber, generateUniqueBillId, generateUniqueWaitlistId } from '../services/firebaseService';
 import { SoundManager } from '../utils/sound';
 import { generateSecureId } from '../utils/idGenerator';
 import { parsePrice } from '../utils/priceParser';
@@ -234,7 +234,7 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
       const bookingServices = foundBooking.services || [];
       setSelectedServices(bookingServices); // Set selected services for ticket display
       const initialItems = convertServicesToCartItems(bookingServices);
-      const newBill: ActiveBill = { id: Date.now().toString(), customerName: foundBooking.customerName, customerPhone: foundBooking.customerPhone, items: initialItems, discountPercentage: 0, ticketNumber: ticketNum, isVip: isVip };
+      const newBill: ActiveBill = { id: generateUniqueBillId(), customerName: foundBooking.customerName, customerPhone: foundBooking.customerPhone, items: initialItems, discountPercentage: 0, ticketNumber: ticketNum, isVip: isVip };
       await upsertActiveBill(newBill);
       await upsertBooking({ ...foundBooking, status: 'confirmed' });
       setStep('success_seated');
@@ -258,7 +258,7 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
       const ticketNum = await getNextTicketNumber('checkin');
       setGeneratedTicket(ticketNum);
       const initialItems = convertServicesToCartItems(selectedServices);
-      const newBill: ActiveBill = { id: Date.now().toString(), customerName: name, customerPhone: phone, items: initialItems, discountPercentage: 0, ticketNumber: ticketNum, isVip: isVip };
+      const newBill: ActiveBill = { id: generateUniqueBillId(), customerName: name, customerPhone: phone, items: initialItems, discountPercentage: 0, ticketNumber: ticketNum, isVip: isVip };
       await upsertActiveBill(newBill);
       setStep('success_seated');
     });
@@ -280,7 +280,7 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
       SoundManager.playSuccess();
       const ticketNum = await getNextTicketNumber('waitlist');
       setGeneratedTicket(ticketNum);
-      const newEntry: WaitlistEntry = { id: Date.now().toString(), customerName: name, customerPhone: phone, notes: notes || 'Walk-in', addedTime: new Date().toISOString(), estimatedReturnTime: '', status: 'waiting', selectedServices, ticketNumber: ticketNum, isVip };
+      const newEntry: WaitlistEntry = { id: generateUniqueWaitlistId(), customerName: name, customerPhone: phone, notes: notes || 'Walk-in', addedTime: new Date().toISOString(), estimatedReturnTime: '', status: 'waiting', selectedServices, ticketNumber: ticketNum, isVip };
       setWaitlist([...waitlist, newEntry]);
       await upsertWaitlistEntry(newEntry);
       setStep('success_waitlist');

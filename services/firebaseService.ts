@@ -1,5 +1,5 @@
 
-import { ref, onValue, set, update, remove, Unsubscribe, push, query, limitToLast, get, orderByChild, startAt, endAt } from "firebase/database";
+import { ref, onValue, set, update, remove, Unsubscribe, push, query, limitToLast, get, orderByChild, startAt, endAt, runTransaction } from "firebase/database";
 import { db, waitForAuth } from "./firebaseConfig";
 import { ActiveBill, WaitlistEntry, AppSettings, ServiceCategory, StaffProfile, BookingRequest, GlobalPayrollSettings, Transaction, AdminPasswords, SettingsSnapshot, MarqueeSettings, AttendanceRecord } from "../types";
 import { DEFAULT_GLOBAL_PAYROLL, DEFAULT_ADMIN_PASSWORDS, DEFAULT_MARQUEE_SETTINGS } from "../constants";
@@ -93,6 +93,8 @@ export const subscribeToSystemState = (
 /**
  * --- TICKET GENERATION LOGIC (NEW) ---
  * Generates unique tickets (A01...A100) that reset daily.
+ * Uses Firebase atomic transactions to prevent duplicate ticket numbers
+ * when multiple clients create orders simultaneously.
  */
 export const getNextTicketNumber = async (type: 'checkin' | 'waitlist'): Promise<string> => {
     await waitForAuth();
@@ -102,25 +104,28 @@ export const getNextTicketNumber = async (type: 'checkin' | 'waitlist'): Promise
     const counterRef = ref(db, TICKET_COUNTERS_REF);
 
     try {
-        const snapshot = await get(counterRef);
-        let data = snapshot.val() || { date: todayStr, checkIn: 0, waitlist: 0 };
+        // Use runTransaction for atomic read-modify-write to prevent race conditions
+        const result = await runTransaction(counterRef, (currentData) => {
+            // Initialize or reset counter for new day
+            let data = currentData || { date: todayStr, checkIn: 0, waitlist: 0 };
 
-        // 1. Check if we need to reset for a new day
-        if (data.date !== todayStr) {
-            data = { date: todayStr, checkIn: 0, waitlist: 0 };
-        }
+            // Check if we need to reset for a new day
+            if (data.date !== todayStr) {
+                data = { date: todayStr, checkIn: 0, waitlist: 0 };
+            }
 
-        // 2. Increment the specific counter
-        if (type === 'checkin') {
-            data.checkIn = (data.checkIn || 0) + 1;
-        } else {
-            data.waitlist = (data.waitlist || 0) + 1;
-        }
+            // Increment the specific counter atomically
+            if (type === 'checkin') {
+                data.checkIn = (data.checkIn || 0) + 1;
+            } else {
+                data.waitlist = (data.waitlist || 0) + 1;
+            }
 
-        // 3. Save updated counters
-        await set(counterRef, data);
+            return data; // This will be written atomically
+        });
 
-        // 4. Format the ticket string
+        // Extract the new count from the transaction result
+        const data = result.snapshot.val();
         const count = type === 'checkin' ? data.checkIn : data.waitlist;
         const prefix = type === 'checkin' ? 'A' : 'W';
         
@@ -135,6 +140,40 @@ export const getNextTicketNumber = async (type: 'checkin' | 'waitlist'): Promise
         const randomNum = Math.floor(Math.random() * 90) + 10;
         return `${type === 'checkin' ? 'A' : 'W'}${randomNum}?`;
     }
+};
+
+/**
+ * --- GENERATE UNIQUE BILL ID ---
+ * Generates a guaranteed unique ID for new bills using Firebase push().
+ * This prevents duplicate IDs when multiple clients create orders simultaneously.
+ * Returns a Firebase-generated unique key (e.g., "-NqxEr5zJn7tFzg8Lp3M")
+ */
+export const generateUniqueBillId = (): string => {
+    if (!db) {
+        // Fallback when offline: timestamp + random suffix
+        return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    }
+    // Firebase push() generates a unique key based on timestamp and randomness
+    // This is guaranteed to be unique across all clients
+    const newRef = push(ref(db, BILLS_REF));
+    return newRef.key!;
+};
+
+/**
+ * --- GENERATE UNIQUE WAITLIST ID ---
+ * Generates a guaranteed unique ID for new waitlist entries using Firebase push().
+ * This prevents duplicate IDs when multiple clients create entries simultaneously.
+ * Returns a Firebase-generated unique key (e.g., "-NqxEr5zJn7tFzg8Lp3M")
+ */
+export const generateUniqueWaitlistId = (): string => {
+    if (!db) {
+        // Fallback when offline: timestamp + random suffix
+        return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    }
+    // Firebase push() generates a unique key based on timestamp and randomness
+    // This is guaranteed to be unique across all clients
+    const newRef = push(ref(db, WAITLIST_REF));
+    return newRef.key!;
 };
 
 /**
