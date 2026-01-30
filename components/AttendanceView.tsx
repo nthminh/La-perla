@@ -241,7 +241,6 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ t, staffList }) 
                                 type="date"
                                 value={startDate}
                                 onChange={(e) => setStartDate(e.target.value)}
-                                max={getSydneyToday()}
                                 className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-gold-leaf"
                             />
                         </div>
@@ -255,7 +254,6 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ t, staffList }) 
                                 type="date"
                                 value={endDate}
                                 onChange={(e) => setEndDate(e.target.value)}
-                                max={getSydneyToday()}
                                 className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-gold-leaf"
                             />
                         </div>
@@ -556,7 +554,6 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({ t, staffList }) 
                                     type="date"
                                     value={modalDate}
                                     onChange={(e) => setModalDate(e.target.value)}
-                                    max={getSydneyToday()}
                                     className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:border-gold-leaf"
                                 />
                             </div>
