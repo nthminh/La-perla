@@ -501,7 +501,7 @@ export const fetchTransactionsOnce = async (limit: number = 50): Promise<Transac
             return [];
         }
         
-        const txQuery = query(ref(db, TRANSACTIONS_REF), limitToLast(limit));
+        const txQuery = query(ref(db, TRANSACTIONS_REF), orderByChild('date'), limitToLast(limit));
         const snapshot = await get(txQuery);
         
         if (snapshot.exists()) {
