@@ -304,7 +304,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
             });
         });
         
-        return summaries.sort((a, b) => b.finalTotal - a.finalTotal);
+        return summaries.sort((a, b) => a.staffName.localeCompare(b.staffName));
     }, [staffList, transactions, getDateRange, selectedWeek, selectedYear, globalPayroll, adjustments, attendanceRecords]);
 
     // Calculate total payroll cost
