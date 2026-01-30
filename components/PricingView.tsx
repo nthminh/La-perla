@@ -51,7 +51,9 @@ import {
     deleteWaitlistEntry, 
     upsertWaitlistEntry, 
     getNextTicketNumber,
-    checkActiveBillExists 
+    checkActiveBillExists,
+    generateUniqueBillId,
+    generateUniqueWaitlistId
 } from '../services/firebaseService';
 import { saveTransaction, searchCustomers, getTransactions } from '../services/storageService';
 import { SoundManager } from '../utils/sound';
@@ -91,7 +93,7 @@ interface GroupedCartItem extends CartItem {
     originalIds: string[];
 }
 
-const generateUniqueId = () => Math.random().toString(36).substr(2, 9);
+const generateUniqueId = () => Math.random().toString(36).substring(2, 11);
 
 const formatTimeAgo = (dateString: string) => {
     const diff = (new Date().getTime() - new Date(dateString).getTime()) / 1000 / 60; // minutes
@@ -602,7 +604,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
   const handleCreateQuickOrder = async () => {
       SoundManager.playTap();
       const staffName = currentUser?.name || 'Staff';
-      const newId = Date.now().toString();
+      const newId = generateUniqueBillId();
       const ticketNum = await getNextTicketNumber('checkin');
       const newBill: ActiveBill = {
           id: newId,
@@ -665,7 +667,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
           customerName: tx.customerName || 'Guest',
           customerPhone: tx.customerPhone,
           customerNotes: tx.customerNotes,
-          items: tx.items.map(i => ({ ...i, id: Math.random().toString(36).substr(2, 9) })),
+          items: tx.items.map(i => ({ ...i, id: Math.random().toString(36).substring(2, 11) })),
           discountPercentage: tx.discountPercentage || 0,
           date: tx.date,
           isVip: tx.items.some(i => (i.nameKey || '').toLowerCase().includes('yearlymembership'))
@@ -729,7 +731,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
               displayName: service.displayName
           };
           if (!currentBill) {
-               const newId = Date.now().toString();
+               const newId = generateUniqueBillId();
                const ticketNum = await getNextTicketNumber('checkin');
                const newBill: ActiveBill = { id: newId, customerName: `${currentUser.name}'s Guest`, customerPhone: '', customerNotes: '', items: [newItem], discountPercentage: 0, createdByStaffId: currentUser.id, ticketNumber: ticketNum };
                setActiveBills(prev => [...(prev || []), newBill]);
@@ -753,7 +755,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
       if (currentUser && !isAdmin && !isManager) {
           const newItem: CartItem = { id: generateUniqueId(), nameKey, price: parsePrice(price), quantity: 1, staffName: currentUser.name, staffId: currentUser.id, displayName };
           if (!currentBill) {
-               const newId = Date.now().toString();
+               const newId = generateUniqueBillId();
                const ticketNum = await getNextTicketNumber('checkin');
                const newBill: ActiveBill = { id: newId, customerName: `${currentUser.name}'s Guest`, customerPhone: '', customerNotes: '', items: [newItem], discountPercentage: 0, createdByStaffId: currentUser.id, ticketNumber: ticketNum };
                setActiveBills(prev => [...(prev || []), newBill]);
@@ -806,7 +808,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
       }
       const newItem: CartItem = { id: generateUniqueId(), nameKey: pendingService.nameKey, price: parsePrice(pendingService.price), quantity: 1, staffName: staff.name, staffId: staff.id, displayName: pendingService.displayName };
       if (!currentBill) {
-           const newId = Date.now().toString();
+           const newId = generateUniqueBillId();
            const hostName = (currentUser && !isAdmin && !isManager) ? currentUser.name : (isAdmin ? 'Admin' : (isManager ? 'Manager' : staff.name));
            const ticketNum = await getNextTicketNumber('checkin');
            const newBill: ActiveBill = { id: newId, customerName: `${hostName}'s Guest`, customerPhone: '', customerNotes: '', items: [newItem], discountPercentage: 0, createdByStaffId: currentUser?.id, ticketNumber: ticketNum };
@@ -831,7 +833,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
       const item1: CartItem = { id: generateUniqueId(), nameKey: pendingService.nameKey, displayName: `${baseName} (Part 1)`, price: price1, quantity: 1, staffName: splitStaff1.name, staffId: splitStaff1.id };
       const item2: CartItem = { id: generateUniqueId(), nameKey: pendingService.nameKey, displayName: `${baseName} (Part 2)`, price: price2, quantity: 1, staffName: splitStaff2.name, staffId: splitStaff2.id };
       if (!currentBill) {
-           const newId = Date.now().toString();
+           const newId = generateUniqueBillId();
            const ticketNum = await getNextTicketNumber('checkin');
            const newBill: ActiveBill = { id: newId, customerName: `Split Guest`, customerPhone: '', customerNotes: '', items: [item1, item2], discountPercentage: 0, createdByStaffId: currentUser?.id, ticketNumber: ticketNum };
            setActiveBills(prev => [...(prev || []), newBill]);
@@ -954,7 +956,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
 
   const handleAddToWaitlist = () => {
       SoundManager.playSuccess();
-      const newEntry: WaitlistEntry = { id: Date.now().toString(), customerName: tempCustomerName, customerPhone: tempCustomerPhone, notes: tempCustomerNotes || tempReturnTime, addedTime: new Date().toISOString(), estimatedReturnTime: tempReturnTime, status: 'waiting', selectedServices: tempSelectedServices, isVip: tempIsVip };
+      const newEntry: WaitlistEntry = { id: generateUniqueWaitlistId(), customerName: tempCustomerName, customerPhone: tempCustomerPhone, notes: tempCustomerNotes || tempReturnTime, addedTime: new Date().toISOString(), estimatedReturnTime: tempReturnTime, status: 'waiting', selectedServices: tempSelectedServices, isVip: tempIsVip };
       setWaitlist([...(waitlist || []), newEntry]);
       upsertWaitlistEntry(newEntry);
       setShowWaitlistAddModal(false); setShowCustomerEntry(false); setShowWaitlistModal(true);
@@ -968,7 +970,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
 
   const handleCheckInFromWaitlist = (entry: WaitlistEntry) => {
       SoundManager.playSuccess();
-      const newId = Date.now().toString();
+      const newId = generateUniqueBillId();
       const initialItems: CartItem[] = (entry.selectedServices || []).map(serviceName => {
         let foundService = null;
         for (const cat of pricingData) {
@@ -977,6 +979,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
         }
         return { id: generateUniqueId(), nameKey: foundService ? foundService.nameKey : serviceName, price: foundService ? parsePrice(foundService.price) : 0, quantity: 1, displayName: serviceName, staffName: (currentUser && !isAdmin && !isManager) ? currentUser.name : undefined, staffId: (currentUser && !isAdmin && !isManager) ? currentUser.id : undefined };
       });
+      // Preserve the waitlist ticket number (W prefix) so customers can be called by their original ticket
       const newBill: ActiveBill = { id: newId, customerName: entry.customerName, customerPhone: entry.customerPhone, customerNotes: entry.notes + (entry.estimatedReturnTime ? ` (Return: ${entry.estimatedReturnTime})` : ''), items: initialItems, discountPercentage: 0, createdByStaffId: currentUser?.id, ticketNumber: entry.ticketNumber, isVip: entry.isVip };
       setActiveBills(prev => [...(prev || []), newBill]);
       setCurrentBillId(newId);
@@ -1018,7 +1021,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
   const handleSaveCustomerEntry = async () => {
     SoundManager.playSuccess();
     if (entryMode === 'new') {
-        const newId = Date.now().toString();
+        const newId = generateUniqueBillId();
         const ticketNum = await getNextTicketNumber('checkin');
         const newBill: ActiveBill = {
             id: newId,
