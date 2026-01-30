@@ -133,6 +133,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
     const [editTxPhone, setEditTxPhone] = useState("");
     const [editTxTotal, setEditTxTotal] = useState("");
     const [editTxDiscount, setEditTxDiscount] = useState("");
+    const [editTxItems, setEditTxItems] = useState<Transaction['items']>([]);
 
     // --- EFFECT: DATA LOADING ---
     useEffect(() => {
@@ -613,11 +614,20 @@ export const AdminView: React.FC<AdminViewProps> = ({
         setEditTxPhone(tx.customerPhone || '');
         setEditTxTotal(tx.total.toString());
         setEditTxDiscount(tx.discountPercentage ? tx.discountPercentage.toString() : '0');
+        setEditTxItems(JSON.parse(JSON.stringify(tx.items))); // Deep copy items
     };
 
     const handleSaveTransaction = async () => {
         if (!editingTransaction) return;
-        const updatedTx: Transaction = { ...editingTransaction, customerName: editTxName, customerPhone: editTxPhone, total: parseFloat(editTxTotal) || 0, discountPercentage: parseFloat(editTxDiscount) || 0, lastUpdated: Date.now() };
+        const updatedTx: Transaction = { 
+            ...editingTransaction, 
+            customerName: editTxName, 
+            customerPhone: editTxPhone, 
+            total: parseFloat(editTxTotal) || 0, 
+            discountPercentage: parseFloat(editTxDiscount) || 0, 
+            items: editTxItems, // Save edited items
+            lastUpdated: Date.now() 
+        };
         const success = await updateTransactionInFirebase(updatedTx);
         if (success) setEditingTransaction(null);
         else alert("Failed to update transaction on Cloud.");
@@ -631,6 +641,28 @@ export const AdminView: React.FC<AdminViewProps> = ({
             setSheetTransactions(prev => prev.filter(t => t.id !== editingTransaction.id));
             setLocalTransactions(prev => prev.filter(t => t.id !== editingTransaction.id));
         }
+    };
+
+    // Handlers for editing individual transaction items
+    const handleUpdateItemStaff = (itemIndex: number, staffId: string) => {
+        const staff = staffList.find(s => s.id === staffId);
+        const newItems = [...editTxItems];
+        newItems[itemIndex] = {
+            ...newItems[itemIndex],
+            staffId: staffId || undefined,
+            staffName: staff ? staff.name : undefined
+        };
+        setEditTxItems(newItems);
+    };
+
+    const handleUpdateItemService = (itemIndex: number, serviceKey: string, serviceName: string) => {
+        const newItems = [...editTxItems];
+        newItems[itemIndex] = {
+            ...newItems[itemIndex],
+            nameKey: serviceKey,
+            displayName: serviceName
+        };
+        setEditTxItems(newItems);
     };
 
     return (
@@ -1010,13 +1042,68 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
             {editingTransaction && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+                    <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
                         <div className="bg-gray-50 p-4 border-b border-gray-100 flex justify-between items-center"><h3 className="font-serif font-bold text-lg">Edit Transaction</h3><button onClick={() => setEditingTransaction(null)}><XMarkIcon className="w-5 h-5 text-gray-400 hover:text-charcoal" /></button></div>
-                        <div className="p-6 space-y-4">
+                        <div className="p-6 space-y-4 overflow-y-auto">
                             <div><label className="block text-xs font-bold text-gray-400 uppercase mb-1">Customer Name</label><input type="text" value={editTxName} onChange={e => setEditTxName(e.target.value)} className="w-full p-2 border rounded-lg" /></div>
                             <div><label className="block text-xs font-bold text-gray-400 uppercase mb-1">Phone</label><input type="text" value={editTxPhone} onChange={e => setEditTxPhone(e.target.value)} className="w-full p-2 border rounded-lg" /></div>
                             <div className="grid grid-cols-2 gap-4"><div><label className="block text-xs font-bold text-gray-400 uppercase mb-1">Total ($)</label><input type="number" value={editTxTotal} onChange={e => setEditTxTotal(e.target.value)} className="w-full p-2 border rounded-lg font-bold" /></div><div><label className="block text-xs font-bold text-gray-400 uppercase mb-1">Discount (%)</label><input type="number" value={editTxDiscount} onChange={e => setEditTxDiscount(e.target.value)} className="w-full p-2 border rounded-lg" /></div></div>
-                            <div className="bg-gray-50 p-3 rounded-lg text-xs text-gray-500 max-h-32 overflow-y-auto"><p className="font-bold mb-1">Items:</p><ul className="list-disc list-inside space-y-0.5">{editingTransaction.items.map((item, idx) => (<li key={idx}>{item.quantity}x {item.displayName || t.serviceNames[item.nameKey] || item.nameKey} {item.staffName && ` (${item.staffName})`}<span className="ml-1 text-gray-400">(${item.price})</span></li>))}</ul><p className="mt-2 italic text-[10px] text-red-400">Note: Changing total here overrides calculated item total.</p></div>
+                            <div className="bg-gray-50 p-3 rounded-lg text-xs max-h-64 overflow-y-auto">
+                                <p className="font-bold mb-2 text-gray-700">Items:</p>
+                                <div className="space-y-3">
+                                    {editTxItems.map((item, idx) => (
+                                        <div key={idx} className="bg-white p-3 rounded-lg border border-gray-200 space-y-2">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs font-bold text-gray-400 w-12">QTY:</span>
+                                                <span className="text-sm font-bold text-charcoal">{item.quantity}x</span>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-400 mb-1">SERVICE</label>
+                                                <select 
+                                                    value={item.nameKey} 
+                                                    onChange={e => {
+                                                        const selected = e.target.value;
+                                                        let serviceName = '';
+                                                        pricingData.forEach(cat => {
+                                                            const svc = cat.services.find(s => s.nameKey === selected);
+                                                            if (svc) serviceName = svc.displayName || t.serviceNames[svc.nameKey] || svc.nameKey;
+                                                        });
+                                                        handleUpdateItemService(idx, selected, serviceName);
+                                                    }}
+                                                    className="w-full p-2 border rounded text-sm"
+                                                >
+                                                    {pricingData.map(cat => (
+                                                        <optgroup key={cat.categoryKey} label={t.serviceCategories[cat.categoryKey] || cat.categoryKey}>
+                                                            {cat.services.map(svc => (
+                                                                <option key={svc.nameKey} value={svc.nameKey}>
+                                                                    {svc.displayName || t.serviceNames[svc.nameKey] || svc.nameKey}
+                                                                </option>
+                                                            ))}
+                                                        </optgroup>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-gray-400 mb-1">STAFF</label>
+                                                <select 
+                                                    value={item.staffId || ''} 
+                                                    onChange={e => handleUpdateItemStaff(idx, e.target.value)}
+                                                    className="w-full p-2 border rounded text-sm"
+                                                >
+                                                    <option value="">No Staff</option>
+                                                    {staffList.map(staff => (
+                                                        <option key={staff.id} value={staff.id}>{staff.name}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs font-bold text-gray-400">PRICE:</span>
+                                                <span className="text-sm font-bold text-gold-leaf">${item.price}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
                             <div className="flex gap-3 pt-2"><button onClick={handleDeleteTransaction} className="px-4 py-2 border border-red-200 text-red-500 rounded-lg font-bold hover:bg-red-50 flex items-center gap-2"><TrashIcon className="w-4 h-4" /> Delete</button><button onClick={handleSaveTransaction} className="flex-1 py-2 bg-gold-leaf text-white rounded-lg font-bold hover:bg-charcoal shadow-md">Save Changes</button></div>
                         </div>
                     </div>
