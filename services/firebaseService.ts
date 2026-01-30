@@ -1,5 +1,5 @@
 
-import { ref, onValue, set, update, remove, Unsubscribe, push, query, limitToLast, get, orderByChild, startAt, endAt } from "firebase/database";
+import { ref, onValue, set, update, remove, Unsubscribe, push, query, limitToLast, get, orderByChild, startAt, endAt, runTransaction } from "firebase/database";
 import { db, waitForAuth } from "./firebaseConfig";
 import { ActiveBill, WaitlistEntry, AppSettings, ServiceCategory, StaffProfile, BookingRequest, GlobalPayrollSettings, Transaction, AdminPasswords, SettingsSnapshot, MarqueeSettings, AttendanceRecord } from "../types";
 import { DEFAULT_GLOBAL_PAYROLL, DEFAULT_ADMIN_PASSWORDS, DEFAULT_MARQUEE_SETTINGS } from "../constants";
@@ -102,25 +102,29 @@ export const getNextTicketNumber = async (type: 'checkin' | 'waitlist'): Promise
     const counterRef = ref(db, TICKET_COUNTERS_REF);
 
     try {
-        const snapshot = await get(counterRef);
-        let data = snapshot.val() || { date: todayStr, checkIn: 0, waitlist: 0 };
+        // Use Firebase transaction for atomic read-modify-write to prevent race conditions
+        const result = await runTransaction(counterRef, (currentData) => {
+            // Initialize data if null or undefined
+            let data = currentData || { date: todayStr, checkIn: 0, waitlist: 0 };
 
-        // 1. Check if we need to reset for a new day
-        if (data.date !== todayStr) {
-            data = { date: todayStr, checkIn: 0, waitlist: 0 };
-        }
+            // Check if we need to reset for a new day
+            if (data.date !== todayStr) {
+                data = { date: todayStr, checkIn: 0, waitlist: 0 };
+            }
 
-        // 2. Increment the specific counter
-        if (type === 'checkin') {
-            data.checkIn = (data.checkIn || 0) + 1;
-        } else {
-            data.waitlist = (data.waitlist || 0) + 1;
-        }
+            // Increment the specific counter atomically
+            if (type === 'checkin') {
+                data.checkIn = (data.checkIn || 0) + 1;
+            } else {
+                data.waitlist = (data.waitlist || 0) + 1;
+            }
 
-        // 3. Save updated counters
-        await set(counterRef, data);
+            // Return the updated data to be written atomically
+            return data;
+        });
 
-        // 4. Format the ticket string
+        // Extract the new counter value from the transaction result
+        const data = result.snapshot.val();
         const count = type === 'checkin' ? data.checkIn : data.waitlist;
         const prefix = type === 'checkin' ? 'A' : 'W';
         
