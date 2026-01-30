@@ -649,8 +649,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
         const newItems = [...editTxItems];
         newItems[itemIndex] = {
             ...newItems[itemIndex],
-            staffId: staffId,
-            staffName: staff ? staff.name : ''
+            staffId: staffId || undefined,
+            staffName: staff ? staff.name : undefined
         };
         setEditTxItems(newItems);
     };
@@ -1072,7 +1072,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                                     }}
                                                     className="w-full p-2 border rounded text-sm"
                                                 >
-                                                    <option value={item.nameKey}>{item.displayName || t.serviceNames[item.nameKey] || item.nameKey}</option>
                                                     {pricingData.map(cat => (
                                                         <optgroup key={cat.categoryKey} label={t.serviceCategories[cat.categoryKey] || cat.categoryKey}>
                                                             {cat.services.map(svc => (
