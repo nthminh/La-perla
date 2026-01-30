@@ -93,7 +93,7 @@ interface GroupedCartItem extends CartItem {
     originalIds: string[];
 }
 
-const generateUniqueId = () => Math.random().toString(36).substr(2, 9);
+const generateUniqueId = () => Math.random().toString(36).substring(2, 11);
 
 const formatTimeAgo = (dateString: string) => {
     const diff = (new Date().getTime() - new Date(dateString).getTime()) / 1000 / 60; // minutes
@@ -667,7 +667,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
           customerName: tx.customerName || 'Guest',
           customerPhone: tx.customerPhone,
           customerNotes: tx.customerNotes,
-          items: tx.items.map(i => ({ ...i, id: Math.random().toString(36).substr(2, 9) })),
+          items: tx.items.map(i => ({ ...i, id: Math.random().toString(36).substring(2, 11) })),
           discountPercentage: tx.discountPercentage || 0,
           date: tx.date,
           isVip: tx.items.some(i => (i.nameKey || '').toLowerCase().includes('yearlymembership'))
@@ -979,6 +979,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
         }
         return { id: generateUniqueId(), nameKey: foundService ? foundService.nameKey : serviceName, price: foundService ? parsePrice(foundService.price) : 0, quantity: 1, displayName: serviceName, staffName: (currentUser && !isAdmin && !isManager) ? currentUser.name : undefined, staffId: (currentUser && !isAdmin && !isManager) ? currentUser.id : undefined };
       });
+      // Preserve the waitlist ticket number (W prefix) so customers can be called by their original ticket
       const newBill: ActiveBill = { id: newId, customerName: entry.customerName, customerPhone: entry.customerPhone, customerNotes: entry.notes + (entry.estimatedReturnTime ? ` (Return: ${entry.estimatedReturnTime})` : ''), items: initialItems, discountPercentage: 0, createdByStaffId: currentUser?.id, ticketNumber: entry.ticketNumber, isVip: entry.isVip };
       setActiveBills(prev => [...(prev || []), newBill]);
       setCurrentBillId(newId);

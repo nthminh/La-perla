@@ -126,6 +126,9 @@ export const getNextTicketNumber = async (type: 'checkin' | 'waitlist'): Promise
 
         // Extract the new count from the transaction result
         const data = result.snapshot.val();
+        if (!data) {
+            throw new Error('Transaction failed to return valid data');
+        }
         const count = type === 'checkin' ? data.checkIn : data.waitlist;
         const prefix = type === 'checkin' ? 'A' : 'W';
         
@@ -151,12 +154,16 @@ export const getNextTicketNumber = async (type: 'checkin' | 'waitlist'): Promise
 export const generateUniqueBillId = (): string => {
     if (!db) {
         // Fallback when offline: timestamp + random suffix
-        return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
     }
     // Firebase push() generates a unique key based on timestamp and randomness
     // This is guaranteed to be unique across all clients
     const newRef = push(ref(db, BILLS_REF));
-    return newRef.key!;
+    const key = newRef.key;
+    if (!key) {
+        throw new Error('Failed to generate unique bill ID');
+    }
+    return key;
 };
 
 /**
@@ -168,12 +175,16 @@ export const generateUniqueBillId = (): string => {
 export const generateUniqueWaitlistId = (): string => {
     if (!db) {
         // Fallback when offline: timestamp + random suffix
-        return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
     }
     // Firebase push() generates a unique key based on timestamp and randomness
     // This is guaranteed to be unique across all clients
     const newRef = push(ref(db, WAITLIST_REF));
-    return newRef.key!;
+    const key = newRef.key;
+    if (!key) {
+        throw new Error('Failed to generate unique waitlist ID');
+    }
+    return key;
 };
 
 /**
