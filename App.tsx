@@ -319,10 +319,10 @@ const MainApp: React.FC = () => {
       try {
         const savedId = getCurrentBillId();
         const savedBills = getActiveBills();
-        const currentStaffUser = getCurrentUser();
+        const loggedInUser = getCurrentUser();
         
         // For staff users, don't auto-select any bill on initialization
-        if (currentStaffUser) {
+        if (loggedInUser) {
             return '';
         }
         
