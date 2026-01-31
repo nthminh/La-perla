@@ -319,6 +319,14 @@ const MainApp: React.FC = () => {
       try {
         const savedId = getCurrentBillId();
         const savedBills = getActiveBills();
+        const loggedInUser = getCurrentUser();
+        
+        // For staff users, don't auto-select any bill on initialization
+        if (loggedInUser) {
+            return '';
+        }
+        
+        // For guests, keep existing behavior
         if (savedId && Array.isArray(savedBills) && savedBills.some(b => b.id === savedId)) {
             return savedId;
         }
@@ -682,7 +690,13 @@ const MainApp: React.FC = () => {
                    // If current ID is invalid/missing, set to first one or empty
                    const currentExists = cloudState.activeBills.find(b => b.id === currentBillId);
                    if (!currentExists) {
-                       setCurrentBillId(cloudState.activeBills.length > 0 ? cloudState.activeBills[0].id : '');
+                       // For staff users, don't auto-select any bill
+                       if (currentUser) {
+                           setCurrentBillId('');
+                       } else {
+                           // For guests, auto-select first bill
+                           setCurrentBillId(cloudState.activeBills.length > 0 ? cloudState.activeBills[0].id : '');
+                       }
                    }
                } else {
                    setActiveBills([]);
