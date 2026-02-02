@@ -65,7 +65,7 @@
           }
           
           /* Hide all non-printable content */
-          body > :not(.printable-area),
+          body > :not(.printable-area):not(#root),
           #root > :not(.printable-area),
           .print\:hidden { 
               display: none !important; 

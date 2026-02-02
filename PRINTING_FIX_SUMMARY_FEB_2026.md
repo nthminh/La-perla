@@ -24,6 +24,15 @@ This meant:
 
 ---
 
+### Additional Issue Found (Blank Print)
+The print stylesheet hid the entire `#root` element because this selector matched it:
+```css
+body > :not(.printable-area)
+```
+Since all printable areas are rendered **inside** `#root`, hiding `#root` caused ticket/bill prints to be completely blank. The fix excludes `#root` from that selector.
+
+---
+
 ## Solution Implemented
 
 ### Changes Made to `components/PricingView.tsx`
