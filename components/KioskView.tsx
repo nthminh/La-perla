@@ -21,11 +21,12 @@ interface KioskViewProps {
   activeBills?: ActiveBill[];
   pastTransactions?: Transaction[];
   marqueeSettings?: MarqueeSettings;
+  setCurrentBillId?: (id: string) => void;
 }
 
 type KioskStep = 'welcome' | 'checkin_phone' | 'checkin_confirm' | 'checkin_create' | 'walkin_form' | 'success_seated' | 'success_waitlist';
 
-export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, onExit, pricingData, bookings = [], activeBills = [], pastTransactions = [], marqueeSettings }) => {
+export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, onExit, pricingData, bookings = [], activeBills = [], pastTransactions = [], marqueeSettings, setCurrentBillId }) => {
   const [step, setStep] = useState<KioskStep>('welcome');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -234,8 +235,12 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
       const bookingServices = foundBooking.services || [];
       setSelectedServices(bookingServices); // Set selected services for ticket display
       const initialItems = convertServicesToCartItems(bookingServices);
-      const newBill: ActiveBill = { id: generateUniqueBillId(), customerName: foundBooking.customerName, customerPhone: foundBooking.customerPhone, items: initialItems, discountPercentage: 0, ticketNumber: ticketNum, isVip: isVip };
+      const newBillId = generateUniqueBillId();
+      const newBill: ActiveBill = { id: newBillId, customerName: foundBooking.customerName, customerPhone: foundBooking.customerPhone, items: initialItems, discountPercentage: 0, ticketNumber: ticketNum, isVip: isVip };
       await upsertActiveBill(newBill);
+      if (setCurrentBillId) {
+        setCurrentBillId(newBillId);
+      }
       await upsertBooking({ ...foundBooking, status: 'confirmed' });
       setStep('success_seated');
     });
@@ -258,8 +263,12 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
       const ticketNum = await getNextTicketNumber('checkin');
       setGeneratedTicket(ticketNum);
       const initialItems = convertServicesToCartItems(selectedServices);
-      const newBill: ActiveBill = { id: generateUniqueBillId(), customerName: name, customerPhone: phone, items: initialItems, discountPercentage: 0, ticketNumber: ticketNum, isVip: isVip };
+      const newBillId = generateUniqueBillId();
+      const newBill: ActiveBill = { id: newBillId, customerName: name, customerPhone: phone, items: initialItems, discountPercentage: 0, ticketNumber: ticketNum, isVip: isVip };
       await upsertActiveBill(newBill);
+      if (setCurrentBillId) {
+        setCurrentBillId(newBillId);
+      }
       setStep('success_seated');
     });
   };
