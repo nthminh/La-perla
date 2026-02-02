@@ -222,6 +222,8 @@ export const PricingView: React.FC<PricingViewProps> = ({
   // Print mode constants
   const PRINT_MODE_RESET_DELAY = 100; // ms - delay to reset print mode after printing
   const CASH_DRAWER_EMBED_DELAY = 100; // ms - delay for cash drawer command to be embedded in DOM before printing
+  const INVOICE_STATE_UPDATE_DELAY = 150; // ms - delay for React state update and DOM reflection for invoice printing
+  const TICKET_STATE_UPDATE_DELAY = 100; // ms - delay for React state update and DOM reflection for ticket printing
   
   // Order creation race condition fix: 100ms is sufficient for React's state batching to complete
   // React typically batches updates within a few milliseconds, 100ms provides a safe margin
@@ -449,7 +451,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
       setPrintMode('bill');
       
       // Wait for React state update and DOM to reflect data-print-mode attribute on body
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, INVOICE_STATE_UPDATE_DELAY));
       
       // Embed cash drawer command in the printable bill
       const drawerOpened = await openCashDrawer('printable-bill-area');
@@ -458,15 +460,20 @@ export const PricingView: React.FC<PricingViewProps> = ({
       }
       
       // Wait before printing to ensure cash drawer command is fully embedded in DOM
+      // Use requestAnimationFrame twice to ensure DOM is fully painted before printing
       setTimeout(() => {
-          window.print();
-          
-          // Reset print mode and cleanup cash drawer command after printing
-          setTimeout(() => {
-              setPrintMode(null);
-              const drawerCmd = document.getElementById('cash-drawer-command');
-              if (drawerCmd) drawerCmd.remove();
-          }, PRINT_MODE_RESET_DELAY);
+          requestAnimationFrame(() => {
+              requestAnimationFrame(() => {
+                  window.print();
+                  
+                  // Reset print mode and cleanup cash drawer command after printing
+                  setTimeout(() => {
+                      setPrintMode(null);
+                      const drawerCmd = document.getElementById('cash-drawer-command');
+                      if (drawerCmd) drawerCmd.remove();
+                  }, PRINT_MODE_RESET_DELAY);
+              });
+          });
       }, CASH_DRAWER_EMBED_DELAY);
   };
 
@@ -1232,11 +1239,16 @@ export const PricingView: React.FC<PricingViewProps> = ({
         // Set print mode to ticket
         setPrintMode('ticket');
         // Wait for state to update and DOM to reflect the data-print-mode attribute
+        // Use requestAnimationFrame twice to ensure DOM is fully painted before printing
         setTimeout(() => {
-            window.print();
-            // Reset print mode after printing
-            setTimeout(() => setPrintMode(null), PRINT_MODE_RESET_DELAY);
-        }, 50);
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    window.print();
+                    // Reset print mode after printing
+                    setTimeout(() => setPrintMode(null), PRINT_MODE_RESET_DELAY);
+                });
+            });
+        }, TICKET_STATE_UPDATE_DELAY);
     } catch (error) {
         console.error('Error printing ticket:', error);
         SoundManager.playError();
