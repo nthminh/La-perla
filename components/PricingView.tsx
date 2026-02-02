@@ -219,8 +219,18 @@ export const PricingView: React.FC<PricingViewProps> = ({
 
   // Print mode constants
   const PRINT_MODE_RESET_DELAY = 100; // ms - delay to reset print mode after printing
+  
+  // Order creation race condition fix: 100ms is sufficient for React's state batching to complete
+  // React typically batches updates within a few milliseconds, 100ms provides a safe margin
+  const ORDER_CREATION_DELAY = 100; // ms - delay to reset order creation flag after state updates propagate
+  
   const isLongPress = useRef(false);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // Track when we're creating a new order to prevent race condition where useEffect
+  // clears currentBillId before the new bill appears in displayedBills
+  const isCreatingOrder = useRef(false);
+  const orderCreationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isStaffMode = !!currentUser; 
   const isAdmin = currentUser?.id === 'admin_master';
@@ -289,6 +299,11 @@ export const PricingView: React.FC<PricingViewProps> = ({
 
   useEffect(() => {
       if (viewMode === 'mine') {
+          // Don't clear currentBillId if we're in the process of creating a new order
+          // This prevents race condition where displayedBills hasn't updated yet with the new bill
+          // The ORDER_CREATION_DELAY ensures this blocking window is short enough to not impact UX
+          if (isCreatingOrder.current) return;
+          
           if (displayedBills.length === 0) {
               if (currentBillId) setCurrentBillId('');
           } 
@@ -297,6 +312,34 @@ export const PricingView: React.FC<PricingViewProps> = ({
           }
       }
   }, [viewMode, displayedBills, currentBillId, setCurrentBillId]);
+
+  // Cleanup order creation timer on unmount
+  useEffect(() => {
+      return () => {
+          if (orderCreationTimerRef.current) {
+              clearTimeout(orderCreationTimerRef.current);
+              orderCreationTimerRef.current = null;
+          }
+      };
+  }, []);
+
+  // Helper to safely set order creation flag with cleanup
+  // Note: If called multiple times rapidly, timer is reset (clearing previous timer)
+  // This is intentional - we want to block the useEffect until all rapid state changes complete
+  const setOrderCreatingFlag = () => {
+      // Clear any existing timer to reset the blocking window
+      if (orderCreationTimerRef.current) {
+          clearTimeout(orderCreationTimerRef.current);
+      }
+      
+      isCreatingOrder.current = true;
+      
+      // Reset flag after delay to allow state updates to propagate
+      orderCreationTimerRef.current = setTimeout(() => {
+          isCreatingOrder.current = false;
+          orderCreationTimerRef.current = null;
+      }, ORDER_CREATION_DELAY);
+  };
 
 
   const currentBill = useMemo(() => {
@@ -616,6 +659,8 @@ export const PricingView: React.FC<PricingViewProps> = ({
           createdByStaffId: currentUser?.id, 
           ticketNumber: ticketNum 
       };
+      // Mark that we're creating a new order to prevent race condition
+      setOrderCreatingFlag();
       setActiveBills(prev => Array.isArray(prev) ? [...prev, newBill] : [newBill]);
       setCurrentBillId(newId);
       upsertActiveBill(newBill);
@@ -736,6 +781,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
                const newId = generateUniqueBillId();
                const ticketNum = await getNextTicketNumber('checkin');
                const newBill: ActiveBill = { id: newId, customerName: `${currentUser.name}'s Guest`, customerPhone: '', customerNotes: '', items: [newItem], discountPercentage: 0, createdByStaffId: currentUser.id, ticketNumber: ticketNum };
+               setOrderCreatingFlag();
                setActiveBills(prev => [...(prev || []), newBill]);
                setCurrentBillId(newId);
                upsertActiveBill(newBill);
@@ -762,6 +808,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
                const newId = generateUniqueBillId();
                const ticketNum = await getNextTicketNumber('checkin');
                const newBill: ActiveBill = { id: newId, customerName: `${currentUser.name}'s Guest`, customerPhone: '', customerNotes: '', items: [newItem], discountPercentage: 0, createdByStaffId: currentUser.id, ticketNumber: ticketNum };
+               setOrderCreatingFlag();
                setActiveBills(prev => [...(prev || []), newBill]);
                setCurrentBillId(newId);
                upsertActiveBill(newBill);
@@ -816,6 +863,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
            const hostName = (currentUser && !isAdmin && !isManager) ? currentUser.name : (isAdmin ? 'Admin' : (isManager ? 'Manager' : staff.name));
            const ticketNum = await getNextTicketNumber('checkin');
            const newBill: ActiveBill = { id: newId, customerName: `${hostName}'s Guest`, customerPhone: '', customerNotes: '', items: [newItem], discountPercentage: 0, createdByStaffId: currentUser?.id, ticketNumber: ticketNum };
+           setOrderCreatingFlag();
            setActiveBills(prev => [...(prev || []), newBill]);
            setCurrentBillId(newId);
            upsertActiveBill(newBill);
@@ -840,6 +888,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
            const newId = generateUniqueBillId();
            const ticketNum = await getNextTicketNumber('checkin');
            const newBill: ActiveBill = { id: newId, customerName: `Split Guest`, customerPhone: '', customerNotes: '', items: [item1, item2], discountPercentage: 0, createdByStaffId: currentUser?.id, ticketNumber: ticketNum };
+           setOrderCreatingFlag();
            setActiveBills(prev => [...(prev || []), newBill]);
            setCurrentBillId(newId);
            upsertActiveBill(newBill);
@@ -985,6 +1034,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
       });
       // Preserve the waitlist ticket number (W prefix) so customers can be called by their original ticket
       const newBill: ActiveBill = { id: newId, customerName: entry.customerName, customerPhone: entry.customerPhone, customerNotes: entry.notes + (entry.estimatedReturnTime ? ` (Return: ${entry.estimatedReturnTime})` : ''), items: initialItems, discountPercentage: 0, createdByStaffId: currentUser?.id, ticketNumber: entry.ticketNumber, isVip: entry.isVip };
+      setOrderCreatingFlag();
       setActiveBills(prev => [...(prev || []), newBill]);
       setCurrentBillId(newId);
       upsertActiveBill(newBill);
@@ -1038,6 +1088,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
             ticketNumber: ticketNum,
             isVip: tempIsVip
         };
+        setOrderCreatingFlag();
         setActiveBills(prev => Array.isArray(prev) ? [...prev, newBill] : [newBill]);
         setCurrentBillId(newId);
         upsertActiveBill(newBill);
