@@ -58,6 +58,7 @@ import {
 import { saveTransaction, searchCustomers, getTransactions } from '../services/storageService';
 import { SoundManager } from '../utils/sound';
 import { SHOP_LOCATION } from '../constants';
+import { openCashDrawer } from '../utils/cashDrawer';
 
 export interface PricingViewProps {
   t: Translation;
@@ -447,13 +448,20 @@ export const PricingView: React.FC<PricingViewProps> = ({
       // Wait for React state update and DOM to reflect data-print-mode attribute on body
       await new Promise(resolve => setTimeout(resolve, 100));
       
-      // Trigger print dialog
-      window.print();
+      // Embed cash drawer command in the printable bill
+      const drawerOpened = await openCashDrawer('printable-bill-area');
       
-      // Reset print mode after printing
+      // Wait before printing to ensure command is embedded
       setTimeout(() => {
-          setPrintMode(null);
-      }, PRINT_MODE_RESET_DELAY);
+          window.print();
+          
+          // Reset print mode and cleanup cash drawer command after printing
+          setTimeout(() => {
+              setPrintMode(null);
+              const drawerCmd = document.getElementById('cash-drawer-command');
+              if (drawerCmd) drawerCmd.remove();
+          }, PRINT_MODE_RESET_DELAY);
+      }, 100);
   };
 
   const handleDownloadBill = async () => {
