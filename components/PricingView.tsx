@@ -219,11 +219,13 @@ export const PricingView: React.FC<PricingViewProps> = ({
 
   // Print mode constants
   const PRINT_MODE_RESET_DELAY = 100; // ms - delay to reset print mode after printing
+  const ORDER_CREATION_DELAY = 100; // ms - delay to reset order creation flag after state updates
   const isLongPress = useRef(false);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // Track when we're creating a new order to prevent race condition
   const isCreatingOrder = useRef(false);
+  const orderCreationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isStaffMode = !!currentUser; 
   const isAdmin = currentUser?.id === 'admin_master';
@@ -303,6 +305,32 @@ export const PricingView: React.FC<PricingViewProps> = ({
           }
       }
   }, [viewMode, displayedBills, currentBillId, setCurrentBillId]);
+
+  // Cleanup order creation timer on unmount
+  useEffect(() => {
+      return () => {
+          if (orderCreationTimerRef.current) {
+              clearTimeout(orderCreationTimerRef.current);
+              orderCreationTimerRef.current = null;
+          }
+      };
+  }, []);
+
+  // Helper to safely set order creation flag with cleanup
+  const setOrderCreatingFlag = () => {
+      // Clear any existing timer
+      if (orderCreationTimerRef.current) {
+          clearTimeout(orderCreationTimerRef.current);
+      }
+      
+      isCreatingOrder.current = true;
+      
+      // Reset flag after delay to allow state updates to propagate
+      orderCreationTimerRef.current = setTimeout(() => {
+          isCreatingOrder.current = false;
+          orderCreationTimerRef.current = null;
+      }, ORDER_CREATION_DELAY);
+  };
 
 
   const currentBill = useMemo(() => {
@@ -623,14 +651,10 @@ export const PricingView: React.FC<PricingViewProps> = ({
           ticketNumber: ticketNum 
       };
       // Mark that we're creating a new order to prevent race condition
-      isCreatingOrder.current = true;
+      setOrderCreatingFlag();
       setActiveBills(prev => Array.isArray(prev) ? [...prev, newBill] : [newBill]);
       setCurrentBillId(newId);
       upsertActiveBill(newBill);
-      // Reset the flag after a short delay to allow state updates to propagate
-      setTimeout(() => {
-          isCreatingOrder.current = false;
-      }, 100);
   };
 
   const updateCurrentBill = (updates: Partial<ActiveBill>) => {
@@ -748,11 +772,10 @@ export const PricingView: React.FC<PricingViewProps> = ({
                const newId = generateUniqueBillId();
                const ticketNum = await getNextTicketNumber('checkin');
                const newBill: ActiveBill = { id: newId, customerName: `${currentUser.name}'s Guest`, customerPhone: '', customerNotes: '', items: [newItem], discountPercentage: 0, createdByStaffId: currentUser.id, ticketNumber: ticketNum };
-               isCreatingOrder.current = true;
+               setOrderCreatingFlag();
                setActiveBills(prev => [...(prev || []), newBill]);
                setCurrentBillId(newId);
                upsertActiveBill(newBill);
-               setTimeout(() => { isCreatingOrder.current = false; }, 100);
           } else {
                let billUpdates: Partial<ActiveBill> = { items: [...cartItems, newItem] };
                if (currentBill.customerName === "Guest" && cartItems.length === 0) billUpdates.customerName = `${currentUser.name}'s Guest`;
@@ -776,11 +799,10 @@ export const PricingView: React.FC<PricingViewProps> = ({
                const newId = generateUniqueBillId();
                const ticketNum = await getNextTicketNumber('checkin');
                const newBill: ActiveBill = { id: newId, customerName: `${currentUser.name}'s Guest`, customerPhone: '', customerNotes: '', items: [newItem], discountPercentage: 0, createdByStaffId: currentUser.id, ticketNumber: ticketNum };
-               isCreatingOrder.current = true;
+               setOrderCreatingFlag();
                setActiveBills(prev => [...(prev || []), newBill]);
                setCurrentBillId(newId);
                upsertActiveBill(newBill);
-               setTimeout(() => { isCreatingOrder.current = false; }, 100);
           } else updateCurrentBill({ items: [...cartItems, newItem] });
           setNegotiatedPrices(prev => ({...prev, [nameKey]: ''}));
       } else {
@@ -832,11 +854,10 @@ export const PricingView: React.FC<PricingViewProps> = ({
            const hostName = (currentUser && !isAdmin && !isManager) ? currentUser.name : (isAdmin ? 'Admin' : (isManager ? 'Manager' : staff.name));
            const ticketNum = await getNextTicketNumber('checkin');
            const newBill: ActiveBill = { id: newId, customerName: `${hostName}'s Guest`, customerPhone: '', customerNotes: '', items: [newItem], discountPercentage: 0, createdByStaffId: currentUser?.id, ticketNumber: ticketNum };
-           isCreatingOrder.current = true;
+           setOrderCreatingFlag();
            setActiveBills(prev => [...(prev || []), newBill]);
            setCurrentBillId(newId);
            upsertActiveBill(newBill);
-           setTimeout(() => { isCreatingOrder.current = false; }, 100);
       } else {
           if (editingIds.length > 0) {
               const updatedItems = cartItems.map(item => editingIds.includes(item.id) ? { ...item, staffName: staff.name, staffId: staff.id } : item);
@@ -858,11 +879,10 @@ export const PricingView: React.FC<PricingViewProps> = ({
            const newId = generateUniqueBillId();
            const ticketNum = await getNextTicketNumber('checkin');
            const newBill: ActiveBill = { id: newId, customerName: `Split Guest`, customerPhone: '', customerNotes: '', items: [item1, item2], discountPercentage: 0, createdByStaffId: currentUser?.id, ticketNumber: ticketNum };
-           isCreatingOrder.current = true;
+           setOrderCreatingFlag();
            setActiveBills(prev => [...(prev || []), newBill]);
            setCurrentBillId(newId);
            upsertActiveBill(newBill);
-           setTimeout(() => { isCreatingOrder.current = false; }, 100);
       } else {
           const newItems = editingIds.length > 0 ? cartItems.flatMap(item => editingIds.includes(item.id) ? [item1, item2] : [item]) : [...cartItems, item1, item2];
           updateCurrentBill({ items: newItems });
@@ -1005,11 +1025,10 @@ export const PricingView: React.FC<PricingViewProps> = ({
       });
       // Preserve the waitlist ticket number (W prefix) so customers can be called by their original ticket
       const newBill: ActiveBill = { id: newId, customerName: entry.customerName, customerPhone: entry.customerPhone, customerNotes: entry.notes + (entry.estimatedReturnTime ? ` (Return: ${entry.estimatedReturnTime})` : ''), items: initialItems, discountPercentage: 0, createdByStaffId: currentUser?.id, ticketNumber: entry.ticketNumber, isVip: entry.isVip };
-      isCreatingOrder.current = true;
+      setOrderCreatingFlag();
       setActiveBills(prev => [...(prev || []), newBill]);
       setCurrentBillId(newId);
       upsertActiveBill(newBill);
-      setTimeout(() => { isCreatingOrder.current = false; }, 100);
       handleRemoveFromWaitlist(entry.id); 
       setShowWaitlistModal(false);
   };
@@ -1060,11 +1079,10 @@ export const PricingView: React.FC<PricingViewProps> = ({
             ticketNumber: ticketNum,
             isVip: tempIsVip
         };
-        isCreatingOrder.current = true;
+        setOrderCreatingFlag();
         setActiveBills(prev => Array.isArray(prev) ? [...prev, newBill] : [newBill]);
         setCurrentBillId(newId);
         upsertActiveBill(newBill);
-        setTimeout(() => { isCreatingOrder.current = false; }, 100);
     } else {
         // Ensure existing bill has a ticket number
         let billTicketNumber = currentBill?.ticketNumber;
