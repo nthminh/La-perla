@@ -18,10 +18,10 @@ export class CashDrawerManager {
 
   /**
    * Opens the cash drawer by sending ESC/POS commands through the printer
-   * This embeds the drawer kick command in the main document so it prints with the invoice
-   * This avoids triggering a separate blank print dialog
+   * This embeds the drawer kick command in the printable bill area
+   * The command will be sent when the bill is printed
    */
-  static async openDrawer(): Promise<boolean> {
+  static async openDrawer(targetElementId: string = 'printable-bill-area'): Promise<boolean> {
     try {
       // ESC/POS command bytes to open drawer
       const ESC = 27;   // Escape
@@ -38,10 +38,19 @@ export class CashDrawerManager {
         .map(byte => String.fromCharCode(byte))
         .join('');
 
-      // Remove any existing element to avoid duplicates
-      const existingElement = document.getElementById('cash-drawer-command');
-      if (existingElement) {
-        existingElement.remove();
+      // Find the target printable area (bill)
+      const targetElement = document.getElementById(targetElementId) || 
+                           document.querySelector('.printable-bill') as HTMLElement;
+      
+      if (!targetElement) {
+        console.warn('Target printable area not found, trying document body');
+        return this.openDrawerFallback();
+      }
+
+      // Remove any existing command element
+      const existingCommand = targetElement.querySelector('#cash-drawer-command');
+      if (existingCommand) {
+        existingCommand.remove();
       }
 
       // Clear any pending cleanup timeout
@@ -50,33 +59,65 @@ export class CashDrawerManager {
         this.cleanupTimeoutId = null;
       }
 
-      // Create a hidden element in the main document
-      const hiddenElement = document.createElement('div');
-      hiddenElement.id = 'cash-drawer-command';
-      hiddenElement.style.display = 'none';
-      hiddenElement.innerHTML = `<pre>${commandString}</pre>`;
+      // Create the cash drawer command element
+      // This needs to be visible to the printer but hidden visually
+      const commandElement = document.createElement('div');
+      commandElement.id = 'cash-drawer-command';
+      commandElement.style.cssText = `
+        position: absolute;
+        left: -9999px;
+        top: 0;
+        font-size: 1px;
+        line-height: 1px;
+        overflow: hidden;
+        opacity: 0.01;
+        pointer-events: none;
+      `;
+      commandElement.innerHTML = `<pre style="margin:0;padding:0;font-size:1px;line-height:1px;">${commandString}</pre>`;
 
-      // Add to document body
-      document.body.appendChild(hiddenElement);
+      // Insert at the beginning of the bill
+      targetElement.insertBefore(commandElement, targetElement.firstChild);
 
-      // Clean up after a short delay (will be printed with the main document)
-      this.cleanupTimeoutId = window.setTimeout(() => {
-        const element = document.getElementById('cash-drawer-command');
-        if (element) {
-          element.remove();
-        }
-        this.cleanupTimeoutId = null;
-      }, 500);
-
-      console.log('Cash drawer command added to document');
+      console.log('Cash drawer command embedded in printable bill');
       return true;
     } catch (error) {
-      console.error('Failed to add cash drawer command:', error);
-      // Clean up any leftover element
-      const element = document.getElementById('cash-drawer-command');
-      if (element) {
-        element.remove();
+      console.error('Failed to embed cash drawer command:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Fallback method to add drawer command to body when printable area not found
+   */
+  private static openDrawerFallback(): boolean {
+    try {
+      const ESC = 27, p = 112, m = 0, t1 = 25, t2 = 250;
+      const drawerCommand = new Uint8Array([ESC, p, m, t1, t2]);
+      const commandString = Array.from(drawerCommand)
+        .map(byte => String.fromCharCode(byte))
+        .join('');
+
+      const existingElement = document.getElementById('cash-drawer-command-fallback');
+      if (existingElement) {
+        existingElement.remove();
       }
+
+      const hiddenElement = document.createElement('div');
+      hiddenElement.id = 'cash-drawer-command-fallback';
+      hiddenElement.style.cssText = 'position:absolute;left:-9999px;font-size:1px;opacity:0.01;';
+      hiddenElement.innerHTML = `<pre>${commandString}</pre>`;
+      document.body.appendChild(hiddenElement);
+
+      this.cleanupTimeoutId = window.setTimeout(() => {
+        const element = document.getElementById('cash-drawer-command-fallback');
+        if (element) element.remove();
+        this.cleanupTimeoutId = null;
+      }, 1000);
+
+      console.log('Cash drawer command added as fallback');
+      return true;
+    } catch (error) {
+      console.error('Fallback cash drawer failed:', error);
       return false;
     }
   }
@@ -119,8 +160,9 @@ export class CashDrawerManager {
  * Opens the cash drawer
  * Convenience function to open the cash drawer
  * 
+ * @param targetElementId - Optional ID of the printable bill element to embed the command in
  * @returns Promise<boolean> - true if successful, false otherwise
  */
-export const openCashDrawer = async (): Promise<boolean> => {
-  return CashDrawerManager.openDrawer();
+export const openCashDrawer = async (targetElementId?: string): Promise<boolean> => {
+  return CashDrawerManager.openDrawer(targetElementId);
 };
