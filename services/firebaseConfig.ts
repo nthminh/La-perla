@@ -12,14 +12,14 @@ import { logger } from "../utils/logger";
 const _d = (s: string) => atob(s);
 
 export const DEFAULT_CONFIG = {
-  apiKey: _d("QUl6YVN5RFZPRVJVMzJ4TkpwZ0FvUUhuQnlkaXE4c0dENUM1ekhoLTA="),
-  authDomain: _d("bGFwZXJsYXBvcy5maXJlYmFzZWFwcC5jb20="),
-  databaseURL: _d("aHR0cHM6Ly9sYXBlcmxhcG9zLWRlZmF1bHQtcnRkYi5maXJlYmFzZWlvLmNvbQ=="),
-  projectId: _d("bGFwZXJsYXBvcw=="),
-  storageBucket: _d("bGFwZXJsYXBvcy5maXJlYmFzZXN0b3JhZ2UuYXBw"),
-  messagingSenderId: _d("MjM4NTczMjI0MTY="),
-  appId: _d("MToyMzg1NzMyMjQxNjp3ZWI6ZDIxMDI4YjI1MGJmNzE1YzE3MWU3NQ=="),
-  measurementId: _d("Ry1QN1YxUjM2TTI3")
+ apiKey: "AIzaSyB5xI4Z_tTR9qm12ZiCIacTf4XvwploBgY",
+  authDomain: "la-perla-53540395-70c43.firebaseapp.com",
+  databaseURL: "https://la-perla-53540395-70c43-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "la-perla-53540395-70c43",
+  storageBucket: "la-perla-53540395-70c43.firebasestorage.app",
+  messagingSenderId: "983422020706",
+  appId: "1:983422020706:web:e664f9200b6a48b55af53b",
+  measurementId: "G-377HKGL12S"
 };
 
 // Try to load from Local Storage (for dynamic setup without code edits)
