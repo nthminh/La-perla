@@ -534,7 +534,7 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
     </div>
 
     {/* --- DEDICATED PRINT AREA (FIXED CONTENT) --- */}
-    <div className="printable-area printable-ticket hidden" style={{ width: '400px', margin: '0 auto', padding: '20px', backgroundColor: 'white', color: 'black' }}>
+    <div className="printable-area printable-ticket" style={{ position: 'absolute', left: '-9999px', width: '400px', margin: '0 auto', padding: '20px', backgroundColor: 'white', color: 'black' }}>
         <div style={{ textAlign: 'center', borderBottom: '2px dashed black', paddingBottom: '15px', marginBottom: '20px' }}>
             <h1 style={{ fontSize: '28px', margin: '0', fontWeight: 'bold' }}>LA PERLA</h1>
             <p style={{ fontSize: '10px', margin: '5px 0', letterSpacing: '2px' }}>QUEUE TICKET</p>
