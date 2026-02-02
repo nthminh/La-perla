@@ -80,8 +80,13 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
 
   useEffect(() => {
     if (printMode) {
+      console.log('[Print Debug] KioskView useEffect: Setting data-print-mode to:', printMode);
       document.body.setAttribute('data-print-mode', printMode);
+      // Verify it was set
+      const actualValue = document.body.getAttribute('data-print-mode');
+      console.log('[Print Debug] KioskView useEffect: Verified data-print-mode is now:', actualValue);
     } else {
+      console.log('[Print Debug] KioskView useEffect: Removing data-print-mode');
       document.body.removeAttribute('data-print-mode');
     }
   }, [printMode]);
@@ -298,23 +303,55 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
 
   const handlePrintTicket = () => {
     try {
+      // Validate ticket number exists
       if (!generatedTicket) {
+        console.error('[Print Debug] No ticket number available');
         SoundManager.playError();
         alert('No ticket number available.');
         return;
       }
+      
+      console.log('[Print Debug] Starting ticket print:', {
+        generatedTicket,
+        hasName: !!name,
+        servicesCount: selectedServices.length
+      });
+      
+      // Set print mode state
       setPrintMode('ticket');
+      console.log('[Print Debug] Print mode set to: ticket');
+      
       // Use requestAnimationFrame twice to ensure DOM is painted
       setTimeout(() => {
+        console.log('[Print Debug] First timeout complete, checking DOM state...');
+        
+        // Verify data-print-mode attribute is set
+        const bodyPrintMode = document.body.getAttribute('data-print-mode');
+        console.log('[Print Debug] Body data-print-mode:', bodyPrintMode);
+        
+        // Verify printable area exists and has content
+        const printableArea = document.querySelector('.printable-ticket');
+        if (printableArea) {
+          console.log('[Print Debug] Printable area found, content length:', printableArea.innerHTML.length);
+        } else {
+          console.error('[Print Debug] ERROR: Printable area not found!');
+        }
+        
         requestAnimationFrame(() => {
+          console.log('[Print Debug] First RAF complete');
           requestAnimationFrame(() => {
+            console.log('[Print Debug] Second RAF complete, triggering print...');
             window.print();
-            setTimeout(() => setPrintMode(null), PRINT_MODE_RESET_DELAY);
+            console.log('[Print Debug] window.print() called');
+            setTimeout(() => {
+              setPrintMode(null);
+              console.log('[Print Debug] Print mode reset to null');
+            }, PRINT_MODE_RESET_DELAY);
           });
         });
       }, PRINT_MODE_SET_DELAY);
     } catch (error) {
-      console.error('Error printing ticket:', error);
+      console.error('[Print Debug] Error printing ticket:', error);
       SoundManager.playError();
       alert('Failed to print ticket. Please try again.');
     }

@@ -258,8 +258,13 @@ export const PricingView: React.FC<PricingViewProps> = ({
   // Update body data attribute based on print mode
   useEffect(() => {
       if (printMode) {
+          console.log('[Print Debug] useEffect: Setting data-print-mode to:', printMode);
           document.body.setAttribute('data-print-mode', printMode);
+          // Verify it was set
+          const actualValue = document.body.getAttribute('data-print-mode');
+          console.log('[Print Debug] useEffect: Verified data-print-mode is now:', actualValue);
       } else {
+          console.log('[Print Debug] useEffect: Removing data-print-mode');
           document.body.removeAttribute('data-print-mode');
       }
   }, [printMode]);
@@ -447,30 +452,70 @@ export const PricingView: React.FC<PricingViewProps> = ({
   const handlePrint = async () => {
       SoundManager.playTap();
       
+      // Validate we have items to print
+      if (cartItems.length === 0) {
+          console.error('[Print Debug] No items in cart to print');
+          SoundManager.playError();
+          alert('No items to print. Please add services to the cart first.');
+          return;
+      }
+      
+      console.log('[Print Debug] Starting invoice print:', {
+          itemCount: cartItems.length,
+          total: finalTotal,
+          hasCustomerName: !!customerName,
+          hasCustomerPhone: !!customerPhone
+      });
+      
       // Set print mode to bill (invoice)
       setPrintMode('bill');
+      console.log('[Print Debug] Print mode set to: bill');
       
       // Wait for React state update and DOM to reflect data-print-mode attribute on body
       await new Promise(resolve => setTimeout(resolve, INVOICE_STATE_UPDATE_DELAY));
+      console.log('[Print Debug] Invoice state update delay complete');
       
       // Embed cash drawer command in the printable bill
       const drawerOpened = await openCashDrawer('printable-bill-area');
       if (!drawerOpened) {
-          console.warn('Cash drawer command failed to embed, continuing with print anyway');
+          console.warn('[Print Debug] Cash drawer command failed to embed, continuing with print anyway');
+      } else {
+          console.log('[Print Debug] Cash drawer command embedded successfully');
       }
       
       // Wait before printing to ensure cash drawer command is fully embedded in DOM
       // Use requestAnimationFrame twice to ensure DOM is fully painted before printing
       setTimeout(() => {
+          console.log('[Print Debug] Cash drawer embed timeout complete, checking DOM...');
+          
+          // Verify data-print-mode attribute is set
+          const bodyPrintMode = document.body.getAttribute('data-print-mode');
+          console.log('[Print Debug] Body data-print-mode:', bodyPrintMode);
+          
+          // Verify printable bill area exists and has content
+          const printableArea = document.querySelector('.printable-bill');
+          if (printableArea) {
+              console.log('[Print Debug] Printable bill area found, content length:', printableArea.innerHTML.length);
+          } else {
+              console.error('[Print Debug] ERROR: Printable bill area not found!');
+          }
+          
           requestAnimationFrame(() => {
+              console.log('[Print Debug] First RAF complete');
               requestAnimationFrame(() => {
+                  console.log('[Print Debug] Second RAF complete, triggering print...');
                   window.print();
+                  console.log('[Print Debug] window.print() called for invoice');
                   
                   // Reset print mode and cleanup cash drawer command after printing
                   setTimeout(() => {
                       setPrintMode(null);
+                      console.log('[Print Debug] Print mode reset to null');
                       const drawerCmd = document.getElementById('cash-drawer-command');
-                      if (drawerCmd) drawerCmd.remove();
+                      if (drawerCmd) {
+                          drawerCmd.remove();
+                          console.log('[Print Debug] Cash drawer command element removed');
+                      }
                   }, PRINT_MODE_RESET_DELAY);
               });
           });
@@ -1230,27 +1275,60 @@ export const PricingView: React.FC<PricingViewProps> = ({
         SoundManager.playSuccess();
         // Use existing ticket number from current bill, don't generate a new one
         const ticketNumber = currentBill?.ticketNumber;
+        
+        // Validate ticket number exists
         if (!ticketNumber) {
+            console.error('[Print Debug] No ticket number available in currentBill');
             SoundManager.playError();
             alert('No ticket number available. Please save customer first.');
             return;
         }
+        
+        console.log('[Print Debug] Starting ticket print:', {
+            ticketNumber,
+            hasCustomerName: !!tempCustomerName,
+            hasCustomerPhone: !!tempCustomerPhone
+        });
+        
+        // Update generatedTicket state
         setGeneratedTicket(ticketNumber);
         // Set print mode to ticket
         setPrintMode('ticket');
+        console.log('[Print Debug] Print mode set to: ticket');
+        
         // Wait for state to update and DOM to reflect the data-print-mode attribute
         // Use requestAnimationFrame twice to ensure DOM is fully painted before printing
         setTimeout(() => {
+            console.log('[Print Debug] State update timeout complete, checking DOM...');
+            
+            // Verify data-print-mode attribute is set
+            const bodyPrintMode = document.body.getAttribute('data-print-mode');
+            console.log('[Print Debug] Body data-print-mode:', bodyPrintMode);
+            
+            // Verify printable area exists and has content
+            const printableArea = document.querySelector('.printable-ticket');
+            if (printableArea) {
+                console.log('[Print Debug] Printable ticket area found, content length:', printableArea.innerHTML.length);
+            } else {
+                console.error('[Print Debug] ERROR: Printable ticket area not found!');
+            }
+            
             requestAnimationFrame(() => {
+                console.log('[Print Debug] First RAF complete');
                 requestAnimationFrame(() => {
+                    console.log('[Print Debug] Second RAF complete, triggering print...');
                     window.print();
+                    console.log('[Print Debug] window.print() called for ticket');
                     // Reset print mode after printing
-                    setTimeout(() => setPrintMode(null), PRINT_MODE_RESET_DELAY);
+                    setTimeout(() => {
+                        setPrintMode(null);
+                        console.log('[Print Debug] Print mode reset to null');
+                    }, PRINT_MODE_RESET_DELAY);
                 });
             });
         }, TICKET_STATE_UPDATE_DELAY);
     } catch (error) {
-        console.error('Error printing ticket:', error);
+        console.error('[Print Debug] Error printing ticket:', error);
         SoundManager.playError();
         alert('Failed to print ticket. Please try again.');
     }
