@@ -58,7 +58,6 @@ import {
 import { saveTransaction, searchCustomers, getTransactions } from '../services/storageService';
 import { SoundManager } from '../utils/sound';
 import { SHOP_LOCATION } from '../constants';
-import { openCashDrawer } from '../utils/cashDrawer';
 
 export interface PricingViewProps {
   t: Translation;
@@ -446,29 +445,15 @@ export const PricingView: React.FC<PricingViewProps> = ({
       setPrintMode('bill');
       
       // Wait for React state update and DOM to reflect data-print-mode attribute on body
-      // This ensures the print CSS rules are ready before we embed the cash drawer command
       await new Promise(resolve => setTimeout(resolve, 100));
       
-      // Embed cash drawer command in the printable bill
-      const drawerOpened = await openCashDrawer('printable-bill-area');
-      if (drawerOpened) {
-          console.log('Cash drawer command embedded in bill');
-      } else {
-          console.warn('Failed to embed cash drawer command, continuing with print');
-      }
+      // Trigger print dialog
+      window.print();
       
-      // Wait for cash drawer command to be fully inserted in DOM before triggering print dialog
-      // This ensures the ESC/POS command is included in the print job
+      // Reset print mode after printing
       setTimeout(() => {
-          window.print();
-          // Reset print mode and clean up after printing
-          setTimeout(() => {
-              setPrintMode(null);
-              // Clean up cash drawer command element
-              const drawerCmd = document.getElementById('cash-drawer-command');
-              if (drawerCmd) drawerCmd.remove();
-          }, PRINT_MODE_RESET_DELAY);
-      }, 100);
+          setPrintMode(null);
+      }, PRINT_MODE_RESET_DELAY);
   };
 
   const handleDownloadBill = async () => {
