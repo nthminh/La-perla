@@ -916,6 +916,7 @@ const MainApp: React.FC = () => {
             activeBills={activeBills}
             pastTransactions={customerLookupData} // Pass history to Kiosk
             marqueeSettings={marqueeSettings}
+            setCurrentBillId={setCurrentBillId}
           />
           <div className="print:hidden">
             <ChatWidget 
