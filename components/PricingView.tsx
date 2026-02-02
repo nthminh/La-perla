@@ -40,7 +40,8 @@ import {
     LockIcon,
     PrinterIcon,
     CalculatorIcon,
-    CalendarIcon
+    CalendarIcon,
+    CheckIcon
 } from './Icons';
 import { ArtistProfileModal } from './ArtistProfileModal';
 import { 
@@ -53,7 +54,8 @@ import {
     getNextTicketNumber,
     checkActiveBillExists,
     generateUniqueBillId,
-    generateUniqueWaitlistId
+    generateUniqueWaitlistId,
+    updateTransactionInFirebase
 } from '../services/firebaseService';
 import { saveTransaction, searchCustomers, getTransactions } from '../services/storageService';
 import { SoundManager } from '../utils/sound';
@@ -672,7 +674,15 @@ export const PricingView: React.FC<PricingViewProps> = ({
   };
 
   const updateCurrentBill = (updates: Partial<ActiveBill>) => {
-      if (viewingHistoryBill || !currentBill) return;
+      // If viewing history bill, update it directly
+      if (viewingHistoryBill) {
+          const updatedBill = { ...viewingHistoryBill, ...updates };
+          setViewingHistoryBill(updatedBill);
+          return;
+      }
+      
+      // Otherwise update current bill
+      if (!currentBill) return;
       const updatedBill = { ...currentBill, ...updates };
       setActiveBills(prev => {
           if (!Array.isArray(prev)) return prev;
@@ -749,7 +759,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
   };
 
   const handleEditCurrentCustomer = () => {
-      if (viewingHistoryBill) return;
+      // Allow editing customer info for both current bills and history bills
       setEntryMode('edit');
       setTempCustomerName(customerName);
       setTempCustomerPhone(customerPhone);
@@ -768,8 +778,32 @@ export const PricingView: React.FC<PricingViewProps> = ({
   };
 
   const handleAddClick = async (service: {nameKey: string, price: string, displayName?: string}) => {
-      if (!isStaffMode || viewingHistoryBill) return;
+      if (!isStaffMode) return;
       SoundManager.playAddToCart();
+      
+      // If viewing history bill, add to it directly
+      if (viewingHistoryBill) {
+          if (currentUser && !isAdmin && !isManager) {
+              // Non-admin staff auto-assign to themselves
+              const newItem: CartItem = {
+                  id: generateUniqueId(),
+                  nameKey: service.nameKey,
+                  price: parsePrice(service.price),
+                  quantity: 1,
+                  staffName: currentUser.name,
+                  staffId: currentUser.id,
+                  displayName: service.displayName
+              };
+              updateCurrentBill({ items: [...cartItems, newItem] });
+          } else {
+              // Admins/managers choose staff
+              setPendingService(service);
+              setEditingIds([]);
+              setShowStaffModal(true);
+          }
+          return;
+      }
+      
       // For the first order (no current bill), assign to current user automatically
       // For subsequent services on existing bills, admins/managers can choose staff
       if (currentUser && ((!isAdmin && !isManager) || !currentBill)) {
@@ -803,8 +837,18 @@ export const PricingView: React.FC<PricingViewProps> = ({
   };
 
   const triggerStaffSelection = async (nameKey: string, price: string, displayName?: string) => {
-      if (!isStaffMode || viewingHistoryBill) return;
+      if (!isStaffMode) return;
       SoundManager.playTap();
+      
+      // If viewing history bill, allow staff selection
+      if (viewingHistoryBill) {
+          setPendingService({ nameKey, price, displayName });
+          setEditingIds([]);
+          setShowStaffModal(true);
+          setNegotiatedPrices(prev => ({...prev, [nameKey]: ''}));
+          return;
+      }
+      
       // For the first order (no current bill), assign to current user automatically
       // For subsequent services on existing bills, admins/managers can choose staff
       if (currentUser && ((!isAdmin && !isManager) || !currentBill)) {
@@ -828,7 +872,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
   };
 
   const handleMinusClick = (nameKey: string) => {
-      if (!isStaffMode || viewingHistoryBill) return;
+      if (!isStaffMode) return;
       SoundManager.playError(); 
       const myItemIndex = currentUser && !isAdmin && !isManager ? cartItems.findIndex(item => item.nameKey === nameKey && item.staffId === currentUser.id) : -1;
       const indexToRemove = (isAdmin || isManager || myItemIndex === -1) ? cartItems.map(item => item.nameKey).lastIndexOf(nameKey) : myItemIndex; 
@@ -836,19 +880,19 @@ export const PricingView: React.FC<PricingViewProps> = ({
           const newItems = [...cartItems];
           newItems.splice(indexToRemove, 1);
           updateCurrentBill({ items: newItems });
-          if (newItems.length === 0 && viewMode === 'all') setIsBillOpen(false);
+          if (newItems.length === 0 && viewMode === 'all' && !viewingHistoryBill) setIsBillOpen(false);
       }
   };
 
   const handleEditChip = (item: CartItem) => {
-      if (!isStaffMode || viewingHistoryBill) return;
+      if (!isStaffMode) return;
       setPendingService({ nameKey: item.nameKey, price: item.price.toString(), displayName: item.displayName }); 
       setEditingIds([item.id]); 
       setShowStaffModal(true);
   };
 
   const handleEditItemStaff = (item: GroupedCartItem) => {
-      if (!isStaffMode || viewingHistoryBill) return;
+      if (!isStaffMode) return;
       setPendingService({ nameKey: item.nameKey, price: item.price.toString(), displayName: item.displayName });
       setEditingIds(item.originalIds); 
       setShowStaffModal(true);
@@ -917,11 +961,11 @@ export const PricingView: React.FC<PricingViewProps> = ({
   }, [cartItems]);
 
   const handleRemoveGroup = (originalIds: string[]) => {
-      if (!isStaffMode || viewingHistoryBill) return;
+      if (!isStaffMode) return;
       SoundManager.playError();
       const newItems = cartItems.filter(item => !originalIds.includes(item.id));
       updateCurrentBill({ items: newItems });
-      if (newItems.length <= 0) setIsBillOpen(false);
+      if (newItems.length <= 0 && !viewingHistoryBill) setIsBillOpen(false);
   };
 
   const handleCompletePayment = async () => {
@@ -1009,6 +1053,66 @@ export const PricingView: React.FC<PricingViewProps> = ({
         setIsBillOpen(false);
     } finally { 
         setIsSaving(false); 
+    }
+  };
+
+  const handleSaveHistoryBill = async () => {
+    if (!viewingHistoryBill) return;
+    
+    // Prevent duplicate submissions
+    if (isSaving) {
+        console.log("Save already in progress, ignoring duplicate click");
+        return;
+    }
+    
+    setIsSaving(true);
+    SoundManager.playSuccess();
+    
+    try {
+        // Create updated transaction from the viewing history bill
+        const updatedTransaction: Transaction = {
+            id: viewingHistoryBill.id,
+            date: viewingHistoryBill.date || new Date().toISOString(),
+            total: finalTotal,
+            items: viewingHistoryBill.items.map(item => ({
+                nameKey: item.nameKey,
+                price: item.price,
+                quantity: item.quantity,
+                staffName: item.staffName,
+                staffId: item.staffId,
+                displayName: item.displayName
+            })),
+            discountPercentage: viewingHistoryBill.discountPercentage,
+            customerName: viewingHistoryBill.customerName,
+            customerPhone: viewingHistoryBill.customerPhone,
+            customerNotes: viewingHistoryBill.customerNotes,
+            lastUpdated: Date.now(),
+            ticketNumber: viewingHistoryBill.ticketNumber
+        };
+        
+        // Update in Firebase
+        const success = await updateTransactionInFirebase(updatedTransaction);
+        
+        if (success) {
+            // Update local storage
+            saveTransaction(updatedTransaction);
+            
+            // Close the modal and clear viewing state
+            setViewingHistoryBill(null);
+            setIsBillOpen(false);
+            
+            // Refresh the recent transactions list
+            await handleOpenHistory();
+            
+            alert("Changes saved successfully!");
+        } else {
+            alert("Failed to save changes. Please try again.");
+        }
+    } catch (error) {
+        console.error("Error saving history bill:", error);
+        alert("Error saving changes. Please try again.");
+    } finally {
+        setIsSaving(false);
     }
   };
 
@@ -1298,7 +1402,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
                                     <div className="mt-2 flex flex-wrap gap-2">
                                         {activeItemsForService.map(item => {
                                             const staffProf = staffList.find(s => s.name === item.staffName);
-                                            return <div key={item.id} className="inline-flex items-center gap-1 bg-blush-pink/50 border border-dusty-rose/50 rounded-full px-2 py-1 text-sm text-charcoal animate-fade-in pl-1">{staffProf?.avatar ? <img src={staffProf.avatar} className="w-4 h-4 rounded-full object-cover" alt="" /> : <div className="w-4 h-4 rounded-full bg-gold-leaf/50"></div>}<button onClick={() => handleEditChip(item)} disabled={!isStaffMode || !!viewingHistoryBill} className={`font-semibold text-xs flex items-center gap-1 ${isStaffMode && !viewingHistoryBill ? 'hover:text-gold-leaf hover:underline cursor-pointer' : 'cursor-default'}`}>{item.staffName || 'No Staff'} {isContactPrice && <span className="text-gold-leaf ml-1 font-bold">${item.price}</span>}</button></div>;
+                                            return <div key={item.id} className="inline-flex items-center gap-1 bg-blush-pink/50 border border-dusty-rose/50 rounded-full px-2 py-1 text-sm text-charcoal animate-fade-in pl-1">{staffProf?.avatar ? <img src={staffProf.avatar} className="w-4 h-4 rounded-full object-cover" alt="" /> : <div className="w-4 h-4 rounded-full bg-gold-leaf/50"></div>}<button onClick={() => handleEditChip(item)} disabled={!isStaffMode} className={`font-semibold text-xs flex items-center gap-1 ${isStaffMode ? 'hover:text-gold-leaf hover:underline cursor-pointer' : 'cursor-default'}`}>{item.staffName || 'No Staff'} {isContactPrice && <span className="text-gold-leaf ml-1 font-bold">${item.price}</span>}</button></div>;
                                         })}
                                     </div>
                                 )}
@@ -1483,14 +1587,14 @@ export const PricingView: React.FC<PricingViewProps> = ({
                       <p className="text-xs text-gray-400 mb-4 font-mono">{billDateString}</p>
                       <div className="flex justify-center items-center gap-4 text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">
                           <span>Subtotal: ${cartTotal.toFixed(2)}</span>
-                          <div className="flex items-center gap-1"><span>Discount:</span>{isStaffMode && !viewingHistoryBill ? <select value={discountPercentage} onChange={(e) => updateCurrentBill({ discountPercentage: Number(e.target.value) })} className="bg-gray-100 border border-gray-300 rounded px-1 py-0.5 text-xs outline-none focus:border-gold-leaf text-charcoal">{[0,5,10,15,20,25,30].map(v => <option key={v} value={v}>{v}%</option>)}</select> : <span className="text-red-500">{discountPercentage}% (-${discountAmount.toFixed(2)})</span>}</div>
+                          <div className="flex items-center gap-1"><span>Discount:</span>{isStaffMode ? <select value={discountPercentage} onChange={(e) => updateCurrentBill({ discountPercentage: Number(e.target.value) })} className="bg-gray-100 border border-gray-300 rounded px-1 py-0.5 text-xs outline-none focus:border-gold-leaf text-charcoal">{[0,5,10,15,20,25,30].map(v => <option key={v} value={v}>{v}%</option>)}</select> : <span className="text-red-500">{discountPercentage}% (-${discountAmount.toFixed(2)})</span>}</div>
                       </div>
                       {customerName ? <div className="inline-block bg-gray-100 px-3 py-1 rounded-full text-xs font-bold text-gray-600 flex items-center justify-center gap-2 mx-auto w-fit">{targetBill?.ticketNumber && <span className="font-mono bg-black text-white px-1.5 rounded mr-1 text-[10px]">{targetBill.ticketNumber}</span>}{isVip && <StarIcon className="w-3 h-3 text-gold-leaf" filled />}{customerName}</div> : <p className="text-xs text-gray-400 italic">Guest</p>}
                   </div>
                   <div className="flex-1 overflow-y-auto p-4 bg-gray-50 custom-scrollbar">
                       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-4">
                           {groupedCartItems.map((item, index) => (
-                              <div key={`${item.nameKey}-${item.staffName}`} className="flex items-start p-4 border-b border-gray-50 last:border-0 group hover:bg-gray-50 transition-colors"><span className="text-gray-300 font-bold text-lg mr-4 w-6 text-center">{index + 1}</span><div className="flex-grow"><div className="flex justify-between items-start mb-1"><span className={`font-bold text-charcoal text-sm md:text-base ${isStaffMode && !viewingHistoryBill ? 'cursor-pointer group-hover:text-gold-leaf' : ''}`} onClick={() => isStaffMode && !viewingHistoryBill && handleEditItemStaff(item)}>{item.displayName || t.serviceNames[item.nameKey] || item.nameKey}</span><span className="font-bold text-charcoal text-sm">${(item.price * item.quantity).toFixed(2)}</span></div><div className="flex justify-between items-center text-xs text-gray-500"><div className="flex items-center gap-2">{item.quantity > 1 && <span className="bg-gray-200 text-charcoal px-1.5 py-0.5 rounded font-bold">x{item.quantity}</span>}{item.staffName && <span className="flex items-center gap-1"><UserIcon className="w-3 h-3" /> {item.staffName}</span>}</div>{isStaffMode && !viewingHistoryBill && <button onClick={() => handleRemoveGroup(item.originalIds)} className="text-gray-300 hover:text-red-500 p-1">Remove</button>}</div></div></div>
+                              <div key={`${item.nameKey}-${item.staffName}`} className="flex items-start p-4 border-b border-gray-50 last:border-0 group hover:bg-gray-50 transition-colors"><span className="text-gray-300 font-bold text-lg mr-4 w-6 text-center">{index + 1}</span><div className="flex-grow"><div className="flex justify-between items-start mb-1"><span className={`font-bold text-charcoal text-sm md:text-base ${isStaffMode ? 'cursor-pointer group-hover:text-gold-leaf' : ''}`} onClick={() => isStaffMode && handleEditItemStaff(item)}>{item.displayName || t.serviceNames[item.nameKey] || item.nameKey}</span><span className="font-bold text-charcoal text-sm">${(item.price * item.quantity).toFixed(2)}</span></div><div className="flex justify-between items-center text-xs text-gray-500"><div className="flex items-center gap-2">{item.quantity > 1 && <span className="bg-gray-200 text-charcoal px-1.5 py-0.5 rounded font-bold">x{item.quantity}</span>}{item.staffName && <span className="flex items-center gap-1"><UserIcon className="w-3 h-3" /> {item.staffName}</span>}</div>{isStaffMode && <button onClick={() => handleRemoveGroup(item.originalIds)} className="text-gray-300 hover:text-red-500 p-1">Remove</button>}</div></div></div>
                           ))}
                           {groupedCartItems.length === 0 && <div className="p-8 text-center text-gray-400 text-sm">Empty Bill</div>}
                       </div>
@@ -1510,7 +1614,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
                       )}
                       {groupedCartItems.length > 0 && <div className="text-center p-4 bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col items-center justify-center"><p className="text-[10px] uppercase font-bold text-gray-400 mb-2">Scan for Receipt</p><img src={getQrCodeUrl()} alt="Receipt QR" className="w-32 h-32" /></div>}
                   </div>
-                  <div className="bg-white p-4 border-t border-gray-100 space-y-3"><div className="flex gap-2"><button onClick={() => handleDownloadBill()} className="flex-1 py-3 bg-gray-100 text-charcoal font-bold rounded-xl hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 text-sm"><DownloadIcon className="w-5 h-5" />Save Receipt</button><button onClick={handlePrint} className="flex-1 py-3 bg-gray-100 text-charcoal font-bold rounded-xl hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 text-sm"><PrinterIcon className="w-5 h-5" />Open / Print</button></div>{isStaffMode && !viewingHistoryBill && <button onClick={handleCompletePayment} disabled={isSaving} className="w-full py-3 bg-charcoal text-white font-bold rounded-xl shadow-lg hover:bg-black transition-colors disabled:opacity-50">{isSaving ? "Processing..." : t.completePayment}</button>}</div>
+                  <div className="bg-white p-4 border-t border-gray-100 space-y-3"><div className="flex gap-2"><button onClick={() => handleDownloadBill()} className="flex-1 py-3 bg-gray-100 text-charcoal font-bold rounded-xl hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 text-sm"><DownloadIcon className="w-5 h-5" />Save Receipt</button><button onClick={handlePrint} className="flex-1 py-3 bg-gray-100 text-charcoal font-bold rounded-xl hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 text-sm"><PrinterIcon className="w-5 h-5" />Open / Print</button></div>{isStaffMode && !viewingHistoryBill && <button onClick={handleCompletePayment} disabled={isSaving} className="w-full py-3 bg-charcoal text-white font-bold rounded-xl shadow-lg hover:bg-black transition-colors disabled:opacity-50">{isSaving ? "Processing..." : t.completePayment}</button>}{isStaffMode && viewingHistoryBill && <button onClick={handleSaveHistoryBill} disabled={isSaving} className="w-full py-3 bg-gold-leaf text-white font-bold rounded-xl shadow-lg hover:bg-charcoal transition-colors disabled:opacity-50 flex items-center justify-center gap-2"><CheckIcon className="w-5 h-5" />{isSaving ? "Saving..." : "Save Changes"}</button>}</div>
               </div>
           </div>
       )}
