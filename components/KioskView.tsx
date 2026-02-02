@@ -304,10 +304,14 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
         return;
       }
       setPrintMode('ticket');
-      // Wait for DOM to update before printing
+      // Use requestAnimationFrame twice to ensure DOM is painted
       setTimeout(() => {
-        window.print();
-        setTimeout(() => setPrintMode(null), PRINT_MODE_RESET_DELAY);
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            window.print();
+            setTimeout(() => setPrintMode(null), PRINT_MODE_RESET_DELAY);
+          });
+        });
       }, PRINT_MODE_SET_DELAY);
     } catch (error) {
       console.error('Error printing ticket:', error);
