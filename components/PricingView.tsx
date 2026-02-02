@@ -720,7 +720,9 @@ export const PricingView: React.FC<PricingViewProps> = ({
   const handleAddClick = async (service: {nameKey: string, price: string, displayName?: string}) => {
       if (!isStaffMode || viewingHistoryBill) return;
       SoundManager.playAddToCart();
-      if (currentUser && !isAdmin && !isManager) {
+      // For the first order (no current bill), assign to current user automatically
+      // For subsequent services on existing bills, admins/managers can choose staff
+      if (currentUser && (!isAdmin && !isManager || !currentBill)) {
           const newItem: CartItem = {
               id: generateUniqueId(),
               nameKey: service.nameKey,
@@ -752,7 +754,9 @@ export const PricingView: React.FC<PricingViewProps> = ({
   const triggerStaffSelection = async (nameKey: string, price: string, displayName?: string) => {
       if (!isStaffMode || viewingHistoryBill) return;
       SoundManager.playTap();
-      if (currentUser && !isAdmin && !isManager) {
+      // For the first order (no current bill), assign to current user automatically
+      // For subsequent services on existing bills, admins/managers can choose staff
+      if (currentUser && (!isAdmin && !isManager || !currentBill)) {
           const newItem: CartItem = { id: generateUniqueId(), nameKey, price: parsePrice(price), quantity: 1, staffName: currentUser.name, staffId: currentUser.id, displayName };
           if (!currentBill) {
                const newId = generateUniqueBillId();
