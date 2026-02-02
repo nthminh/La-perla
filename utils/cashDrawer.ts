@@ -20,6 +20,9 @@ export class CashDrawerManager {
    * Opens the cash drawer by sending ESC/POS commands through the printer
    * This embeds the drawer kick command in the printable bill area
    * The command will be sent when the bill is printed
+   * 
+   * @param targetElementId - ID of the element to embed the cash drawer command in (default: 'printable-bill-area')
+   * @returns Promise<boolean> - true if command was successfully embedded, false otherwise
    */
   static async openDrawer(targetElementId: string = 'printable-bill-area'): Promise<boolean> {
     try {
@@ -61,9 +64,8 @@ export class CashDrawerManager {
 
       // Create the cash drawer command element
       // This needs to be visible to the printer but hidden visually
-      const commandElement = document.createElement('div');
-      commandElement.id = 'cash-drawer-command';
-      commandElement.style.cssText = `
+      // Styling must match the print CSS in index.html (lines 127-140)
+      const CASH_DRAWER_STYLES = `
         position: absolute;
         left: -9999px;
         top: 0;
@@ -73,6 +75,10 @@ export class CashDrawerManager {
         opacity: 0.01;
         pointer-events: none;
       `;
+      
+      const commandElement = document.createElement('div');
+      commandElement.id = 'cash-drawer-command';
+      commandElement.style.cssText = CASH_DRAWER_STYLES;
       commandElement.innerHTML = `<pre style="margin:0;padding:0;font-size:1px;line-height:1px;">${commandString}</pre>`;
 
       // Insert at the beginning of the bill

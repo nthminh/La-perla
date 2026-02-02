@@ -445,7 +445,8 @@ export const PricingView: React.FC<PricingViewProps> = ({
       // Set print mode to bill (invoice)
       setPrintMode('bill');
       
-      // Wait for DOM to update with print mode
+      // Wait for React state update and DOM to reflect data-print-mode attribute on body
+      // This ensures the print CSS rules are ready before we embed the cash drawer command
       await new Promise(resolve => setTimeout(resolve, 100));
       
       // Embed cash drawer command in the printable bill
@@ -456,7 +457,8 @@ export const PricingView: React.FC<PricingViewProps> = ({
           console.warn('Failed to embed cash drawer command, continuing with print');
       }
       
-      // Wait a bit more before printing to ensure everything is ready
+      // Wait for cash drawer command to be fully inserted in DOM before triggering print dialog
+      // This ensures the ESC/POS command is included in the print job
       setTimeout(() => {
           window.print();
           // Reset print mode and clean up after printing
