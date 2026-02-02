@@ -219,6 +219,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
 
   // Print mode constants
   const PRINT_MODE_RESET_DELAY = 100; // ms - delay to reset print mode after printing
+  const CASH_DRAWER_EMBED_DELAY = 100; // ms - delay for cash drawer command to be embedded in DOM before printing
   
   // Order creation race condition fix: 100ms is sufficient for React's state batching to complete
   // React typically batches updates within a few milliseconds, 100ms provides a safe margin
@@ -450,8 +451,11 @@ export const PricingView: React.FC<PricingViewProps> = ({
       
       // Embed cash drawer command in the printable bill
       const drawerOpened = await openCashDrawer('printable-bill-area');
+      if (!drawerOpened) {
+          console.warn('Cash drawer command failed to embed, continuing with print anyway');
+      }
       
-      // Wait before printing to ensure command is embedded
+      // Wait before printing to ensure cash drawer command is fully embedded in DOM
       setTimeout(() => {
           window.print();
           
@@ -461,7 +465,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
               const drawerCmd = document.getElementById('cash-drawer-command');
               if (drawerCmd) drawerCmd.remove();
           }, PRINT_MODE_RESET_DELAY);
-      }, 100);
+      }, CASH_DRAWER_EMBED_DELAY);
   };
 
   const handleDownloadBill = async () => {
