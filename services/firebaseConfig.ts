@@ -98,8 +98,8 @@ export const isFirebaseConfigured = () => {
         return true;
     }
     
-    // If using default config (laperlapos), it IS configured.
-    return firebaseConfig.projectId === "laperlapos";
+    // If using default config (la-perla-53540395-70c43), it IS configured.
+    return firebaseConfig.projectId === "la-perla-53540395-70c43";
 };
 
 export interface ParsedConfig {
