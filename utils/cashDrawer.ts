@@ -162,6 +162,10 @@ export class CashDrawerManager {
   }
 }
 
+// Timing constants for cash drawer operations
+const DOM_UPDATE_DELAY_MS = 50;  // Wait for DOM to update after attribute changes
+const CASH_DRAWER_CLEANUP_DELAY_MS = 500;  // Wait for print dialog to open before cleanup
+
 /**
  * Opens the cash drawer standalone (without embedding in invoice)
  * Creates a hidden temporary printable element with just the ESC/POS command
@@ -206,18 +210,18 @@ export const openCashDrawerStandalone = async (): Promise<boolean> => {
     // Set print mode for cash drawer only
     document.body.setAttribute('data-print-mode', 'cash-drawer');
 
-    // Wait for DOM update
-    await new Promise(resolve => setTimeout(resolve, 50));
+    // Wait for DOM update before triggering print
+    await new Promise(resolve => setTimeout(resolve, DOM_UPDATE_DELAY_MS));
 
     // Trigger print to send command to printer
     window.print();
 
-    // Clean up after print
+    // Clean up after print dialog opens
     setTimeout(() => {
       document.body.removeAttribute('data-print-mode');
       const element = document.getElementById('cash-drawer-standalone-command');
       if (element) element.remove();
-    }, 500);
+    }, CASH_DRAWER_CLEANUP_DELAY_MS);
 
     console.log('Standalone cash drawer command sent to printer');
     return true;
