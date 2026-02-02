@@ -618,6 +618,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
       };
       setActiveBills(prev => Array.isArray(prev) ? [...prev, newBill] : [newBill]);
       setCurrentBillId(newId);
+      setIsBillOpen(true);
       upsertActiveBill(newBill);
   };
 
