@@ -445,22 +445,30 @@ export const PricingView: React.FC<PricingViewProps> = ({
       // Set print mode to bill (invoice)
       setPrintMode('bill');
       
-      // Open cash drawer before printing
-      const drawerOpened = await openCashDrawer();
+      // Wait for React state update and DOM to reflect data-print-mode attribute on body
+      // This ensures the print CSS rules are ready before we embed the cash drawer command
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Embed cash drawer command in the printable bill
+      const drawerOpened = await openCashDrawer('printable-bill-area');
       if (drawerOpened) {
-          console.log('Cash drawer opened successfully');
-          // Wait a bit for the drawer command to be processed before printing invoice
-          await new Promise(resolve => setTimeout(resolve, 500));
+          console.log('Cash drawer command embedded in bill');
       } else {
-          console.warn('Failed to open cash drawer, continuing with print');
+          console.warn('Failed to embed cash drawer command, continuing with print');
       }
       
-      // Wait for state to update and DOM to reflect the data-print-mode attribute
+      // Wait for cash drawer command to be fully inserted in DOM before triggering print dialog
+      // This ensures the ESC/POS command is included in the print job
       setTimeout(() => {
           window.print();
-          // Reset print mode after printing
-          setTimeout(() => setPrintMode(null), PRINT_MODE_RESET_DELAY);
-      }, 50);
+          // Reset print mode and clean up after printing
+          setTimeout(() => {
+              setPrintMode(null);
+              // Clean up cash drawer command element
+              const drawerCmd = document.getElementById('cash-drawer-command');
+              if (drawerCmd) drawerCmd.remove();
+          }, PRINT_MODE_RESET_DELAY);
+      }, 100);
   };
 
   const handleDownloadBill = async () => {
@@ -1692,7 +1700,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
         </div>
     </div>
 
-    <div ref={receiptRef} className="printable-area printable-bill hidden" data-print-type="bill" style={{ width: '500px', padding: '40px', backgroundColor: 'white', color: 'black', fontFamily: 'serif', boxSizing: 'border-box' }}>
+    <div id="printable-bill-area" ref={receiptRef} className="printable-area printable-bill hidden" data-print-type="bill" style={{ width: '500px', padding: '40px', backgroundColor: 'white', color: 'black', fontFamily: 'serif', boxSizing: 'border-box' }}>
         <div className="text-center mb-8 border-b-2 border-black pb-4"><h1 className="text-4xl font-bold uppercase tracking-widest mb-2">LA PERLA</h1><p className="text-sm font-sans uppercase tracking-wider">Nails & Beauty</p><p className="text-xs mt-2 font-sans text-gray-600">Shop 10/260 Jersey Rd, Plumpton NSW 2761</p><p className="text-xs font-sans text-gray-600">(02) 9625 8194</p></div>
         <div className="flex justify-between items-end mb-8 font-sans"><div><p className="text-xs font-bold uppercase text-gray-500">Bill To:</p><p className="text-lg font-bold">{isVip ? '★ ' : ''}{customerName || 'Guest'}</p>{customerPhone && <p className="text-sm">{customerPhone}</p>}</div><div className="text-right"><p className="text-sm">Date: {billDateString}</p>{currentBillId && <p className="text-xs text-gray-400 mt-1">Ref: {currentBillId.slice(-6)}</p>}</div></div>
         <div className="mb-8"><table className="w-full text-left font-sans text-sm"><thead className="border-b-2 border-black"><tr><th className="py-2 w-12">Qty</th><th className="py-2">Description</th><th className="py-2 text-right w-24">Price</th><th className="py-2 text-right w-24">Amount</th></tr></thead><tbody className="divide-y divide-gray-200">{groupedCartItems.map((item, i) => <tr key={i}><td className="py-3 align-top">{item.quantity}</td><td className="py-3 align-top"><p className="font-bold">{item.displayName || t.serviceNames[item.nameKey] || item.nameKey}</p>{item.staffName && <p className="text-xs text-gray-500 italic">Stylist: {item.staffName}</p>}</td><td className="py-3 align-top text-right">${item.price.toFixed(2)}</td><td className="py-3 align-top text-right font-bold">${(item.price * item.quantity).toFixed(2)}</td></tr>)}</tbody></table></div>
