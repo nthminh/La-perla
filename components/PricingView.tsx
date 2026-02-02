@@ -460,20 +460,15 @@ export const PricingView: React.FC<PricingViewProps> = ({
       }
       
       // Wait before printing to ensure cash drawer command is fully embedded in DOM
-      // Use requestAnimationFrame twice to ensure DOM is fully painted before printing
       setTimeout(() => {
-          requestAnimationFrame(() => {
-              requestAnimationFrame(() => {
-                  window.print();
-                  
-                  // Reset print mode and cleanup cash drawer command after printing
-                  setTimeout(() => {
-                      setPrintMode(null);
-                      const drawerCmd = document.getElementById('cash-drawer-command');
-                      if (drawerCmd) drawerCmd.remove();
-                  }, PRINT_MODE_RESET_DELAY);
-              });
-          });
+          window.print();
+          
+          // Reset print mode and cleanup cash drawer command after printing
+          setTimeout(() => {
+              setPrintMode(null);
+              const drawerCmd = document.getElementById('cash-drawer-command');
+              if (drawerCmd) drawerCmd.remove();
+          }, PRINT_MODE_RESET_DELAY);
       }, CASH_DRAWER_EMBED_DELAY);
   };
 
@@ -1239,15 +1234,10 @@ export const PricingView: React.FC<PricingViewProps> = ({
         // Set print mode to ticket
         setPrintMode('ticket');
         // Wait for state to update and DOM to reflect the data-print-mode attribute
-        // Use requestAnimationFrame twice to ensure DOM is fully painted before printing
         setTimeout(() => {
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                    window.print();
-                    // Reset print mode after printing
-                    setTimeout(() => setPrintMode(null), PRINT_MODE_RESET_DELAY);
-                });
-            });
+            window.print();
+            // Reset print mode after printing
+            setTimeout(() => setPrintMode(null), PRINT_MODE_RESET_DELAY);
         }, TICKET_STATE_UPDATE_DELAY);
     } catch (error) {
         console.error('Error printing ticket:', error);
