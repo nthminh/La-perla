@@ -12,7 +12,7 @@ import { StaffPortalView } from './components/StaffPortalView';
 import { ArtistsView } from './components/ArtistsView'; 
 import PromotionsView from './components/PromotionsView';
 import { ChatWidget } from './components/ChatWidget';
-import { UploadIcon, SparklesIcon, PriceTagIcon, GalleryIcon, CameraIcon, DownloadIcon, BriefcaseIcon, CalendarIcon, GiftIcon, LaPerlaLogo, LockIcon, UsersIcon, CloudCheckIcon, CloudSyncIcon, CloudErrorIcon, XMarkIcon } from './components/Icons';
+import { UploadIcon, SparklesIcon, PriceTagIcon, GalleryIcon, CameraIcon, DownloadIcon, BriefcaseIcon, CalendarIcon, GiftIcon, LaPerlaLogo, LockIcon, UsersIcon, CloudCheckIcon, CloudSyncIcon, CloudErrorIcon, XMarkIcon, WalletIcon } from './components/Icons';
 import { TRANSLATIONS, Translation } from './translations';
 import { CartItem, ActiveBill, WaitlistEntry, ServiceCategory, StaffProfile, Review, BookingRequest, GlobalPayrollSettings, Transaction, AdminPasswords, MarqueeSettings } from './types';
 import { PRICING_DATA as DEFAULT_PRICING, DEFAULT_STAFF_PROFILES, DEFAULT_GLOBAL_PAYROLL, DEFAULT_ADMIN_PASSWORDS, DEFAULT_MARQUEE_SETTINGS } from './constants';
@@ -37,6 +37,7 @@ import {
 import { subscribeToSystemState, subscribeToSettings, updateStaffPresence, saveSettingsToFirebase, saveTransactionToFirebase, upsertBooking, deleteBooking, fetchTransactionsOnce, fetchTransactionsByDateRangeIncludingDeleted } from './services/firebaseService';
 import { clearFirebaseConfigLocally } from './services/firebaseConfig';
 import { SoundManager } from './utils/sound';
+import { openCashDrawerStandalone } from './utils/cashDrawer';
 
 type View = 'stylist' | 'pricing' | 'gallery' | 'portfolio' | 'booking' | 'promotions' | 'admin' | 'kiosk' | 'portal' | 'team';
 type AppMode = 'gate' | 'app'; 
@@ -533,6 +534,18 @@ const MainApp: React.FC = () => {
       deleteBooking(id);
   };
 
+  const handleOpenCashDrawer = async () => {
+      SoundManager.playTap();
+      try {
+          const success = await openCashDrawerStandalone();
+          if (!success) {
+              console.warn('Failed to open cash drawer');
+          }
+      } catch (error) {
+          console.error('Error opening cash drawer:', error);
+      }
+  };
+
   const t = TRANSLATIONS.en;
 
   // --- INITIAL LOAD & BACKGROUND SYNC ---
@@ -963,6 +976,18 @@ const MainApp: React.FC = () => {
       {/* WINDOW CONTROLS - Added to simulate native app frame */}
       <div className="w-full h-8 flex justify-end items-center bg-pearl-white select-none print:hidden z-[1000]" style={{ WebkitAppRegion: 'drag' } as any}>
          <div className="flex h-full items-center" style={{ WebkitAppRegion: 'no-drag' } as any}>
+            {/* CASH DRAWER BUTTON */}
+            {currentUser && (
+                <button 
+                    onClick={handleOpenCashDrawer}
+                    className="h-full px-3 text-gray-400 hover:text-gold-leaf transition-colors focus:outline-none flex items-center gap-1.5"
+                    title="Open Cash Drawer"
+                >
+                    <WalletIcon className="w-4 h-4" />
+                    <span className="text-xs font-medium">Cash Drawer</span>
+                </button>
+            )}
+
             {/* KIOSK BUTTON (MOVED HERE) */}
             {currentUser && (
                 <button 

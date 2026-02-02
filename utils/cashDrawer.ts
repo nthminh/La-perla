@@ -163,6 +163,71 @@ export class CashDrawerManager {
 }
 
 /**
+ * Opens the cash drawer standalone (without embedding in invoice)
+ * Creates a hidden temporary printable element with just the ESC/POS command
+ * and triggers a print to send the command to the printer
+ * 
+ * @returns Promise<boolean> - true if successful, false otherwise
+ */
+export const openCashDrawerStandalone = async (): Promise<boolean> => {
+  try {
+    // ESC/POS command bytes to open drawer
+    const ESC = 27;   // Escape
+    const p = 112;    // Drawer kick
+    const m = 0;      // Pin 2 (most common)
+    const t1 = 25;    // ON time (50ms)
+    const t2 = 250;   // OFF time (500ms)
+
+    // Create the command sequence
+    const drawerCommand = new Uint8Array([ESC, p, m, t1, t2]);
+    
+    // Convert to string that can be sent to printer
+    const commandString = Array.from(drawerCommand)
+      .map(byte => String.fromCharCode(byte))
+      .join('');
+
+    // Remove any existing command element
+    const existingCommand = document.getElementById('cash-drawer-standalone-command');
+    if (existingCommand) {
+      existingCommand.remove();
+    }
+
+    // Create a hidden printable element with the cash drawer command
+    // This element will only be visible during printing
+    const commandElement = document.createElement('div');
+    commandElement.id = 'cash-drawer-standalone-command';
+    commandElement.className = 'printable-cash-drawer-only';
+    commandElement.style.cssText = 'display: none;';
+    commandElement.innerHTML = `<pre style="margin:0;padding:0;font-size:1px;line-height:1px;">${commandString}</pre>`;
+
+    // Add to document body
+    document.body.appendChild(commandElement);
+
+    // Set print mode for cash drawer only
+    document.body.setAttribute('data-print-mode', 'cash-drawer');
+
+    // Wait for DOM update
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    // Trigger print to send command to printer
+    window.print();
+
+    // Clean up after print
+    setTimeout(() => {
+      document.body.removeAttribute('data-print-mode');
+      const element = document.getElementById('cash-drawer-standalone-command');
+      if (element) element.remove();
+    }, 500);
+
+    console.log('Standalone cash drawer command sent to printer');
+    return true;
+  } catch (error) {
+    console.error('Failed to open cash drawer standalone:', error);
+    return false;
+  }
+};
+
+/**
  * Opens the cash drawer
  * Convenience function to open the cash drawer
  * 
