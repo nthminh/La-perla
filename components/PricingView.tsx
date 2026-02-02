@@ -449,7 +449,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
       setPrintMode('bill');
       
       // Wait for React state update and DOM to reflect data-print-mode attribute on body
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 150));
       
       // Embed cash drawer command in the printable bill
       const drawerOpened = await openCashDrawer('printable-bill-area');
@@ -458,15 +458,20 @@ export const PricingView: React.FC<PricingViewProps> = ({
       }
       
       // Wait before printing to ensure cash drawer command is fully embedded in DOM
+      // Use requestAnimationFrame twice to ensure DOM is fully painted before printing
       setTimeout(() => {
-          window.print();
-          
-          // Reset print mode and cleanup cash drawer command after printing
-          setTimeout(() => {
-              setPrintMode(null);
-              const drawerCmd = document.getElementById('cash-drawer-command');
-              if (drawerCmd) drawerCmd.remove();
-          }, PRINT_MODE_RESET_DELAY);
+          requestAnimationFrame(() => {
+              requestAnimationFrame(() => {
+                  window.print();
+                  
+                  // Reset print mode and cleanup cash drawer command after printing
+                  setTimeout(() => {
+                      setPrintMode(null);
+                      const drawerCmd = document.getElementById('cash-drawer-command');
+                      if (drawerCmd) drawerCmd.remove();
+                  }, PRINT_MODE_RESET_DELAY);
+              });
+          });
       }, CASH_DRAWER_EMBED_DELAY);
   };
 
@@ -1232,11 +1237,16 @@ export const PricingView: React.FC<PricingViewProps> = ({
         // Set print mode to ticket
         setPrintMode('ticket');
         // Wait for state to update and DOM to reflect the data-print-mode attribute
+        // Use requestAnimationFrame twice to ensure DOM is fully painted before printing
         setTimeout(() => {
-            window.print();
-            // Reset print mode after printing
-            setTimeout(() => setPrintMode(null), PRINT_MODE_RESET_DELAY);
-        }, 50);
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    window.print();
+                    // Reset print mode after printing
+                    setTimeout(() => setPrintMode(null), PRINT_MODE_RESET_DELAY);
+                });
+            });
+        }, 100); // Increased from 50ms to 100ms for more reliable state updates
     } catch (error) {
         console.error('Error printing ticket:', error);
         SoundManager.playError();
