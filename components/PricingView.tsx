@@ -241,6 +241,25 @@ export const PricingView: React.FC<PricingViewProps> = ({
   const isAdmin = currentUser?.id === 'admin_master';
   const isManager = currentUser?.id === 'shop_manager';
 
+  // Create an augmented staff list that includes the current user if they're a manager or admin
+  // This allows shop_manager and admin_master to assign services to themselves
+  const staffListForSelection = useMemo(() => {
+      if (!currentUser) return staffList;
+      
+      // Check if current user is already in the staff list
+      const isCurrentUserInList = staffList.some(staff => staff.id === currentUser.id);
+      
+      // If current user is manager or admin AND not in the list, add them
+      const isCurrentUserAdmin = currentUser.id === 'admin_master';
+      const isCurrentUserManager = currentUser.id === 'shop_manager';
+      
+      if ((isCurrentUserAdmin || isCurrentUserManager) && !isCurrentUserInList) {
+          return [...staffList, currentUser];
+      }
+      
+      return staffList;
+  }, [staffList, currentUser]);
+
   useEffect(() => {
       if (showStaffModal && pendingService) {
           setIsSplitMode(false);
@@ -1777,7 +1796,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
                           <button onClick={handleConfirmSplit} disabled={!splitStaff1 || !splitStaff2} className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl shadow-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">Confirm Split</button>
                       </div>
                   )}
-                  <div className="grid grid-cols-3 gap-3">{staffList.map((staff) => <button key={staff.id} onClick={() => handleStaffSelect(staff)} className="flex flex-col items-center p-2 rounded-xl hover:bg-gray-50 border border-transparent hover:border-gold-leaf transition-all group"><div className="w-14 h-14 rounded-full overflow-hidden border-2 border-gray-200 mb-2 group-hover:border-gold-leaf transition-colors bg-gray-100 relative">{staff.avatar ? <img src={staff.avatar} alt={staff.name} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-gray-400"><UserIcon className="w-6 h-6" /></div>}</div><span className="text-xs font-bold text-charcoal group-hover:text-gold-leaf text-center leading-tight">{staff.name}</span></button>)}</div>
+                  <div className="grid grid-cols-3 gap-3">{staffListForSelection.map((staff) => <button key={staff.id} onClick={() => handleStaffSelect(staff)} className="flex flex-col items-center p-2 rounded-xl hover:bg-gray-50 border border-transparent hover:border-gold-leaf transition-all group"><div className="w-14 h-14 rounded-full overflow-hidden border-2 border-gray-200 mb-2 group-hover:border-gold-leaf transition-colors bg-gray-100 relative">{staff.avatar ? <img src={staff.avatar} alt={staff.name} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-gray-400"><UserIcon className="w-6 h-6" /></div>}</div><span className="text-xs font-bold text-charcoal group-hover:text-gold-leaf text-center leading-tight">{staff.name}</span></button>)}</div>
               </div>
           </div>
       )}
