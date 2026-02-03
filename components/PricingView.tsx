@@ -786,10 +786,10 @@ export const PricingView: React.FC<PricingViewProps> = ({
 
   const handleAddClick = async (service: {nameKey: string, price: string, displayName?: string}) => {
       if (!isStaffMode) return;
-      SoundManager.playAddToCart();
       
       // If viewing history bill, add to it directly
       if (viewingHistoryBill) {
+          SoundManager.playAddToCart();
           if (currentUser && !isAdmin && !isManager) {
               // Non-admin staff auto-assign to themselves
               const newItem: CartItem = {
@@ -811,9 +811,19 @@ export const PricingView: React.FC<PricingViewProps> = ({
           return;
       }
       
-      // For the first order (no current bill or empty cart), assign to current user automatically
-      // For subsequent services on existing bills, admins/managers can choose staff
-      if (currentUser && ((!isAdmin && !isManager) || !currentBill || cartItems.length === 0)) {
+      // Check if worker has an active cart order
+      if (!currentBill) {
+          // Show message if no active order exists
+          SoundManager.playError();
+          alert("Please select an order for the customer you are currently serving before adding services.");
+          return;
+      }
+      
+      SoundManager.playAddToCart();
+      
+      // Add service to the active cart order
+      if (currentUser && !isAdmin && !isManager) {
+          // Non-admin staff auto-assign to themselves
           const newItem: CartItem = {
               id: generateUniqueId(),
               nameKey: service.nameKey,
@@ -823,20 +833,11 @@ export const PricingView: React.FC<PricingViewProps> = ({
               staffId: currentUser.id,
               displayName: service.displayName
           };
-          if (!currentBill) {
-               const newId = generateUniqueBillId();
-               const ticketNum = await getNextTicketNumber('checkin');
-               const newBill: ActiveBill = { id: newId, customerName: `${currentUser.name}'s Guest`, customerPhone: '', customerNotes: '', items: [newItem], discountPercentage: 0, createdByStaffId: currentUser.id, ticketNumber: ticketNum };
-               setOrderCreatingFlag();
-               setActiveBills(prev => [...(prev || []), newBill]);
-               setCurrentBillId(newId);
-               upsertActiveBill(newBill);
-          } else {
-               let billUpdates: Partial<ActiveBill> = { items: [...cartItems, newItem] };
-               if (currentBill.customerName === "Guest" && cartItems.length === 0) billUpdates.customerName = `${currentUser.name}'s Guest`;
-               updateCurrentBill(billUpdates);
-          }
+          let billUpdates: Partial<ActiveBill> = { items: [...cartItems, newItem] };
+          if (currentBill.customerName === "Guest" && cartItems.length === 0) billUpdates.customerName = `${currentUser.name}'s Guest`;
+          updateCurrentBill(billUpdates);
       } else {
+          // Admins/managers choose staff
           setPendingService(service);
           setEditingIds([]);
           setShowStaffModal(true);
@@ -845,10 +846,10 @@ export const PricingView: React.FC<PricingViewProps> = ({
 
   const triggerStaffSelection = async (nameKey: string, price: string, displayName?: string) => {
       if (!isStaffMode) return;
-      SoundManager.playTap();
       
       // If viewing history bill, allow staff selection
       if (viewingHistoryBill) {
+          SoundManager.playTap();
           setPendingService({ nameKey, price, displayName });
           setEditingIds([]);
           setShowStaffModal(true);
@@ -856,21 +857,25 @@ export const PricingView: React.FC<PricingViewProps> = ({
           return;
       }
       
-      // For the first order (no current bill or empty cart), assign to current user automatically
-      // For subsequent services on existing bills, admins/managers can choose staff
-      if (currentUser && ((!isAdmin && !isManager) || !currentBill || cartItems.length === 0)) {
+      // Check if worker has an active cart order
+      if (!currentBill) {
+          // Show message if no active order exists
+          SoundManager.playError();
+          alert("Please select an order for the customer you are currently serving before adding services.");
+          setNegotiatedPrices(prev => ({...prev, [nameKey]: ''}));
+          return;
+      }
+      
+      SoundManager.playTap();
+      
+      // Add service to the active cart order
+      if (currentUser && !isAdmin && !isManager) {
+          // Non-admin staff auto-assign to themselves
           const newItem: CartItem = { id: generateUniqueId(), nameKey, price: parsePrice(price), quantity: 1, staffName: currentUser.name, staffId: currentUser.id, displayName };
-          if (!currentBill) {
-               const newId = generateUniqueBillId();
-               const ticketNum = await getNextTicketNumber('checkin');
-               const newBill: ActiveBill = { id: newId, customerName: `${currentUser.name}'s Guest`, customerPhone: '', customerNotes: '', items: [newItem], discountPercentage: 0, createdByStaffId: currentUser.id, ticketNumber: ticketNum };
-               setOrderCreatingFlag();
-               setActiveBills(prev => [...(prev || []), newBill]);
-               setCurrentBillId(newId);
-               upsertActiveBill(newBill);
-          } else updateCurrentBill({ items: [...cartItems, newItem] });
+          updateCurrentBill({ items: [...cartItems, newItem] });
           setNegotiatedPrices(prev => ({...prev, [nameKey]: ''}));
       } else {
+          // Admins/managers choose staff
           setPendingService({ nameKey, price, displayName });
           setEditingIds([]);
           setShowStaffModal(true);
