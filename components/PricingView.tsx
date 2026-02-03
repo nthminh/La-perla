@@ -811,9 +811,9 @@ export const PricingView: React.FC<PricingViewProps> = ({
           return;
       }
       
-      // For the first order (no current bill), assign to current user automatically
+      // For the first order (no current bill or empty cart), assign to current user automatically
       // For subsequent services on existing bills, admins/managers can choose staff
-      if (currentUser && ((!isAdmin && !isManager) || !currentBill)) {
+      if (currentUser && ((!isAdmin && !isManager) || !currentBill || cartItems.length === 0)) {
           const newItem: CartItem = {
               id: generateUniqueId(),
               nameKey: service.nameKey,
@@ -856,9 +856,9 @@ export const PricingView: React.FC<PricingViewProps> = ({
           return;
       }
       
-      // For the first order (no current bill), assign to current user automatically
+      // For the first order (no current bill or empty cart), assign to current user automatically
       // For subsequent services on existing bills, admins/managers can choose staff
-      if (currentUser && ((!isAdmin && !isManager) || !currentBill)) {
+      if (currentUser && ((!isAdmin && !isManager) || !currentBill || cartItems.length === 0)) {
           const newItem: CartItem = { id: generateUniqueId(), nameKey, price: parsePrice(price), quantity: 1, staffName: currentUser.name, staffId: currentUser.id, displayName };
           if (!currentBill) {
                const newId = generateUniqueBillId();
