@@ -696,6 +696,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
       setOrderCreatingFlag();
       setActiveBills(prev => Array.isArray(prev) ? [...prev, newBill] : [newBill]);
       setCurrentBillId(newId);
+      setIsBillOpen(true);
       upsertActiveBill(newBill);
   };
 
@@ -946,6 +947,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
            setOrderCreatingFlag();
            setActiveBills(prev => [...(prev || []), newBill]);
            setCurrentBillId(newId);
+           setIsBillOpen(true);
            upsertActiveBill(newBill);
       } else {
           if (editingIds.length > 0) {
@@ -971,6 +973,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
            setOrderCreatingFlag();
            setActiveBills(prev => [...(prev || []), newBill]);
            setCurrentBillId(newId);
+           setIsBillOpen(true);
            upsertActiveBill(newBill);
       } else {
           const newItems = editingIds.length > 0 ? cartItems.flatMap(item => editingIds.includes(item.id) ? [item1, item2] : [item]) : [...cartItems, item1, item2];
