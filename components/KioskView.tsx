@@ -234,9 +234,8 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
       setGeneratedTicket(ticketNum);
       const bookingServices = foundBooking.services || [];
       setSelectedServices(bookingServices); // Set selected services for ticket display
-      const initialItems = convertServicesToCartItems(bookingServices);
       const newBillId = generateUniqueBillId();
-      const newBill: ActiveBill = { id: newBillId, customerName: foundBooking.customerName, customerPhone: foundBooking.customerPhone, items: initialItems, discountPercentage: 0, ticketNumber: ticketNum, isVip: isVip };
+      const newBill: ActiveBill = { id: newBillId, customerName: foundBooking.customerName, customerPhone: foundBooking.customerPhone, items: [], discountPercentage: 0, ticketNumber: ticketNum, isVip: isVip };
       await upsertActiveBill(newBill);
       if (setCurrentBillId) {
         setCurrentBillId(newBillId);
@@ -262,9 +261,8 @@ export const KioskView: React.FC<KioskViewProps> = ({ t, waitlist, setWaitlist, 
       SoundManager.playSuccess();
       const ticketNum = await getNextTicketNumber('checkin');
       setGeneratedTicket(ticketNum);
-      const initialItems = convertServicesToCartItems(selectedServices);
       const newBillId = generateUniqueBillId();
-      const newBill: ActiveBill = { id: newBillId, customerName: name, customerPhone: phone, items: initialItems, discountPercentage: 0, ticketNumber: ticketNum, isVip: isVip };
+      const newBill: ActiveBill = { id: newBillId, customerName: name, customerPhone: phone, items: [], discountPercentage: 0, ticketNumber: ticketNum, isVip: isVip };
       await upsertActiveBill(newBill);
       if (setCurrentBillId) {
         setCurrentBillId(newBillId);
