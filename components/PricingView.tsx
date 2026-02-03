@@ -250,12 +250,15 @@ export const PricingView: React.FC<PricingViewProps> = ({
       const isCurrentUserInList = staffList.some(staff => staff.id === currentUser.id);
       
       // If current user is manager or admin AND not in the list, add them
-      if ((isAdmin || isManager) && !isCurrentUserInList) {
+      const isCurrentUserAdmin = currentUser.id === 'admin_master';
+      const isCurrentUserManager = currentUser.id === 'shop_manager';
+      
+      if ((isCurrentUserAdmin || isCurrentUserManager) && !isCurrentUserInList) {
           return [...staffList, currentUser];
       }
       
       return staffList;
-  }, [staffList, currentUser, isAdmin, isManager]);
+  }, [staffList, currentUser]);
 
   useEffect(() => {
       if (showStaffModal && pendingService) {
