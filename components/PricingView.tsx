@@ -787,16 +787,9 @@ export const PricingView: React.FC<PricingViewProps> = ({
   const handleAddClick = async (service: {nameKey: string, price: string, displayName?: string}) => {
       if (!isStaffMode) return;
       
-      // If no current bill exists, do nothing - user must create an order first
-      if (!viewingHistoryBill && !currentBill) {
-          SoundManager.playError();
-          return;
-      }
-      
-      SoundManager.playAddToCart();
-      
       // If viewing history bill, add to it directly
       if (viewingHistoryBill) {
+          SoundManager.playAddToCart();
           if (currentUser && !isAdmin && !isManager) {
               // Non-admin staff auto-assign to themselves
               const newItem: CartItem = {
@@ -817,6 +810,14 @@ export const PricingView: React.FC<PricingViewProps> = ({
           }
           return;
       }
+      
+      // If no current bill exists, do nothing - user must create an order first
+      if (!currentBill) {
+          SoundManager.playError();
+          return;
+      }
+      
+      SoundManager.playAddToCart();
       
       // Add service to existing order
       if (currentUser && !isAdmin && !isManager) {
@@ -842,22 +843,23 @@ export const PricingView: React.FC<PricingViewProps> = ({
   const triggerStaffSelection = async (nameKey: string, price: string, displayName?: string) => {
       if (!isStaffMode) return;
       
-      // If no current bill exists, do nothing - user must create an order first
-      if (!viewingHistoryBill && !currentBill) {
-          SoundManager.playError();
-          return;
-      }
-      
-      SoundManager.playTap();
-      
       // If viewing history bill, allow staff selection
       if (viewingHistoryBill) {
+          SoundManager.playTap();
           setPendingService({ nameKey, price, displayName });
           setEditingIds([]);
           setShowStaffModal(true);
           setNegotiatedPrices(prev => ({...prev, [nameKey]: ''}));
           return;
       }
+      
+      // If no current bill exists, do nothing - user must create an order first
+      if (!currentBill) {
+          SoundManager.playError();
+          return;
+      }
+      
+      SoundManager.playTap();
       
       // Add service to existing order
       if (currentUser && !isAdmin && !isManager) {
