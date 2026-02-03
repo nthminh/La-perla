@@ -786,6 +786,13 @@ export const PricingView: React.FC<PricingViewProps> = ({
 
   const handleAddClick = async (service: {nameKey: string, price: string, displayName?: string}) => {
       if (!isStaffMode) return;
+      
+      // If no current bill exists, do nothing - user must create an order first
+      if (!viewingHistoryBill && !currentBill) {
+          SoundManager.playError();
+          return;
+      }
+      
       SoundManager.playAddToCart();
       
       // If viewing history bill, add to it directly
@@ -811,9 +818,8 @@ export const PricingView: React.FC<PricingViewProps> = ({
           return;
       }
       
-      // For the first order (no current bill), assign to current user automatically
-      // For subsequent services on existing bills, admins/managers can choose staff
-      if (currentUser && ((!isAdmin && !isManager) || !currentBill)) {
+      // Add service to existing order
+      if (currentUser && !isAdmin && !isManager) {
           const newItem: CartItem = {
               id: generateUniqueId(),
               nameKey: service.nameKey,
@@ -823,19 +829,9 @@ export const PricingView: React.FC<PricingViewProps> = ({
               staffId: currentUser.id,
               displayName: service.displayName
           };
-          if (!currentBill) {
-               const newId = generateUniqueBillId();
-               const ticketNum = await getNextTicketNumber('checkin');
-               const newBill: ActiveBill = { id: newId, customerName: `${currentUser.name}'s Guest`, customerPhone: '', customerNotes: '', items: [newItem], discountPercentage: 0, createdByStaffId: currentUser.id, ticketNumber: ticketNum };
-               setOrderCreatingFlag();
-               setActiveBills(prev => [...(prev || []), newBill]);
-               setCurrentBillId(newId);
-               upsertActiveBill(newBill);
-          } else {
-               let billUpdates: Partial<ActiveBill> = { items: [...cartItems, newItem] };
-               if (currentBill.customerName === "Guest" && cartItems.length === 0) billUpdates.customerName = `${currentUser.name}'s Guest`;
-               updateCurrentBill(billUpdates);
-          }
+          let billUpdates: Partial<ActiveBill> = { items: [...cartItems, newItem] };
+          if (currentBill.customerName === "Guest" && cartItems.length === 0) billUpdates.customerName = `${currentUser.name}'s Guest`;
+          updateCurrentBill(billUpdates);
       } else {
           setPendingService(service);
           setEditingIds([]);
@@ -845,6 +841,13 @@ export const PricingView: React.FC<PricingViewProps> = ({
 
   const triggerStaffSelection = async (nameKey: string, price: string, displayName?: string) => {
       if (!isStaffMode) return;
+      
+      // If no current bill exists, do nothing - user must create an order first
+      if (!viewingHistoryBill && !currentBill) {
+          SoundManager.playError();
+          return;
+      }
+      
       SoundManager.playTap();
       
       // If viewing history bill, allow staff selection
@@ -856,19 +859,10 @@ export const PricingView: React.FC<PricingViewProps> = ({
           return;
       }
       
-      // For the first order (no current bill), assign to current user automatically
-      // For subsequent services on existing bills, admins/managers can choose staff
-      if (currentUser && ((!isAdmin && !isManager) || !currentBill)) {
+      // Add service to existing order
+      if (currentUser && !isAdmin && !isManager) {
           const newItem: CartItem = { id: generateUniqueId(), nameKey, price: parsePrice(price), quantity: 1, staffName: currentUser.name, staffId: currentUser.id, displayName };
-          if (!currentBill) {
-               const newId = generateUniqueBillId();
-               const ticketNum = await getNextTicketNumber('checkin');
-               const newBill: ActiveBill = { id: newId, customerName: `${currentUser.name}'s Guest`, customerPhone: '', customerNotes: '', items: [newItem], discountPercentage: 0, createdByStaffId: currentUser.id, ticketNumber: ticketNum };
-               setOrderCreatingFlag();
-               setActiveBills(prev => [...(prev || []), newBill]);
-               setCurrentBillId(newId);
-               upsertActiveBill(newBill);
-          } else updateCurrentBill({ items: [...cartItems, newItem] });
+          updateCurrentBill({ items: [...cartItems, newItem] });
           setNegotiatedPrices(prev => ({...prev, [nameKey]: ''}));
       } else {
           setPendingService({ nameKey, price, displayName });
