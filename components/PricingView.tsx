@@ -759,7 +759,6 @@ export const PricingView: React.FC<PricingViewProps> = ({
           isVip: tx.items.some(i => (i.nameKey || '').toLowerCase().includes('yearlymembership'))
       };
       setViewingHistoryBill(bill);
-      setShowHistoryModal(false);
       setIsBillOpen(true); 
   };
 
@@ -1613,7 +1612,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
       )}
 
       {isBillOpen && (
-          <div className="fixed inset-0 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" style={{ zIndex: 50 }}>
+          <div className="fixed inset-0 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" style={{ zIndex: 101 }}>
               <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
                   <div className="bg-white p-6 pb-4 text-center border-b border-gray-100 relative shadow-sm z-10">
                       <button onClick={handleCloseBillModal} className="absolute top-4 right-4 text-gray-400 hover:text-charcoal transition-colors"><XMarkIcon className="w-6 h-6" /></button>
