@@ -1782,7 +1782,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
       )}
 
       {showStaffModal && (
-          <div className="fixed inset-0 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" style={{ zIndex: 60 }}>
+          <div className="fixed inset-0 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" style={{ zIndex: 102 }}>
               <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 relative max-h-[85vh] overflow-y-auto custom-scrollbar">
                   <button onClick={() => { setShowStaffModal(false); setPendingService(null); setEditingIds([]); setIsSplitMode(false); }} className="absolute top-4 right-4 text-gray-400 hover:text-charcoal"><XMarkIcon className="w-6 h-6" /></button>
                   <div className="flex justify-center mb-4"><button onClick={() => { SoundManager.playTap(); setIsSplitMode(!isSplitMode); }} className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold border transition-all ${isSplitMode ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-gray-100 text-gray-500 border border-gray-200 hover:bg-gray-200'}`}><UsersIcon className="w-4 h-4" />{isSplitMode ? 'Cancel Split' : 'Split / Share'}</button></div>
