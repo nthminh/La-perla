@@ -747,7 +747,8 @@ export const PricingView: React.FC<PricingViewProps> = ({
 
   const handleViewHistoryItem = (tx: Transaction) => {
       SoundManager.playTap();
-      setCashTendered(''); 
+      setCashTendered('');
+      console.log('[Transaction Edit] Opening transaction for editing:', tx.id);
       const bill: ActiveBill = {
           id: tx.id,
           customerName: tx.customerName || 'Guest',
@@ -756,7 +757,8 @@ export const PricingView: React.FC<PricingViewProps> = ({
           items: tx.items.map(i => ({ ...i, id: Math.random().toString(36).substring(2, 11) })),
           discountPercentage: tx.discountPercentage || 0,
           date: tx.date,
-          isVip: tx.items.some(i => (i.nameKey || '').toLowerCase().includes('yearlymembership'))
+          isVip: tx.items.some(i => (i.nameKey || '').toLowerCase().includes('yearlymembership')),
+          ticketNumber: tx.ticketNumber
       };
       setViewingHistoryBill(bill);
       setIsBillOpen(true); 
@@ -1089,6 +1091,8 @@ export const PricingView: React.FC<PricingViewProps> = ({
   const handleSaveHistoryBill = async () => {
     if (!viewingHistoryBill) return;
     
+    console.log('[Transaction Edit] Saving changes to transaction:', viewingHistoryBill.id);
+    
     // Prevent duplicate submissions
     if (isSaving) {
         console.log("Save already in progress, ignoring duplicate click");
@@ -1099,6 +1103,14 @@ export const PricingView: React.FC<PricingViewProps> = ({
     SoundManager.playSuccess();
     
     try {
+        // Ensure transaction ID is preserved (defensive check)
+        if (!viewingHistoryBill.id) {
+            console.error('[Transaction Edit] ERROR: Transaction ID is missing!');
+            alert("Error: Cannot save - transaction ID is missing.");
+            setIsSaving(false);
+            return;
+        }
+        
         // Create updated transaction from the viewing history bill
         const updatedTransaction: Transaction = {
             id: viewingHistoryBill.id,
@@ -1120,12 +1132,16 @@ export const PricingView: React.FC<PricingViewProps> = ({
             ticketNumber: viewingHistoryBill.ticketNumber
         };
         
+        console.log('[Transaction Edit] Updating transaction in Firebase:', updatedTransaction.id);
+        
         // Update in Firebase
         const success = await updateTransactionInFirebase(updatedTransaction);
         
         if (success) {
             // Update local storage
             saveTransaction(updatedTransaction);
+            
+            console.log('[Transaction Edit] Transaction updated successfully:', updatedTransaction.id);
             
             // Close the modal and clear viewing state
             setViewingHistoryBill(null);
@@ -1136,10 +1152,11 @@ export const PricingView: React.FC<PricingViewProps> = ({
             
             alert("Changes saved successfully!");
         } else {
+            console.error('[Transaction Edit] Failed to update transaction in Firebase');
             alert("Failed to save changes. Please try again.");
         }
     } catch (error) {
-        console.error("Error saving history bill:", error);
+        console.error("[Transaction Edit] Error saving history bill:", error);
         alert("Error saving changes. Please try again.");
     } finally {
         setIsSaving(false);
@@ -1620,6 +1637,15 @@ export const PricingView: React.FC<PricingViewProps> = ({
                       <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">{t.total}</p>
                       <div className="text-5xl font-serif font-bold text-charcoal mb-2">${finalTotal.toFixed(2)}</div>
                       <p className="text-xs text-gray-400 mb-4 font-mono">{billDateString}</p>
+                      {viewingHistoryBill && (
+                          <div className="mb-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
+                              <p className="text-xs font-bold text-amber-700 uppercase tracking-wide text-center flex items-center justify-center gap-2">
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                  Editing Existing Transaction
+                                  {targetBill?.ticketNumber && <span className="font-mono bg-amber-700 text-white px-1.5 py-0.5 rounded text-[10px]">#{targetBill.ticketNumber}</span>}
+                              </p>
+                          </div>
+                      )}
                       <div className="flex justify-center items-center gap-4 text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">
                           <span>Subtotal: ${cartTotal.toFixed(2)}</span>
                           <div className="flex items-center gap-1"><span>Discount:</span>{isStaffMode ? <select value={discountPercentage} onChange={(e) => updateCurrentBill({ discountPercentage: Number(e.target.value) })} className="bg-gray-100 border border-gray-300 rounded px-1 py-0.5 text-xs outline-none focus:border-gold-leaf text-charcoal">{[0,5,10,15,20,25,30].map(v => <option key={v} value={v}>{v}%</option>)}</select> : <span className="text-red-500">{discountPercentage}% (-${discountAmount.toFixed(2)})</span>}</div>
