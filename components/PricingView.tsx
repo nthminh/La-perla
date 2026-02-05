@@ -939,21 +939,35 @@ export const PricingView: React.FC<PricingViewProps> = ({
           return;
       }
       const newItem: CartItem = { id: generateUniqueId(), nameKey: pendingService.nameKey, price: parsePrice(pendingService.price), quantity: 1, staffName: staff.name, staffId: staff.id, displayName: pendingService.displayName };
-      if (!currentBill && !viewingHistoryBill) {
-           const newId = generateUniqueBillId();
-           const hostName = (currentUser && !isAdmin && !isManager) ? currentUser.name : (isAdmin ? 'Admin' : (isManager ? 'Manager' : staff.name));
-           const ticketNum = await getNextTicketNumber('checkin');
-           const newBill: ActiveBill = { id: newId, customerName: `${hostName}'s Guest`, customerPhone: '', customerNotes: '', items: [newItem], discountPercentage: 0, createdByStaffId: currentUser?.id, ticketNumber: ticketNum };
-           setOrderCreatingFlag();
-           setActiveBills(prev => [...(prev || []), newBill]);
-           setCurrentBillId(newId);
-           upsertActiveBill(newBill);
-      } else {
+      
+      // Explicitly check if editing a history bill first
+      if (viewingHistoryBill) {
           if (editingIds.length > 0) {
               const updatedItems = cartItems.map(item => editingIds.includes(item.id) ? { ...item, staffName: staff.name, staffId: staff.id } : item);
               updateCurrentBill({ items: updatedItems });
-          } else updateCurrentBill({ items: [...cartItems, newItem] });
+          } else {
+              updateCurrentBill({ items: [...cartItems, newItem] });
+          }
+      } else if (!currentBill) {
+          // Create new bill if no active bill exists
+          const newId = generateUniqueBillId();
+          const hostName = (currentUser && !isAdmin && !isManager) ? currentUser.name : (isAdmin ? 'Admin' : (isManager ? 'Manager' : staff.name));
+          const ticketNum = await getNextTicketNumber('checkin');
+          const newBill: ActiveBill = { id: newId, customerName: `${hostName}'s Guest`, customerPhone: '', customerNotes: '', items: [newItem], discountPercentage: 0, createdByStaffId: currentUser?.id, ticketNumber: ticketNum };
+          setOrderCreatingFlag();
+          setActiveBills(prev => [...(prev || []), newBill]);
+          setCurrentBillId(newId);
+          upsertActiveBill(newBill);
+      } else {
+          // Update existing active bill
+          if (editingIds.length > 0) {
+              const updatedItems = cartItems.map(item => editingIds.includes(item.id) ? { ...item, staffName: staff.name, staffId: staff.id } : item);
+              updateCurrentBill({ items: updatedItems });
+          } else {
+              updateCurrentBill({ items: [...cartItems, newItem] });
+          }
       }
+      
       setShowStaffModal(false); setPendingService(null); setEditingIds([]);
   };
 
@@ -965,18 +979,26 @@ export const PricingView: React.FC<PricingViewProps> = ({
       const baseName = pendingService.displayName || t.serviceNames[pendingService.nameKey] || pendingService.nameKey;
       const item1: CartItem = { id: generateUniqueId(), nameKey: pendingService.nameKey, displayName: `${baseName} (Part 1)`, price: price1, quantity: 1, staffName: splitStaff1.name, staffId: splitStaff1.id };
       const item2: CartItem = { id: generateUniqueId(), nameKey: pendingService.nameKey, displayName: `${baseName} (Part 2)`, price: price2, quantity: 1, staffName: splitStaff2.name, staffId: splitStaff2.id };
-      if (!currentBill && !viewingHistoryBill) {
-           const newId = generateUniqueBillId();
-           const ticketNum = await getNextTicketNumber('checkin');
-           const newBill: ActiveBill = { id: newId, customerName: `Split Guest`, customerPhone: '', customerNotes: '', items: [item1, item2], discountPercentage: 0, createdByStaffId: currentUser?.id, ticketNumber: ticketNum };
-           setOrderCreatingFlag();
-           setActiveBills(prev => [...(prev || []), newBill]);
-           setCurrentBillId(newId);
-           upsertActiveBill(newBill);
+      
+      // Explicitly check if editing a history bill first
+      if (viewingHistoryBill) {
+          const newItems = editingIds.length > 0 ? cartItems.flatMap(item => editingIds.includes(item.id) ? [item1, item2] : [item]) : [...cartItems, item1, item2];
+          updateCurrentBill({ items: newItems });
+      } else if (!currentBill) {
+          // Create new bill if no active bill exists
+          const newId = generateUniqueBillId();
+          const ticketNum = await getNextTicketNumber('checkin');
+          const newBill: ActiveBill = { id: newId, customerName: `Split Guest`, customerPhone: '', customerNotes: '', items: [item1, item2], discountPercentage: 0, createdByStaffId: currentUser?.id, ticketNumber: ticketNum };
+          setOrderCreatingFlag();
+          setActiveBills(prev => [...(prev || []), newBill]);
+          setCurrentBillId(newId);
+          upsertActiveBill(newBill);
       } else {
+          // Update existing active bill
           const newItems = editingIds.length > 0 ? cartItems.flatMap(item => editingIds.includes(item.id) ? [item1, item2] : [item]) : [...cartItems, item1, item2];
           updateCurrentBill({ items: newItems });
       }
+      
       setShowStaffModal(false); setPendingService(null); setEditingIds([]); setIsSplitMode(false);
   };
 
