@@ -939,7 +939,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
           return;
       }
       const newItem: CartItem = { id: generateUniqueId(), nameKey: pendingService.nameKey, price: parsePrice(pendingService.price), quantity: 1, staffName: staff.name, staffId: staff.id, displayName: pendingService.displayName };
-      if (!currentBill) {
+      if (!currentBill && !viewingHistoryBill) {
            const newId = generateUniqueBillId();
            const hostName = (currentUser && !isAdmin && !isManager) ? currentUser.name : (isAdmin ? 'Admin' : (isManager ? 'Manager' : staff.name));
            const ticketNum = await getNextTicketNumber('checkin');
@@ -965,7 +965,7 @@ export const PricingView: React.FC<PricingViewProps> = ({
       const baseName = pendingService.displayName || t.serviceNames[pendingService.nameKey] || pendingService.nameKey;
       const item1: CartItem = { id: generateUniqueId(), nameKey: pendingService.nameKey, displayName: `${baseName} (Part 1)`, price: price1, quantity: 1, staffName: splitStaff1.name, staffId: splitStaff1.id };
       const item2: CartItem = { id: generateUniqueId(), nameKey: pendingService.nameKey, displayName: `${baseName} (Part 2)`, price: price2, quantity: 1, staffName: splitStaff2.name, staffId: splitStaff2.id };
-      if (!currentBill) {
+      if (!currentBill && !viewingHistoryBill) {
            const newId = generateUniqueBillId();
            const ticketNum = await getNextTicketNumber('checkin');
            const newBill: ActiveBill = { id: newId, customerName: `Split Guest`, customerPhone: '', customerNotes: '', items: [item1, item2], discountPercentage: 0, createdByStaffId: currentUser?.id, ticketNumber: ticketNum };
