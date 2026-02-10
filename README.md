@@ -54,6 +54,11 @@ View your app in AI Studio: https://ai.studio/apps/drive/1Ay5kinG8NgbB3wU-5ZvKuk
 
 ## 📚 Documentation
 
+### 🚀 Advanced Features Proposal
+- **[📋 Advanced Features Index](./ADVANCED_FEATURES_INDEX.md)** - **NEW!** Quick navigation to proposals
+- **[🇻🇳 Đề Xuất Tính Năng Nâng Cao](./DE_XUAT_TINH_NANG_NANG_CAO.md)** - **NEW!** 40+ feature proposals (Vietnamese)
+- **[🇺🇸 Advanced Features Proposal](./ADVANCED_FEATURES_PROPOSAL_EN.md)** - **NEW!** 40+ feature proposals (English)
+
 ### 🆘 Emergency Data Recovery
 - **[🆘 Emergency Data Recovery (Vietnamese)](./DATA_RECOVERY_GUIDE_VI.md)** - **NEW!** Hướng dẫn phục hồi dữ liệu khẩn cấp
 - **[🆘 Emergency Data Recovery (English)](./DATA_RECOVERY_GUIDE_EN.md)** - **NEW!** Emergency data recovery guide
