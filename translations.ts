@@ -187,6 +187,29 @@ export interface Translation {
   payrollTotalPayrollCost: string;
   payrollMonth: string;
   payrollYear: string;
+  // Quick Income Entry
+  navQuickIncome: string;
+  quickIncomeTitle: string;
+  quickIncomeSubtitle: string;
+  quickIncomeAmountLabel: string;
+  quickIncomeAmountPlaceholder: string;
+  quickIncomeNoteLabel: string;
+  quickIncomeNotePlaceholder: string;
+  quickIncomeStaffLabel: string;
+  quickIncomeSubmit: string;
+  quickIncomeSuccess: string;
+  quickIncomeRecentTitle: string;
+  quickIncomeNoEntries: string;
+  quickIncomeEdit: string;
+  quickIncomeSaveEdit: string;
+  quickIncomeCancelEdit: string;
+  quickIncomeDelete: string;
+  quickIncomeLoginRequired: string;
+  quickIncomeSelectStaff: string;
+  quickIncomeInvalidAmount: string;
+  quickIncomeSelectStaffError: string;
+  quickIncomeSaveError: string;
+  quickIncomeDeleteConfirm: string;
 }
 
 const baseTranslations: Omit<Translation, 'name' | 'flag'> = {
@@ -372,6 +395,29 @@ const baseTranslations: Omit<Translation, 'name' | 'flag'> = {
   payrollTotalPayrollCost: "Total Payroll Cost",
   payrollMonth: "Month",
   payrollYear: "Year",
+  // Quick Income Entry
+  navQuickIncome: "Quick Income",
+  quickIncomeTitle: "Quick Income Entry",
+  quickIncomeSubtitle: "Enter the amount you just earned directly, without selecting services.",
+  quickIncomeAmountLabel: "Amount ($)",
+  quickIncomeAmountPlaceholder: "e.g. 45",
+  quickIncomeNoteLabel: "Note (optional)",
+  quickIncomeNotePlaceholder: "e.g. Full set gel nails",
+  quickIncomeStaffLabel: "Staff",
+  quickIncomeSubmit: "Save Income",
+  quickIncomeSuccess: "Income saved successfully!",
+  quickIncomeRecentTitle: "Recent Entries",
+  quickIncomeNoEntries: "No entries yet. Add your first income above.",
+  quickIncomeEdit: "Edit",
+  quickIncomeSaveEdit: "Save Changes",
+  quickIncomeCancelEdit: "Cancel",
+  quickIncomeDelete: "Delete",
+  quickIncomeLoginRequired: "Please log in to use Quick Income Entry.",
+  quickIncomeSelectStaff: "Select staff...",
+  quickIncomeInvalidAmount: "Please enter a valid amount.",
+  quickIncomeSelectStaffError: "Please select a staff member.",
+  quickIncomeSaveError: "Failed to save. Please try again.",
+  quickIncomeDeleteConfirm: "Delete this income entry?",
   serviceCategories: {
     nails: "Nails",
     ladiesWaxing: "Ladies Waxing",
@@ -568,6 +614,29 @@ export const TRANSLATIONS: Record<string, Translation> = {
     payrollTotalPayrollCost: "Tổng Chi Phí Lương",
     payrollMonth: "Tháng",
     payrollYear: "Năm",
+    // Quick Income Entry (Vietnamese)
+    navQuickIncome: "Thu Nhập Nhanh",
+    quickIncomeTitle: "Nhập Thu Nhập Nhanh",
+    quickIncomeSubtitle: "Nhập số tiền vừa làm cho khách mà không cần chọn dịch vụ.",
+    quickIncomeAmountLabel: "Số Tiền ($)",
+    quickIncomeAmountPlaceholder: "VD: 45",
+    quickIncomeNoteLabel: "Ghi Chú (tuỳ chọn)",
+    quickIncomeNotePlaceholder: "VD: Làm gel full set",
+    quickIncomeStaffLabel: "Thợ",
+    quickIncomeSubmit: "Lưu Thu Nhập",
+    quickIncomeSuccess: "Đã lưu thu nhập thành công!",
+    quickIncomeRecentTitle: "Lịch Sử Gần Đây",
+    quickIncomeNoEntries: "Chưa có mục nào. Hãy thêm thu nhập đầu tiên.",
+    quickIncomeEdit: "Sửa",
+    quickIncomeSaveEdit: "Lưu Thay Đổi",
+    quickIncomeCancelEdit: "Huỷ",
+    quickIncomeDelete: "Xoá",
+    quickIncomeLoginRequired: "Vui lòng đăng nhập để dùng tính năng này.",
+    quickIncomeSelectStaff: "Chọn thợ...",
+    quickIncomeInvalidAmount: "Vui lòng nhập số tiền hợp lệ.",
+    quickIncomeSelectStaffError: "Vui lòng chọn thợ.",
+    quickIncomeSaveError: "Lưu thất bại. Vui lòng thử lại.",
+    quickIncomeDeleteConfirm: "Xoá mục thu nhập này?",
     revenue: "Doanh Thu",
     orders: "Đơn Hàng",
     workers: "Thợ Làm Việc",
