@@ -11,6 +11,7 @@ import { EntryGate } from './components/EntryGate';
 import { StaffPortalView } from './components/StaffPortalView'; 
 import { ArtistsView } from './components/ArtistsView'; 
 import PromotionsView from './components/PromotionsView';
+import { QuickIncomeView } from './components/QuickIncomeView';
 import { ChatWidget } from './components/ChatWidget';
 import { UploadIcon, SparklesIcon, PriceTagIcon, GalleryIcon, CameraIcon, DownloadIcon, BriefcaseIcon, CalendarIcon, GiftIcon, LaPerlaLogo, LockIcon, UsersIcon, CloudCheckIcon, CloudSyncIcon, CloudErrorIcon, XMarkIcon, WalletIcon } from './components/Icons';
 import { TRANSLATIONS, Translation } from './translations';
@@ -39,7 +40,7 @@ import { clearFirebaseConfigLocally } from './services/firebaseConfig';
 import { SoundManager } from './utils/sound';
 import { openCashDrawerStandalone } from './utils/cashDrawer';
 
-type View = 'stylist' | 'pricing' | 'gallery' | 'portfolio' | 'booking' | 'promotions' | 'admin' | 'kiosk' | 'portal' | 'team';
+type View = 'stylist' | 'pricing' | 'gallery' | 'portfolio' | 'booking' | 'promotions' | 'admin' | 'kiosk' | 'portal' | 'team' | 'quick-income';
 type AppMode = 'gate' | 'app'; 
 
 const DAILY_LIMIT = 10;
@@ -1015,6 +1016,7 @@ const MainApp: React.FC = () => {
             <div className="hidden md:flex justify-center items-center px-4 relative">
                 <div className="flex gap-3">
                     <NavButton view="pricing" icon={<PriceTagIcon className="w-5 h-5"/>} label={t.navPriceList} currentView={view} onClick={setView} />
+                    {currentUser && <NavButton view="quick-income" icon={<WalletIcon className="w-5 h-5"/>} label={t.navQuickIncome} currentView={view} onClick={setView} />}
                     <NavButton view="team" icon={<UsersIcon className="w-5 h-5"/>} label={t.navTeam} currentView={view} onClick={setView} />
                     <NavButton view="stylist" icon={<SparklesIcon className="w-5 h-5"/>} label={t.navAiStylist} currentView={view} onClick={setView} />
                     <NavButton view="gallery" icon={<GalleryIcon className="w-5 h-5"/>} label={t.navGallery} currentView={view} onClick={setView} />
@@ -1048,6 +1050,12 @@ const MainApp: React.FC = () => {
                     <PriceTagIcon className="w-5 h-5"/>
                     <span className="text-sm font-medium whitespace-nowrap">{t.navPriceList}</span>
                  </button>
+                 {currentUser && (
+                 <button onClick={() => { SoundManager.playTap(); setView('quick-income'); }} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all ${view === 'quick-income' ? 'bg-gold-leaf text-white' : 'bg-white text-charcoal border border-dusty-rose/30'}`}>
+                    <WalletIcon className="w-5 h-5"/>
+                    <span className="text-sm font-medium whitespace-nowrap">{t.navQuickIncome}</span>
+                 </button>
+                 )}
                  <button onClick={() => { SoundManager.playTap(); setView('team'); }} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all ${view === 'team' ? 'bg-gold-leaf text-white' : 'bg-white text-charcoal border border-dusty-rose/30'}`}>
                     <UsersIcon className="w-5 h-5"/>
                     <span className="text-sm font-medium whitespace-nowrap">{t.navTeam}</span>
@@ -1163,6 +1171,13 @@ const MainApp: React.FC = () => {
             />
         )}
         {view === 'promotions' && <PromotionsView t={t} />}
+        {view === 'quick-income' && (
+            <QuickIncomeView
+                t={t}
+                currentUser={currentUser}
+                staffList={staffList}
+            />
+        )}
         {view === 'admin' && (
              <AdminView 
                 t={t} 
