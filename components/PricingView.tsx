@@ -1729,17 +1729,21 @@ export const PricingView: React.FC<PricingViewProps> = ({
                         <div className="divide-y divide-gray-100">
                             {recentTransactions.map((tx, index) => {
                                 const sydneyDate = formatDateSydney(tx.date);
-                                // Use actual ticket number if available, otherwise fallback to sequential order number (A01, A02, etc.)
-                                const displayNumber = tx.ticketNumber || `A${String(index + 1).padStart(2, '0')}`;
+                                const isQuickIncome = tx.items.some(item => item.nameKey === 'quick-income');
+                                // Use actual ticket number if available; quick income orders don't get sequential fallback numbers
+                                const displayNumber = tx.ticketNumber || (!isQuickIncome ? `A${String(index + 1).padStart(2, '0')}` : null);
                                 return (
                                     <div 
                                         key={tx.id} 
                                         onClick={() => handleViewHistoryItem(tx)} 
                                         className="flex items-start gap-3 py-3 cursor-pointer group hover:bg-gray-50 px-2 rounded-lg transition-colors"
                                     >
-                                        {/* Order Number */}
+                                        {/* Order Number / Quick Income icon */}
                                         <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gold-leaf/10 flex items-center justify-center">
-                                            <span className="text-xs font-bold text-gold-leaf">{displayNumber}</span>
+                                            {displayNumber
+                                                ? <span className="text-xs font-bold text-gold-leaf">{displayNumber}</span>
+                                                : <WalletIcon className="w-4 h-4 text-gold-leaf" />
+                                            }
                                         </div>
                                         
                                         {/* Transaction Details */}
