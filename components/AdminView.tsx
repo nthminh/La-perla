@@ -881,6 +881,28 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                                             ))}
                                                         </div>
                                                         {booking.notes && <p className="text-xs italic text-gray-400 mt-2">"{booking.notes}"</p>}
+                                                        <div className="flex gap-2 mt-3">
+                                                            {booking.status === 'pending' && (
+                                                                <button
+                                                                    onClick={() => onUpdateBookingStatus && onUpdateBookingStatus(booking.id, 'confirmed')}
+                                                                    className="flex-1 py-1.5 bg-green-500 text-white rounded-lg font-bold text-xs hover:bg-green-600 transition-colors"
+                                                                >
+                                                                    Confirm
+                                                                </button>
+                                                            )}
+                                                            <button
+                                                                onClick={() => onUpdateBookingStatus && onUpdateBookingStatus(booking.id, 'cancelled')}
+                                                                className="flex-1 py-1.5 bg-white border border-gray-200 text-gray-600 rounded-lg font-bold text-xs hover:bg-gray-50 transition-colors"
+                                                            >
+                                                                Cancel
+                                                            </button>
+                                                            <button
+                                                                onClick={() => { onDeleteBooking && onDeleteBooking(booking.id); }}
+                                                                className="py-1.5 px-3 text-red-400 hover:text-red-600 text-xs font-bold transition-colors flex items-center gap-1 border border-red-100 rounded-lg hover:bg-red-50"
+                                                            >
+                                                                <TrashIcon className="w-3 h-3" /> Remove
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             ))}
