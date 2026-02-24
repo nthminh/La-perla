@@ -1017,11 +1017,11 @@ const MainApp: React.FC = () => {
                 <div className="flex gap-3">
                     <NavButton view="pricing" icon={<PriceTagIcon className="w-5 h-5"/>} label={t.navPriceList} currentView={view} onClick={setView} />
                     {currentUser && <NavButton view="quick-income" icon={<WalletIcon className="w-5 h-5"/>} label={t.navQuickIncome} currentView={view} onClick={setView} />}
+                    <NavButton view="booking" icon={<CalendarIcon className="w-5 h-5"/>} label={t.navBooking} currentView={view} onClick={setView} />
                     <NavButton view="team" icon={<UsersIcon className="w-5 h-5"/>} label={t.navTeam} currentView={view} onClick={setView} />
                     <NavButton view="stylist" icon={<SparklesIcon className="w-5 h-5"/>} label={t.navAiStylist} currentView={view} onClick={setView} />
                     <NavButton view="gallery" icon={<GalleryIcon className="w-5 h-5"/>} label={t.navGallery} currentView={view} onClick={setView} />
                     <NavButton view="portfolio" icon={<CameraIcon className="w-5 h-5"/>} label={t.navPortfolio} currentView={view} onClick={setView} />
-                    <NavButton view="booking" icon={<CalendarIcon className="w-5 h-5"/>} label={t.navBooking} currentView={view} onClick={setView} />
                     <NavButton view="promotions" icon={<GiftIcon className="w-5 h-5 text-red-400"/>} label={t.navPromotions} currentView={view} onClick={setView} />
                 </div>
                 <div className="absolute right-0 flex gap-2 items-center">
@@ -1056,6 +1056,10 @@ const MainApp: React.FC = () => {
                     <span className="text-sm font-medium whitespace-nowrap">{t.navQuickIncome}</span>
                  </button>
                  )}
+                 <button onClick={() => { SoundManager.playTap(); setView('booking'); }} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all ${view === 'booking' ? 'bg-gold-leaf text-white' : 'bg-white text-charcoal border border-dusty-rose/30'}`}>
+                    <CalendarIcon className="w-5 h-5"/>
+                    <span className="text-sm font-medium whitespace-nowrap">{t.navBooking}</span>
+                 </button>
                  <button onClick={() => { SoundManager.playTap(); setView('team'); }} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all ${view === 'team' ? 'bg-gold-leaf text-white' : 'bg-white text-charcoal border border-dusty-rose/30'}`}>
                     <UsersIcon className="w-5 h-5"/>
                     <span className="text-sm font-medium whitespace-nowrap">{t.navTeam}</span>
@@ -1071,10 +1075,6 @@ const MainApp: React.FC = () => {
                  <button onClick={() => { SoundManager.playTap(); setView('portfolio'); }} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all ${view === 'portfolio' ? 'bg-gold-leaf text-white' : 'bg-white text-charcoal border border-dusty-rose/30'}`}>
                     <CameraIcon className="w-5 h-5"/>
                     <span className="text-sm font-medium whitespace-nowrap">{t.navPortfolio}</span>
-                 </button>
-                 <button onClick={() => { SoundManager.playTap(); setView('booking'); }} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all ${view === 'booking' ? 'bg-gold-leaf text-white' : 'bg-white text-charcoal border border-dusty-rose/30'}`}>
-                    <CalendarIcon className="w-5 h-5"/>
-                    <span className="text-sm font-medium whitespace-nowrap">{t.navBooking}</span>
                  </button>
                  <button onClick={() => { SoundManager.playTap(); setView('promotions'); }} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all ${view === 'promotions' ? 'bg-gold-leaf text-white' : 'bg-white text-charcoal border border-dusty-rose/30'}`}>
                     <GiftIcon className="w-5 h-5"/>
