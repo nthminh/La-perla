@@ -58,6 +58,7 @@ export interface Translation {
   step1Title: string;
   step2Title: string;
   step3Title: string;
+  step4Title: string;
   selectServices: string;
   selectDate: string;
   selectTime: string;
@@ -262,10 +263,11 @@ const baseTranslations: Omit<Translation, 'name' | 'flag'> = {
   portfolioButtonText: "View Portfolio on Facebook",
   portfolioButtonTextGoogle: "View Google Photos Album",
   bookingTitle: "Book Your Appointment",
-  bookingSubtitle: "Ready to shine? Select your services and preferred time.",
-  step1Title: "1. Select Services",
-  step2Title: "2. Date & Time",
-  step3Title: "3. Your Details",
+  bookingSubtitle: "Answer the phone, select date and time, then choose services and enter customer details.",
+  step1Title: "1. Select Date",
+  step2Title: "2. Select Time",
+  step3Title: "3. Select Services",
+  step4Title: "4. Customer Details",
   selectServices: "Please select at least one service.",
   selectDate: "Please select a date.",
   selectTime: "Please select a time slot.",
@@ -275,13 +277,13 @@ const baseTranslations: Omit<Translation, 'name' | 'flag'> = {
   specialRequestsPlaceholder: "Any specific designs or allergies...",
   nextStepButton: "Next Step",
   prevStepButton: "Back",
-  requestBookingButton: "Send Booking Request",
+  requestBookingButton: "Confirm Booking",
   fieldRequired: "This field is required.",
   timeMorning: "Morning (9am - 12pm)",
   timeAfternoon: "Afternoon (12pm - 4pm)",
   timeEvening: "Evening (4pm - 7pm)",
-  bookingSuccessTitle: "Request Sent!",
-  bookingSuccessMessage: "We have received your booking request. We will contact you at {phone} shortly to confirm.",
+  bookingSuccessTitle: "Booking Confirmed!",
+  bookingSuccessMessage: "The appointment has been saved. We will contact {phone} to confirm.",
   bookAnother: "Book Another",
   aiAssist: "Write with AI",
   aiAssistLoading: "Writing...",
@@ -406,8 +408,8 @@ const baseTranslations: Omit<Translation, 'name' | 'flag'> = {
   quickIncomeStaffLabel: "Staff",
   quickIncomeSubmit: "Save Income",
   quickIncomeSuccess: "Income saved successfully!",
-  quickIncomeRecentTitle: "Recent Entries",
-  quickIncomeNoEntries: "No entries yet. Add your first income above.",
+  quickIncomeRecentTitle: "Today's Entries",
+  quickIncomeNoEntries: "No entries today. Add your first income above.",
   quickIncomeEdit: "Edit",
   quickIncomeSaveEdit: "Save Changes",
   quickIncomeCancelEdit: "Cancel",
@@ -625,8 +627,8 @@ export const TRANSLATIONS: Record<string, Translation> = {
     quickIncomeStaffLabel: "Thợ",
     quickIncomeSubmit: "Lưu Thu Nhập",
     quickIncomeSuccess: "Đã lưu thu nhập thành công!",
-    quickIncomeRecentTitle: "Lịch Sử Gần Đây",
-    quickIncomeNoEntries: "Chưa có mục nào. Hãy thêm thu nhập đầu tiên.",
+    quickIncomeRecentTitle: "Đơn Hôm Nay",
+    quickIncomeNoEntries: "Chưa có đơn nào hôm nay. Hãy thêm thu nhập đầu tiên.",
     quickIncomeEdit: "Sửa",
     quickIncomeSaveEdit: "Lưu Thay Đổi",
     quickIncomeCancelEdit: "Huỷ",
