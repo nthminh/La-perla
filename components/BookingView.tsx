@@ -9,6 +9,7 @@ interface BookingViewProps {
   languageCode: string;
   pricingData: ServiceCategory[];
   onSubmitBooking?: (booking: BookingRequest) => void;
+  bookings?: BookingRequest[];
 }
 
 const getTodaySydney = () =>
@@ -38,13 +39,27 @@ const MONTH_NAMES = [
 ];
 
 // --- Mini Calendar Component ---
-const MonthCalendar: React.FC<{
+export const MonthCalendar: React.FC<{
     selectedDate: string;
     onSelect: (date: string) => void;
-}> = ({ selectedDate, onSelect }) => {
+    bookings?: BookingRequest[];
+}> = ({ selectedDate, onSelect, bookings = [] }) => {
     const today = getTodaySydney();
     const [viewYear, setViewYear] = useState(() => parseInt(today.slice(0, 4)));
     const [viewMonth, setViewMonth] = useState(() => parseInt(today.slice(5, 7)) - 1); // 0-indexed
+    const [tooltipDate, setTooltipDate] = useState<string | null>(null);
+
+    // Group non-cancelled bookings by date
+    const bookingsByDate = useMemo(() => {
+        const map: Record<string, BookingRequest[]> = {};
+        bookings.forEach(b => {
+            if (b.status !== 'cancelled') {
+                if (!map[b.date]) map[b.date] = [];
+                map[b.date].push(b);
+            }
+        });
+        return map;
+    }, [bookings]);
 
     const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
     const firstDayOfWeek = new Date(viewYear, viewMonth, 1).getDay(); // 0=Sun
@@ -103,22 +118,57 @@ const MonthCalendar: React.FC<{
                     const isPast = dateStr < today;
                     const isToday = dateStr === today;
                     const isSelected = dateStr === selectedDate;
+                    const dayBookings = bookingsByDate[dateStr] || [];
+                    const hasBookings = dayBookings.length > 0;
 
                     return (
-                        <button
-                            key={idx}
-                            onClick={() => !isPast && onSelect(dateStr)}
-                            disabled={isPast}
-                            className={`
-                                mx-auto w-9 h-9 rounded-full flex items-center justify-center text-sm font-medium transition-all duration-150
-                                ${isPast ? 'text-gray-300 cursor-not-allowed' : 'cursor-pointer hover:bg-gold-leaf/20'}
-                                ${isSelected ? 'bg-gold-leaf text-white shadow-md font-bold' : ''}
-                                ${isToday && !isSelected ? 'border-2 border-gold-leaf text-gold-leaf font-bold' : ''}
-                                ${!isPast && !isSelected && !isToday ? 'text-charcoal' : ''}
-                            `}
-                        >
-                            {day}
-                        </button>
+                        <div key={idx} className="relative flex justify-center">
+                            <div className="relative">
+                                <button
+                                    onClick={() => !isPast && onSelect(dateStr)}
+                                    disabled={isPast}
+                                    onMouseEnter={() => hasBookings ? setTooltipDate(dateStr) : undefined}
+                                    onMouseLeave={() => setTooltipDate(null)}
+                                    className={`
+                                        w-9 h-9 rounded-full flex items-center justify-center text-sm font-medium transition-all duration-150
+                                        ${isPast ? 'text-gray-300 cursor-not-allowed' : 'cursor-pointer hover:bg-gold-leaf/20'}
+                                        ${isSelected ? 'bg-gold-leaf text-white shadow-md font-bold' : ''}
+                                        ${isToday && !isSelected ? 'border-2 border-gold-leaf text-gold-leaf font-bold' : ''}
+                                        ${!isPast && !isSelected && !isToday ? 'text-charcoal' : ''}
+                                    `}
+                                >
+                                    {day}
+                                </button>
+                                {/* Booking count badge */}
+                                {hasBookings && (
+                                    <span className={`absolute -top-1 -right-1 min-w-[16px] h-4 px-0.5 rounded-full text-[9px] font-bold flex items-center justify-center pointer-events-none
+                                        ${isPast ? 'bg-gray-200 text-gray-400' : 'bg-rose-500 text-white'}`}>
+                                        {dayBookings.length}
+                                    </span>
+                                )}
+                            </div>
+                            {/* Hover tooltip showing booking details */}
+                            {tooltipDate === dateStr && (
+                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-56 bg-white rounded-xl shadow-xl border border-gray-100 p-3 text-left pointer-events-none">
+                                    <p className="text-xs font-bold text-gray-500 uppercase mb-2">
+                                        {dayBookings.length} booking{dayBookings.length > 1 ? 's' : ''}
+                                    </p>
+                                    <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                                        {dayBookings.map((b, i) => (
+                                            <div key={i} className="flex items-start gap-1.5">
+                                                <span className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${b.status === 'confirmed' ? 'bg-green-400' : 'bg-yellow-400'}`} />
+                                                <div>
+                                                    <p className="text-xs font-bold text-charcoal leading-tight">{b.customerName}</p>
+                                                    <p className="text-[10px] text-gray-400">{b.timeSlot} · {b.services.slice(0, 2).join(', ')}{b.services.length > 2 ? '…' : ''}</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    {/* Tooltip arrow */}
+                                    <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-white" />
+                                </div>
+                            )}
+                        </div>
                     );
                 })}
             </div>
@@ -127,7 +177,7 @@ const MonthCalendar: React.FC<{
 };
 
 // --- Main BookingView ---
-export const BookingView: React.FC<BookingViewProps> = ({ t, pricingData, onSubmitBooking }) => {
+export const BookingView: React.FC<BookingViewProps> = ({ t, pricingData, onSubmitBooking, bookings = [] }) => {
     const today = getTodaySydney();
     const [step, setStep] = useState(1);
     const [date, setDate] = useState('');
@@ -242,7 +292,7 @@ export const BookingView: React.FC<BookingViewProps> = ({ t, pricingData, onSubm
                 return (
                     <div className="animate-fade-in">
                         <h3 className="text-2xl font-serif text-charcoal mb-6">{t.step1Title}</h3>
-                        <MonthCalendar selectedDate={date} onSelect={(d) => { setDate(d); setErrors({}); }} />
+                        <MonthCalendar selectedDate={date} onSelect={(d) => { setDate(d); setErrors({}); }} bookings={bookings} />
                         {date && (
                             <div className="mt-4 text-center">
                                 <span className="inline-block bg-gold-leaf/10 text-gold-leaf font-bold px-4 py-2 rounded-full text-sm">
