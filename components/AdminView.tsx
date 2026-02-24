@@ -30,6 +30,7 @@ import { CustomerCRMView } from './CustomerCRMView';
 import { MarketingView } from './MarketingView'; // New Component
 import { PayrollView } from './PayrollView'; // Payroll Feature
 import { AttendanceView } from './AttendanceView'; // Attendance Tracking Feature
+import { MonthCalendar } from './BookingView'; // Booking calendar with indicators
 import { DEFAULT_ADMIN_PASSWORDS, DEFAULT_MARQUEE_SETTINGS } from '../constants';
 import { compressImage } from '../utils/imageCompression'; 
 
@@ -134,6 +135,10 @@ export const AdminView: React.FC<AdminViewProps> = ({
     const [editTxTotal, setEditTxTotal] = useState("");
     const [editTxDiscount, setEditTxDiscount] = useState("");
     const [editTxItems, setEditTxItems] = useState<Transaction['items']>([]);
+
+    // ... Booking Calendar State ...
+    const [bookingCalendarDate, setBookingCalendarDate] = useState('');
+    const [bookingDayPopup, setBookingDayPopup] = useState<string | null>(null);
 
     // --- EFFECT: DATA LOADING ---
     useEffect(() => {
@@ -809,6 +814,88 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
                 {activeTab === 'bookings' && (
                     <div className="space-y-4 animate-fade-in">
+                        {/* Booking Calendar Overview */}
+                        <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                            <div className="flex items-center gap-2 mb-4">
+                                <CalendarIcon className="w-5 h-5 text-gold-leaf" />
+                                <h3 className="text-base font-serif font-bold text-charcoal">Booking Calendar</h3>
+                                <span className="ml-auto text-xs text-gray-400 flex items-center gap-1">
+                                    <span className="inline-block w-3 h-3 rounded-full bg-rose-500" /> = bookings · hover to preview · click to view details
+                                </span>
+                            </div>
+                            <MonthCalendar
+                                selectedDate={bookingCalendarDate}
+                                onSelect={(date) => {
+                                    setBookingCalendarDate(date);
+                                    const dayBookings = bookings.filter(b => b.date === date && b.status !== 'cancelled');
+                                    if (dayBookings.length > 0) setBookingDayPopup(date);
+                                }}
+                                bookings={bookings}
+                            />
+                        </div>
+
+                        {/* Day Detail Popup Modal */}
+                        {bookingDayPopup && (() => {
+                            const popupBookings = bookings
+                                .filter(b => b.date === bookingDayPopup && b.status !== 'cancelled')
+                                .sort((a, b) => a.timeSlot.localeCompare(b.timeSlot));
+                            return (
+                                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setBookingDayPopup(null)}>
+                                    <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                                        <div className="p-6 border-b border-gray-100">
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <h3 className="font-serif text-xl font-bold text-charcoal">
+                                                        {(() => { const [y, m, d] = bookingDayPopup.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); })()}
+                                                    </h3>
+                                                    <p className="text-sm text-gray-500 mt-1">{popupBookings.length} booking{popupBookings.length !== 1 ? 's' : ''} scheduled</p>
+                                                </div>
+                                                <button onClick={() => setBookingDayPopup(null)} className="p-2 rounded-full hover:bg-gray-100 transition-colors">
+                                                    <XMarkIcon className="w-5 h-5 text-gray-400" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div className="overflow-y-auto p-6 space-y-3">
+                                            {popupBookings.map(booking => (
+                                                <div key={booking.id} className="p-4 rounded-xl border border-gray-100 bg-gray-50 relative overflow-hidden">
+                                                    <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${booking.status === 'confirmed' ? 'bg-green-500' : 'bg-yellow-400'}`} />
+                                                    <div className="pl-3">
+                                                        <div className="flex justify-between items-start">
+                                                            <div>
+                                                                <p className="font-bold text-charcoal">{booking.customerName}</p>
+                                                                <p className="text-sm text-gray-500 flex items-center gap-1 mt-0.5">
+                                                                    <PhoneIcon className="w-3.5 h-3.5 text-gold-leaf" />
+                                                                    <a href={`tel:${booking.customerPhone}`} className="hover:underline">{booking.customerPhone}</a>
+                                                                </p>
+                                                            </div>
+                                                            <span className={`px-2 py-1 rounded-full text-xs font-bold ${booking.status === 'confirmed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                                                {booking.status}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-sm font-bold text-gold-leaf mt-2 flex items-center gap-1">
+                                                            <ClockIcon className="w-3.5 h-3.5" />{booking.timeSlot}
+                                                        </p>
+                                                        <div className="flex flex-wrap gap-1 mt-2">
+                                                            {booking.services.map((s, i) => (
+                                                                <span key={i} className="bg-white border border-gray-200 px-2 py-0.5 rounded-full text-xs text-charcoal">{s}</span>
+                                                            ))}
+                                                        </div>
+                                                        {booking.notes && <p className="text-xs italic text-gray-400 mt-2">"{booking.notes}"</p>}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="p-4 border-t border-gray-100">
+                                            <button onClick={() => setBookingDayPopup(null)} className="w-full py-2.5 bg-gray-100 text-charcoal font-bold rounded-xl hover:bg-gray-200 transition-colors text-sm">
+                                                Close
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
+                        {/* Bookings List */}
                         {bookings.length === 0 ? (<div className="text-center py-12 bg-white rounded-2xl border border-dashed border-gray-200 shadow-sm"><CalendarIcon className="w-12 h-12 mx-auto text-gray-300 mb-3" /><p className="text-gray-400 font-medium">No booking requests yet.</p></div>) : (<div className="grid grid-cols-1 gap-4">{bookings.map(booking => (<div key={booking.id} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-6 relative overflow-hidden group hover:border-gold-leaf/30 transition-colors"><div className={`absolute left-0 top-0 bottom-0 w-1.5 ${booking.status === 'pending' ? 'bg-yellow-400' : booking.status === 'confirmed' ? 'bg-green-500' : 'bg-red-400'}`}></div><div className="flex-grow space-y-3"><div className="flex justify-between items-start"><div><h3 className="font-serif font-bold text-xl text-charcoal">{booking.customerName}</h3><p className="text-sm text-gray-500 flex items-center gap-2 mt-1"><PhoneIcon className="w-4 h-4 text-gold-leaf" /><a href={`tel:${booking.customerPhone}`} className="hover:underline">{booking.customerPhone}</a></p></div><span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${booking.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : booking.status === 'confirmed' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{booking.status}</span></div><div className="flex items-center gap-2 text-sm font-medium text-charcoal bg-gray-50 p-2 rounded-lg w-fit"><CalendarIcon className="w-4 h-4 text-gold-leaf" /><span>{new Date(booking.date).toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney' })}</span><span className="text-gray-300">|</span><span>{booking.timeSlot}</span></div><div><p className="text-xs font-bold text-gray-400 uppercase mb-2">Services Requested</p><div className="flex flex-wrap gap-2">{booking.services.map((s, i) => (<span key={i} className="bg-white border border-gray-200 px-3 py-1 rounded-full text-xs font-medium text-charcoal shadow-sm flex items-center gap-1"><SparklesIcon className="w-3 h-3 text-gold-leaf" />{s}</span>))}</div></div>{booking.notes && (<div className="bg-yellow-50 p-3 rounded-xl border border-yellow-100 text-sm text-yellow-800 italic">" {booking.notes} "</div>)}<p className="text-[10px] text-gray-300 pt-2">Request sent: {new Date(booking.createdAt).toLocaleString()}</p></div><div className="flex flex-col gap-3 justify-center md:min-w-[150px] border-t md:border-t-0 md:border-l border-gray-100 pt-4 md:pt-0 md:pl-6">{booking.status === 'pending' && (<button onClick={() => onUpdateBookingStatus && onUpdateBookingStatus(booking.id, 'confirmed')} className="w-full py-2.5 bg-green-500 text-white rounded-xl font-bold text-sm shadow-md hover:bg-green-600 transition-colors flex items-center justify-center gap-2">Confirm</button>)}{booking.status !== 'cancelled' && (<button onClick={() => onUpdateBookingStatus && onUpdateBookingStatus(booking.id, 'cancelled')} className="w-full py-2.5 bg-white border border-gray-200 text-gray-600 rounded-xl font-bold text-sm hover:bg-gray-50 transition-colors">Cancel</button>)}<button onClick={() => onDeleteBooking && onDeleteBooking(booking.id)} className="w-full py-2 text-red-300 hover:text-red-500 text-xs font-bold transition-colors flex items-center justify-center gap-1 mt-auto"><TrashIcon className="w-3 h-3" /> Remove</button></div></div>))}</div>)}
                     </div>
                 )}

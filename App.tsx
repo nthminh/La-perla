@@ -1168,6 +1168,7 @@ const MainApp: React.FC = () => {
                 languageCode="en"
                 pricingData={pricingData}
                 onSubmitBooking={handleSubmitBooking}
+                bookings={bookings}
             />
         )}
         {view === 'promotions' && <PromotionsView t={t} />}
