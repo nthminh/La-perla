@@ -67,11 +67,13 @@ export const QuickIncomeView: React.FC<QuickIncomeViewProps> = ({
     // Subscribe to quick-income transactions from Firebase
     useEffect(() => {
         const unsubscribe = subscribeToTransactions((txs) => {
+            const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' }); // YYYY-MM-DD
             const quickEntries = txs
                 .filter(
                     (tx) =>
                         !tx.deleted &&
-                        tx.items.some((item) => item.nameKey === QUICK_INCOME_SOURCE)
+                        tx.items.some((item) => item.nameKey === QUICK_INCOME_SOURCE) &&
+                        new Date(tx.date).toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' }) === todayStr
                 )
                 .sort(
                     (a, b) =>

@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { LaPerlaLogo, UserIcon, XMarkIcon, SparklesIcon, LockIcon, BriefcaseIcon } from './Icons';
+import { LaPerlaLogo, UserIcon, XMarkIcon, LockIcon, BriefcaseIcon } from './Icons';
 import { StaffProfile, AdminPasswords } from '../types';
 import { DEFAULT_ADMIN_PASSWORDS } from '../constants';
 
@@ -114,19 +114,6 @@ export const EntryGate: React.FC<EntryGateProps> = ({ onClientEnter, onStaffLogi
 
                  {view === 'selection' && (
                      <div className="space-y-4 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
-                         <button 
-                            onClick={onClientEnter}
-                            className="w-full group bg-white hover:bg-gold-leaf border border-gold-leaf/20 rounded-2xl p-5 shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-4"
-                         >
-                             <div className="w-12 h-12 rounded-full bg-blush-pink flex items-center justify-center group-hover:bg-white/20">
-                                 <SparklesIcon className="w-6 h-6 text-charcoal group-hover:text-white" />
-                             </div>
-                             <div className="text-left flex-1">
-                                 <h3 className="text-xl font-serif font-bold text-charcoal group-hover:text-white">I am a Client</h3>
-                                 <p className="text-sm text-gray-500 group-hover:text-white/80">View Menu & Try AI Styles</p>
-                             </div>
-                         </button>
-
                          <button 
                             onClick={() => setView('staff_login')}
                             className="w-full group bg-white/50 hover:bg-charcoal border border-gray-200 rounded-2xl p-5 shadow-sm hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-4"
