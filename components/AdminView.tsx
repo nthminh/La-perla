@@ -65,6 +65,7 @@ interface AdminViewProps {
     bookings?: BookingRequest[];
     onUpdateBookingStatus?: (id: string, status: 'pending' | 'confirmed' | 'cancelled') => void;
     onDeleteBooking?: (id: string) => void;
+    onEditBooking?: (booking: BookingRequest) => void;
     globalPayroll?: GlobalPayrollSettings;
     onUpdateGlobalPayroll?: (settings: GlobalPayrollSettings) => void;
     onSaveSettings?: (staff: StaffProfile[], pricing: ServiceCategory[], payroll: GlobalPayrollSettings, knowledgeBase: string, adminPasswords: AdminPasswords, marqueeSettings: MarqueeSettings) => Promise<void>;
@@ -75,7 +76,7 @@ interface AdminViewProps {
 }
 
 export const AdminView: React.FC<AdminViewProps> = ({ 
-    t, onLogout, staffList, pricingData, bookings = [], onUpdateBookingStatus, onDeleteBooking,
+    t, onLogout, staffList, pricingData, bookings = [], onUpdateBookingStatus, onDeleteBooking, onEditBooking,
     globalPayroll = { defaultTarget: 0, customTargets: {}, gpsRequired: false }, onUpdateGlobalPayroll, onSaveSettings,
     knowledgeBase = "", adminRole, adminPasswords = DEFAULT_ADMIN_PASSWORDS, marqueeSettings
 }) => {
@@ -139,6 +140,40 @@ export const AdminView: React.FC<AdminViewProps> = ({
     // ... Booking Calendar State ...
     const [bookingCalendarDate, setBookingCalendarDate] = useState('');
     const [bookingDayPopup, setBookingDayPopup] = useState<string | null>(null);
+
+    // ... Booking Edit State ...
+    const [editingBooking, setEditingBooking] = useState<BookingRequest | null>(null);
+    const [editBkName, setEditBkName] = useState('');
+    const [editBkPhone, setEditBkPhone] = useState('');
+    const [editBkDate, setEditBkDate] = useState('');
+    const [editBkTimeSlot, setEditBkTimeSlot] = useState('');
+    const [editBkNotes, setEditBkNotes] = useState('');
+    const [editBkServices, setEditBkServices] = useState('');
+
+    const openEditBooking = (booking: BookingRequest) => {
+        setEditingBooking(booking);
+        setEditBkName(booking.customerName);
+        setEditBkPhone(booking.customerPhone);
+        setEditBkDate(booking.date);
+        setEditBkTimeSlot(booking.timeSlot);
+        setEditBkNotes(booking.notes || '');
+        setEditBkServices(booking.services.join(', '));
+    };
+
+    const handleSaveEditBooking = () => {
+        if (!editingBooking) return;
+        const updated: BookingRequest = {
+            ...editingBooking,
+            customerName: editBkName.trim(),
+            customerPhone: editBkPhone.trim(),
+            date: editBkDate,
+            timeSlot: editBkTimeSlot,
+            notes: editBkNotes.trim(),
+            services: editBkServices.split(',').map(s => s.trim()).filter(Boolean),
+        };
+        onEditBooking && onEditBooking(updated);
+        setEditingBooking(null);
+    };
 
     // --- EFFECT: DATA LOADING ---
     useEffect(() => {
@@ -827,7 +862,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                 selectedDate={bookingCalendarDate}
                                 onSelect={(date) => {
                                     setBookingCalendarDate(date);
-                                    const dayBookings = bookings.filter(b => b.date === date && b.status !== 'cancelled');
+                                    const dayBookings = bookings.filter(b => b.date === date);
                                     if (dayBookings.length > 0) setBookingDayPopup(date);
                                 }}
                                 bookings={bookings}
@@ -837,8 +872,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         {/* Day Detail Popup Modal */}
                         {bookingDayPopup && (() => {
                             const popupBookings = bookings
-                                .filter(b => b.date === bookingDayPopup && b.status !== 'cancelled')
+                                .filter(b => b.date === bookingDayPopup)
                                 .sort((a, b) => a.timeSlot.localeCompare(b.timeSlot));
+                            const activeCount = popupBookings.filter(b => b.status !== 'cancelled').length;
                             return (
                                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setBookingDayPopup(null)}>
                                     <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
@@ -848,7 +884,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                                     <h3 className="font-serif text-xl font-bold text-charcoal">
                                                         {(() => { const [y, m, d] = bookingDayPopup.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); })()}
                                                     </h3>
-                                                    <p className="text-sm text-gray-500 mt-1">{popupBookings.length} booking{popupBookings.length !== 1 ? 's' : ''} scheduled</p>
+                                                    <p className="text-sm text-gray-500 mt-1">{activeCount} booking{activeCount !== 1 ? 's' : ''} scheduled</p>
                                                 </div>
                                                 <button onClick={() => setBookingDayPopup(null)} className="p-2 rounded-full hover:bg-gray-100 transition-colors">
                                                     <XMarkIcon className="w-5 h-5 text-gray-400" />
@@ -857,8 +893,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                         </div>
                                         <div className="overflow-y-auto p-6 space-y-3">
                                             {popupBookings.map(booking => (
-                                                <div key={booking.id} className="p-4 rounded-xl border border-gray-100 bg-gray-50 relative overflow-hidden">
-                                                    <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${booking.status === 'confirmed' ? 'bg-green-500' : 'bg-yellow-400'}`} />
+                                                <div key={booking.id} className={`p-4 rounded-xl border relative overflow-hidden ${booking.status === 'cancelled' ? 'border-gray-100 bg-gray-50 opacity-60' : 'border-gray-100 bg-gray-50'}`}>
+                                                    <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${booking.status === 'confirmed' ? 'bg-green-500' : booking.status === 'cancelled' ? 'bg-red-300' : 'bg-yellow-400'}`} />
                                                     <div className="pl-3">
                                                         <div className="flex justify-between items-start">
                                                             <div>
@@ -868,7 +904,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                                                     <a href={`tel:${booking.customerPhone}`} className="hover:underline">{booking.customerPhone}</a>
                                                                 </p>
                                                             </div>
-                                                            <span className={`px-2 py-1 rounded-full text-xs font-bold ${booking.status === 'confirmed' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                                                            <span className={`px-2 py-1 rounded-full text-xs font-bold ${booking.status === 'confirmed' ? 'bg-green-100 text-green-700' : booking.status === 'cancelled' ? 'bg-red-100 text-red-500' : 'bg-yellow-100 text-yellow-700'}`}>
                                                                 {booking.status}
                                                             </span>
                                                         </div>
@@ -890,11 +926,26 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                                                     Confirm
                                                                 </button>
                                                             )}
+                                                            {booking.status === 'cancelled' ? (
+                                                                <button
+                                                                    onClick={() => onUpdateBookingStatus && onUpdateBookingStatus(booking.id, 'pending')}
+                                                                    className="flex-1 py-1.5 bg-yellow-400 text-white rounded-lg font-bold text-xs hover:bg-yellow-500 transition-colors"
+                                                                >
+                                                                    Restore
+                                                                </button>
+                                                            ) : (
+                                                                <button
+                                                                    onClick={() => onUpdateBookingStatus && onUpdateBookingStatus(booking.id, 'cancelled')}
+                                                                    className="flex-1 py-1.5 bg-white border border-gray-200 text-gray-600 rounded-lg font-bold text-xs hover:bg-gray-50 transition-colors"
+                                                                >
+                                                                    Cancel
+                                                                </button>
+                                                            )}
                                                             <button
-                                                                onClick={() => onUpdateBookingStatus && onUpdateBookingStatus(booking.id, 'cancelled')}
-                                                                className="flex-1 py-1.5 bg-white border border-gray-200 text-gray-600 rounded-lg font-bold text-xs hover:bg-gray-50 transition-colors"
+                                                                onClick={() => { setBookingDayPopup(null); openEditBooking(booking); }}
+                                                                className="py-1.5 px-3 text-blue-400 hover:text-blue-600 text-xs font-bold transition-colors flex items-center gap-1 border border-blue-100 rounded-lg hover:bg-blue-50"
                                                             >
-                                                                Cancel
+                                                                <PencilIcon className="w-3 h-3" /> Edit
                                                             </button>
                                                             <button
                                                                 onClick={() => { onDeleteBooking && onDeleteBooking(booking.id); }}
@@ -918,7 +969,82 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         })()}
 
                         {/* Bookings List */}
-                        {bookings.length === 0 ? (<div className="text-center py-12 bg-white rounded-2xl border border-dashed border-gray-200 shadow-sm"><CalendarIcon className="w-12 h-12 mx-auto text-gray-300 mb-3" /><p className="text-gray-400 font-medium">No booking requests yet.</p></div>) : (<div className="grid grid-cols-1 gap-4">{bookings.map(booking => (<div key={booking.id} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-6 relative overflow-hidden group hover:border-gold-leaf/30 transition-colors"><div className={`absolute left-0 top-0 bottom-0 w-1.5 ${booking.status === 'pending' ? 'bg-yellow-400' : booking.status === 'confirmed' ? 'bg-green-500' : 'bg-red-400'}`}></div><div className="flex-grow space-y-3"><div className="flex justify-between items-start"><div><h3 className="font-serif font-bold text-xl text-charcoal">{booking.customerName}</h3><p className="text-sm text-gray-500 flex items-center gap-2 mt-1"><PhoneIcon className="w-4 h-4 text-gold-leaf" /><a href={`tel:${booking.customerPhone}`} className="hover:underline">{booking.customerPhone}</a></p></div><span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${booking.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : booking.status === 'confirmed' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{booking.status}</span></div><div className="flex items-center gap-2 text-sm font-medium text-charcoal bg-gray-50 p-2 rounded-lg w-fit"><CalendarIcon className="w-4 h-4 text-gold-leaf" /><span>{new Date(booking.date).toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney' })}</span><span className="text-gray-300">|</span><span>{booking.timeSlot}</span></div><div><p className="text-xs font-bold text-gray-400 uppercase mb-2">Services Requested</p><div className="flex flex-wrap gap-2">{booking.services.map((s, i) => (<span key={i} className="bg-white border border-gray-200 px-3 py-1 rounded-full text-xs font-medium text-charcoal shadow-sm flex items-center gap-1"><SparklesIcon className="w-3 h-3 text-gold-leaf" />{s}</span>))}</div></div>{booking.notes && (<div className="bg-yellow-50 p-3 rounded-xl border border-yellow-100 text-sm text-yellow-800 italic">" {booking.notes} "</div>)}<p className="text-[10px] text-gray-300 pt-2">Request sent: {new Date(booking.createdAt).toLocaleString()}</p></div><div className="flex flex-col gap-3 justify-center md:min-w-[150px] border-t md:border-t-0 md:border-l border-gray-100 pt-4 md:pt-0 md:pl-6">{booking.status === 'pending' && (<button onClick={() => onUpdateBookingStatus && onUpdateBookingStatus(booking.id, 'confirmed')} className="w-full py-2.5 bg-green-500 text-white rounded-xl font-bold text-sm shadow-md hover:bg-green-600 transition-colors flex items-center justify-center gap-2">Confirm</button>)}{booking.status !== 'cancelled' && (<button onClick={() => onUpdateBookingStatus && onUpdateBookingStatus(booking.id, 'cancelled')} className="w-full py-2.5 bg-white border border-gray-200 text-gray-600 rounded-xl font-bold text-sm hover:bg-gray-50 transition-colors">Cancel</button>)}<button onClick={() => onDeleteBooking && onDeleteBooking(booking.id)} className="w-full py-2 text-red-300 hover:text-red-500 text-xs font-bold transition-colors flex items-center justify-center gap-1 mt-auto"><TrashIcon className="w-3 h-3" /> Remove</button></div></div>))}</div>)}
+                        {bookings.length === 0 ? (
+                            <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-gray-200 shadow-sm">
+                                <CalendarIcon className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                                <p className="text-gray-400 font-medium">No booking requests yet.</p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 gap-4">
+                                {[...bookings]
+                                    .sort((a, b) => {
+                                        const dateCompare = a.date.localeCompare(b.date);
+                                        return dateCompare !== 0 ? dateCompare : a.timeSlot.localeCompare(b.timeSlot);
+                                    })
+                                    .map(booking => (
+                                    <div key={booking.id} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row gap-6 relative overflow-hidden group hover:border-gold-leaf/30 transition-colors">
+                                        <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${booking.status === 'pending' ? 'bg-yellow-400' : booking.status === 'confirmed' ? 'bg-green-500' : 'bg-red-400'}`} />
+                                        <div className="flex-grow space-y-3">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <h3 className="font-serif font-bold text-xl text-charcoal">{booking.customerName}</h3>
+                                                    <p className="text-sm text-gray-500 flex items-center gap-2 mt-1">
+                                                        <PhoneIcon className="w-4 h-4 text-gold-leaf" />
+                                                        <a href={`tel:${booking.customerPhone}`} className="hover:underline">{booking.customerPhone}</a>
+                                                    </p>
+                                                </div>
+                                                <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${booking.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : booking.status === 'confirmed' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                    {booking.status}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-2 text-sm font-medium text-charcoal bg-gray-50 p-2 rounded-lg w-fit">
+                                                <CalendarIcon className="w-4 h-4 text-gold-leaf" />
+                                                <span>{new Date(booking.date + 'T12:00:00').toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney' })}</span>
+                                                <span className="text-gray-300">|</span>
+                                                <ClockIcon className="w-4 h-4 text-gold-leaf" />
+                                                <span>{booking.timeSlot}</span>
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-bold text-gray-400 uppercase mb-2">Services Requested</p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {booking.services.map((s, i) => (
+                                                        <span key={i} className="bg-white border border-gray-200 px-3 py-1 rounded-full text-xs font-medium text-charcoal shadow-sm flex items-center gap-1">
+                                                            <SparklesIcon className="w-3 h-3 text-gold-leaf" />{s}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            {booking.notes && (
+                                                <div className="bg-yellow-50 p-3 rounded-xl border border-yellow-100 text-sm text-yellow-800 italic">" {booking.notes} "</div>
+                                            )}
+                                            <p className="text-[10px] text-gray-300 pt-2">Request sent: {new Date(booking.createdAt).toLocaleString()}</p>
+                                        </div>
+                                        <div className="flex flex-col gap-3 justify-center md:min-w-[150px] border-t md:border-t-0 md:border-l border-gray-100 pt-4 md:pt-0 md:pl-6">
+                                            {booking.status === 'pending' && (
+                                                <button onClick={() => onUpdateBookingStatus && onUpdateBookingStatus(booking.id, 'confirmed')} className="w-full py-2.5 bg-green-500 text-white rounded-xl font-bold text-sm shadow-md hover:bg-green-600 transition-colors flex items-center justify-center gap-2">
+                                                    Confirm
+                                                </button>
+                                            )}
+                                            {booking.status === 'cancelled' ? (
+                                                <button onClick={() => onUpdateBookingStatus && onUpdateBookingStatus(booking.id, 'pending')} className="w-full py-2.5 bg-yellow-400 text-white rounded-xl font-bold text-sm hover:bg-yellow-500 transition-colors">
+                                                    Restore
+                                                </button>
+                                            ) : (
+                                                <button onClick={() => onUpdateBookingStatus && onUpdateBookingStatus(booking.id, 'cancelled')} className="w-full py-2.5 bg-white border border-gray-200 text-gray-600 rounded-xl font-bold text-sm hover:bg-gray-50 transition-colors">
+                                                    Cancel
+                                                </button>
+                                            )}
+                                            <button onClick={() => openEditBooking(booking)} className="w-full py-2.5 bg-blue-50 text-blue-600 border border-blue-100 rounded-xl font-bold text-sm hover:bg-blue-100 transition-colors flex items-center justify-center gap-2">
+                                                <PencilIcon className="w-4 h-4" /> Edit
+                                            </button>
+                                            <button onClick={() => onDeleteBooking && onDeleteBooking(booking.id)} className="w-full py-2 text-red-300 hover:text-red-500 text-xs font-bold transition-colors flex items-center justify-center gap-1 mt-auto">
+                                                <TrashIcon className="w-3 h-3" /> Remove
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -1214,6 +1340,50 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                 </div>
                             </div>
                             <div className="flex gap-3 pt-2"><button onClick={handleDeleteTransaction} className="px-4 py-2 border border-red-200 text-red-500 rounded-lg font-bold hover:bg-red-50 flex items-center gap-2"><TrashIcon className="w-4 h-4" /> Delete</button><button onClick={handleSaveTransaction} className="flex-1 py-2 bg-gold-leaf text-white rounded-lg font-bold hover:bg-charcoal shadow-md">Save Changes</button></div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit Booking Modal */}
+            {editingBooking && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                        <div className="bg-gray-50 p-4 border-b border-gray-100 flex justify-between items-center">
+                            <h3 className="font-serif font-bold text-lg">Edit Booking</h3>
+                            <button onClick={() => setEditingBooking(null)}><XMarkIcon className="w-5 h-5 text-gray-400 hover:text-charcoal" /></button>
+                        </div>
+                        <div className="p-6 space-y-4 overflow-y-auto">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Date</label>
+                                    <input type="date" value={editBkDate} onChange={e => setEditBkDate(e.target.value)} className="w-full p-2 border rounded-lg text-sm" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Time</label>
+                                    <input type="time" value={editBkTimeSlot} onChange={e => setEditBkTimeSlot(e.target.value)} className="w-full p-2 border rounded-lg text-sm" />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Customer Name</label>
+                                <input type="text" value={editBkName} onChange={e => setEditBkName(e.target.value)} className="w-full p-2 border rounded-lg text-sm" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Phone</label>
+                                <input type="tel" value={editBkPhone} onChange={e => setEditBkPhone(e.target.value)} className="w-full p-2 border rounded-lg text-sm" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Services (comma-separated)</label>
+                                <textarea value={editBkServices} onChange={e => setEditBkServices(e.target.value)} rows={2} className="w-full p-2 border rounded-lg text-sm resize-none" />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-gray-400 uppercase mb-1">Notes</label>
+                                <textarea value={editBkNotes} onChange={e => setEditBkNotes(e.target.value)} rows={2} className="w-full p-2 border rounded-lg text-sm resize-none" />
+                            </div>
+                        </div>
+                        <div className="p-4 border-t border-gray-100 flex gap-3">
+                            <button onClick={() => setEditingBooking(null)} className="px-4 py-2 border border-gray-200 text-gray-600 rounded-lg font-bold hover:bg-gray-50">Cancel</button>
+                            <button onClick={handleSaveEditBooking} className="flex-1 py-2 bg-gold-leaf text-white rounded-lg font-bold hover:bg-charcoal shadow-md">Save Changes</button>
                         </div>
                     </div>
                 </div>

@@ -535,6 +535,12 @@ const MainApp: React.FC = () => {
       deleteBooking(id);
   };
 
+  const handleEditBooking = (updated: BookingRequest) => {
+      const updatedBookings = bookings.map(b => b.id === updated.id ? updated : b);
+      setBookings(updatedBookings);
+      upsertBooking(updated);
+  };
+
   const handleOpenCashDrawer = async () => {
       SoundManager.playTap();
       try {
@@ -1190,6 +1196,7 @@ const MainApp: React.FC = () => {
                 bookings={bookings}
                 onUpdateBookingStatus={handleUpdateBookingStatus}
                 onDeleteBooking={handleDeleteBooking}
+                onEditBooking={handleEditBooking}
                 globalPayroll={globalPayroll}
                 onUpdateGlobalPayroll={setGlobalPayroll}
                 knowledgeBase={knowledgeBase}
