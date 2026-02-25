@@ -1301,6 +1301,15 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                             </div>
                                             <div>
                                                 <label className="block text-xs font-bold text-gray-400 mb-1">SERVICE</label>
+                                                {item.nameKey === 'quick-income' ? (
+                                                    <input
+                                                        type="text"
+                                                        value={item.displayName || ''}
+                                                        onChange={e => handleUpdateItemService(idx, 'quick-income', e.target.value)}
+                                                        className="w-full p-2 border rounded text-sm"
+                                                        placeholder="Note"
+                                                    />
+                                                ) : (
                                                 <select 
                                                     value={item.nameKey} 
                                                     onChange={e => {
@@ -1324,6 +1333,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                                                         </optgroup>
                                                     ))}
                                                 </select>
+                                                )}
                                             </div>
                                             <div>
                                                 <label className="block text-xs font-bold text-gray-400 mb-1">STAFF</label>

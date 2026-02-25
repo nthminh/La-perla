@@ -328,7 +328,7 @@ const baseTranslations: Omit<Translation, 'name' | 'flag'> = {
   dailyRevenue: "Daily Revenue",
   totalOrders: "Total Orders",
   topServices: "Top Services",
-  recentTransactions: "Recent Transactions",
+  recentTransactions: "Transactions",
   revenueChartTitle: "Revenue Overview",
   noData: "No data available",
   logout: "Logout",
