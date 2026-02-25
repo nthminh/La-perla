@@ -55,6 +55,7 @@ export const QuickIncomeView: React.FC<QuickIncomeViewProps> = ({
     const [editAmount, setEditAmount] = useState('');
     const [editNote, setEditNote] = useState('');
     const [editStaffId, setEditStaffId] = useState('');
+    const [editDiscount, setEditDiscount] = useState(0);
 
     const amountRef = useRef<HTMLInputElement>(null);
 
@@ -136,6 +137,7 @@ export const QuickIncomeView: React.FC<QuickIncomeViewProps> = ({
         const item = tx.items[0];
         setEditNote(item?.displayName === 'Quick Income' ? '' : item?.displayName ?? '');
         setEditStaffId(item?.staffId ?? '');
+        setEditDiscount(0);
     };
 
     const cancelEdit = () => {
@@ -145,16 +147,17 @@ export const QuickIncomeView: React.FC<QuickIncomeViewProps> = ({
     const saveEdit = async (tx: Transaction) => {
         const parsed = parseFloat(editAmount);
         if (!parsed || parsed <= 0) return;
+        const discounted = editDiscount > 0 ? parsed * (1 - editDiscount / 100) : parsed;
         const staffMember = staffList.find((s) => s.id === editStaffId);
         const updated: Transaction = {
             ...tx,
-            total: parsed,
+            total: discounted,
             lastUpdated: Date.now(),
             items: [
                 {
                     nameKey: QUICK_INCOME_SOURCE,
                     displayName: editNote.trim() || 'Quick Income',
-                    price: parsed,
+                    price: discounted,
                     quantity: 1,
                     staffId: editStaffId,
                     staffName: staffMember?.name ?? tx.items[0]?.staffName ?? '',
@@ -354,6 +357,19 @@ export const QuickIncomeView: React.FC<QuickIncomeViewProps> = ({
                                                 }
                                                 className="w-full border border-dusty-rose/40 rounded-lg px-3 py-2 text-charcoal font-bold text-lg outline-none focus:ring-2 focus:ring-gold-leaf"
                                             />
+                                            {/* Edit Discount */}
+                                            <select
+                                                value={editDiscount}
+                                                onChange={(e) =>
+                                                    setEditDiscount(Number(e.target.value))
+                                                }
+                                                className="w-full border border-dusty-rose/40 rounded-lg px-3 py-2 text-charcoal bg-pearl-white text-sm outline-none focus:ring-2 focus:ring-gold-leaf"
+                                            >
+                                                <option value={0}>{t.quickIncomeDiscountLabel}: —</option>
+                                                {[5, 10, 15, 20, 25, 30].map((v) => (
+                                                    <option key={v} value={v}>{t.quickIncomeDiscountLabel}: {v}%</option>
+                                                ))}
+                                            </select>
                                             {/* Edit Note */}
                                             <input
                                                 type="text"
