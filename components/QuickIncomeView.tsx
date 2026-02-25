@@ -115,6 +115,7 @@ export const QuickIncomeView: React.FC<QuickIncomeViewProps> = ({
             id: generateId(),
             date: new Date().toISOString(),
             total: discounted,
+            discountPercentage: discount > 0 ? discount : undefined,
             items: [item],
         };
         const result = await saveTransactionToFirebase(tx);
@@ -133,11 +134,13 @@ export const QuickIncomeView: React.FC<QuickIncomeViewProps> = ({
 
     const startEdit = (tx: Transaction) => {
         setEditingId(tx.id);
-        setEditAmount(String(tx.total));
+        const discountPct = tx.discountPercentage ?? 0;
+        const originalPrice = discountPct > 0 ? tx.total / (1 - discountPct / 100) : tx.total;
+        setEditAmount(String(Math.round(originalPrice * 100) / 100));
         const item = tx.items[0];
         setEditNote(item?.displayName === 'Quick Income' ? '' : item?.displayName ?? '');
         setEditStaffId(item?.staffId ?? '');
-        setEditDiscount(0);
+        setEditDiscount(discountPct);
     };
 
     const cancelEdit = () => {
@@ -152,6 +155,7 @@ export const QuickIncomeView: React.FC<QuickIncomeViewProps> = ({
         const updated: Transaction = {
             ...tx,
             total: discounted,
+            discountPercentage: editDiscount > 0 ? editDiscount : undefined,
             lastUpdated: Date.now(),
             items: [
                 {
