@@ -13,7 +13,7 @@ import { ArtistsView } from './components/ArtistsView';
 import PromotionsView from './components/PromotionsView';
 import { QuickIncomeView } from './components/QuickIncomeView';
 import { ChatWidget } from './components/ChatWidget';
-import { UploadIcon, SparklesIcon, PriceTagIcon, GalleryIcon, CameraIcon, DownloadIcon, BriefcaseIcon, CalendarIcon, GiftIcon, LaPerlaLogo, LockIcon, UsersIcon, CloudCheckIcon, CloudSyncIcon, CloudErrorIcon, XMarkIcon, WalletIcon } from './components/Icons';
+import { UploadIcon, SparklesIcon, PriceTagIcon, GalleryIcon, CameraIcon, DownloadIcon, BriefcaseIcon, CalendarIcon, GiftIcon, LaPerlaLogo, LockIcon, UsersIcon, CloudCheckIcon, CloudSyncIcon, CloudErrorIcon, XMarkIcon, WalletIcon, ListBulletIcon } from './components/Icons';
 import { TRANSLATIONS, Translation } from './translations';
 import { CartItem, ActiveBill, WaitlistEntry, ServiceCategory, StaffProfile, Review, BookingRequest, GlobalPayrollSettings, Transaction, AdminPasswords, MarqueeSettings } from './types';
 import { PRICING_DATA as DEFAULT_PRICING, DEFAULT_STAFF_PROFILES, DEFAULT_GLOBAL_PAYROLL, DEFAULT_ADMIN_PASSWORDS, DEFAULT_MARQUEE_SETTINGS } from './constants';
@@ -363,6 +363,7 @@ const MainApp: React.FC = () => {
   });
 
   const [autoDownloadTrigger, setAutoDownloadTrigger] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
 
   // --- UPDATE MANAGEMENT ---
   const localAppVersion = useRef<number>(0);
@@ -385,6 +386,25 @@ const MainApp: React.FC = () => {
   useEffect(() => {
       localStorage.setItem('la_perla_current_view', view);
   }, [view]);
+
+  // --- CLOSE MORE MENU ON OUTSIDE CLICK ---
+  useEffect(() => {
+      const handleClickOutside = (e: MouseEvent) => {
+          const desktopMenu = document.getElementById('more-menu-desktop');
+          const mobileMenu = document.getElementById('more-menu-mobile');
+          const target = e.target as Node;
+          if (
+              (!desktopMenu || !desktopMenu.contains(target)) &&
+              (!mobileMenu || !mobileMenu.contains(target))
+          ) {
+              setShowMoreMenu(false);
+          }
+      };
+      if (showMoreMenu) {
+          document.addEventListener('mousedown', handleClickOutside);
+      }
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showMoreMenu]);
 
   // --- API KEY VERIFICATION LOG ---
   useEffect(() => {
@@ -1025,10 +1045,32 @@ const MainApp: React.FC = () => {
                     {currentUser && <NavButton view="quick-income" icon={<WalletIcon className="w-5 h-5"/>} label={t.navQuickIncome} currentView={view} onClick={setView} />}
                     <NavButton view="booking" icon={<CalendarIcon className="w-5 h-5"/>} label={t.navBooking} currentView={view} onClick={setView} />
                     <NavButton view="team" icon={<UsersIcon className="w-5 h-5"/>} label={t.navTeam} currentView={view} onClick={setView} />
-                    <NavButton view="stylist" icon={<SparklesIcon className="w-5 h-5"/>} label={t.navAiStylist} currentView={view} onClick={setView} />
-                    <NavButton view="gallery" icon={<GalleryIcon className="w-5 h-5"/>} label={t.navGallery} currentView={view} onClick={setView} />
-                    <NavButton view="portfolio" icon={<CameraIcon className="w-5 h-5"/>} label={t.navPortfolio} currentView={view} onClick={setView} />
-                    <NavButton view="promotions" icon={<GiftIcon className="w-5 h-5 text-red-400"/>} label={t.navPromotions} currentView={view} onClick={setView} />
+                    {/* MORE MENU DROPDOWN */}
+                    <div className="relative" id="more-menu-desktop">
+                        <button
+                            onClick={() => { SoundManager.playTap(); setShowMoreMenu(v => !v); }}
+                            className={`flex items-center gap-1.5 px-4 py-2 rounded-full shadow-sm transition-all ${['stylist','gallery','portfolio','promotions'].includes(view) ? 'bg-gold-leaf text-white' : 'bg-white text-charcoal border border-dusty-rose/30 hover:bg-dusty-rose/10'}`}
+                            title="More"
+                        >
+                            <ListBulletIcon className="w-5 h-5"/>
+                        </button>
+                        {showMoreMenu && (
+                            <div className="absolute top-full mt-2 left-0 bg-white rounded-xl shadow-lg border border-dusty-rose/20 py-1 z-50 min-w-max">
+                                <button onClick={() => { SoundManager.playTap(); setView('stylist'); setShowMoreMenu(false); }} className={`flex items-center gap-2 px-4 py-2.5 w-full text-left hover:bg-dusty-rose/10 transition-colors ${view === 'stylist' ? 'text-gold-leaf font-semibold' : 'text-charcoal'}`}>
+                                    <SparklesIcon className="w-4 h-4"/><span className="text-sm">{t.navAiStylist}</span>
+                                </button>
+                                <button onClick={() => { SoundManager.playTap(); setView('gallery'); setShowMoreMenu(false); }} className={`flex items-center gap-2 px-4 py-2.5 w-full text-left hover:bg-dusty-rose/10 transition-colors ${view === 'gallery' ? 'text-gold-leaf font-semibold' : 'text-charcoal'}`}>
+                                    <GalleryIcon className="w-4 h-4"/><span className="text-sm">{t.navGallery}</span>
+                                </button>
+                                <button onClick={() => { SoundManager.playTap(); setView('portfolio'); setShowMoreMenu(false); }} className={`flex items-center gap-2 px-4 py-2.5 w-full text-left hover:bg-dusty-rose/10 transition-colors ${view === 'portfolio' ? 'text-gold-leaf font-semibold' : 'text-charcoal'}`}>
+                                    <CameraIcon className="w-4 h-4"/><span className="text-sm">{t.navPortfolio}</span>
+                                </button>
+                                <button onClick={() => { SoundManager.playTap(); setView('promotions'); setShowMoreMenu(false); }} className={`flex items-center gap-2 px-4 py-2.5 w-full text-left hover:bg-dusty-rose/10 transition-colors ${view === 'promotions' ? 'text-gold-leaf font-semibold' : 'text-charcoal'}`}>
+                                    <GiftIcon className="w-4 h-4 text-red-400"/><span className="text-sm">{t.navPromotions}</span>
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
                 <div className="absolute right-0 flex gap-2 items-center">
                     {/* Cloud Status Indicator */}
@@ -1070,22 +1112,31 @@ const MainApp: React.FC = () => {
                     <UsersIcon className="w-5 h-5"/>
                     <span className="text-sm font-medium whitespace-nowrap">{t.navTeam}</span>
                  </button>
-                 <button onClick={() => { SoundManager.playTap(); setView('stylist'); }} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all ${view === 'stylist' ? 'bg-gold-leaf text-white' : 'bg-white text-charcoal border border-dusty-rose/30'}`}>
-                    <SparklesIcon className="w-5 h-5"/>
-                    <span className="text-sm font-medium whitespace-nowrap">{t.navAiStylist}</span>
-                 </button>
-                 <button onClick={() => { SoundManager.playTap(); setView('gallery'); }} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all ${view === 'gallery' ? 'bg-gold-leaf text-white' : 'bg-white text-charcoal border border-dusty-rose/30'}`}>
-                    <GalleryIcon className="w-5 h-5"/>
-                    <span className="text-sm font-medium whitespace-nowrap">{t.navGallery}</span>
-                 </button>
-                 <button onClick={() => { SoundManager.playTap(); setView('portfolio'); }} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all ${view === 'portfolio' ? 'bg-gold-leaf text-white' : 'bg-white text-charcoal border border-dusty-rose/30'}`}>
-                    <CameraIcon className="w-5 h-5"/>
-                    <span className="text-sm font-medium whitespace-nowrap">{t.navPortfolio}</span>
-                 </button>
-                 <button onClick={() => { SoundManager.playTap(); setView('promotions'); }} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all ${view === 'promotions' ? 'bg-gold-leaf text-white' : 'bg-white text-charcoal border border-dusty-rose/30'}`}>
-                    <GiftIcon className="w-5 h-5"/>
-                    <span className="text-sm font-medium whitespace-nowrap">{t.navPromotions}</span>
-                 </button>
+                 {/* MORE MENU DROPDOWN (MOBILE) */}
+                 <div className="relative flex-shrink-0" id="more-menu-mobile">
+                     <button
+                         onClick={() => { SoundManager.playTap(); setShowMoreMenu(v => !v); }}
+                         className={`flex items-center gap-1.5 px-4 py-2 rounded-full shadow-sm transition-all ${['stylist','gallery','portfolio','promotions'].includes(view) ? 'bg-gold-leaf text-white' : 'bg-white text-charcoal border border-dusty-rose/30'}`}
+                     >
+                         <ListBulletIcon className="w-5 h-5"/>
+                     </button>
+                     {showMoreMenu && (
+                         <div className="absolute top-full mt-2 left-0 bg-white rounded-xl shadow-lg border border-dusty-rose/20 py-1 z-50 min-w-max">
+                             <button onClick={() => { SoundManager.playTap(); setView('stylist'); setShowMoreMenu(false); }} className={`flex items-center gap-2 px-4 py-2.5 w-full text-left hover:bg-dusty-rose/10 transition-colors ${view === 'stylist' ? 'text-gold-leaf font-semibold' : 'text-charcoal'}`}>
+                                 <SparklesIcon className="w-4 h-4"/><span className="text-sm whitespace-nowrap">{t.navAiStylist}</span>
+                             </button>
+                             <button onClick={() => { SoundManager.playTap(); setView('gallery'); setShowMoreMenu(false); }} className={`flex items-center gap-2 px-4 py-2.5 w-full text-left hover:bg-dusty-rose/10 transition-colors ${view === 'gallery' ? 'text-gold-leaf font-semibold' : 'text-charcoal'}`}>
+                                 <GalleryIcon className="w-4 h-4"/><span className="text-sm whitespace-nowrap">{t.navGallery}</span>
+                             </button>
+                             <button onClick={() => { SoundManager.playTap(); setView('portfolio'); setShowMoreMenu(false); }} className={`flex items-center gap-2 px-4 py-2.5 w-full text-left hover:bg-dusty-rose/10 transition-colors ${view === 'portfolio' ? 'text-gold-leaf font-semibold' : 'text-charcoal'}`}>
+                                 <CameraIcon className="w-4 h-4"/><span className="text-sm whitespace-nowrap">{t.navPortfolio}</span>
+                             </button>
+                             <button onClick={() => { SoundManager.playTap(); setView('promotions'); setShowMoreMenu(false); }} className={`flex items-center gap-2 px-4 py-2.5 w-full text-left hover:bg-dusty-rose/10 transition-colors ${view === 'promotions' ? 'text-gold-leaf font-semibold' : 'text-charcoal'}`}>
+                                 <GiftIcon className="w-4 h-4 text-red-400"/><span className="text-sm whitespace-nowrap">{t.navPromotions}</span>
+                             </button>
+                         </div>
+                     )}
+                 </div>
                  {canAccessAdmin && (
                     <button onClick={() => { SoundManager.playTap(); setView('admin'); }} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all ${view === 'admin' ? 'bg-charcoal text-white' : 'bg-gray-100 text-gray-500 border border-gray-200'}`}>
                         <LockIcon className="w-5 h-5"/>
