@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { Translation } from '../translations';
-import { ChevronDownIcon } from './Icons';
+import { ChevronDownIcon, XMarkIcon, TrashIcon, PencilIcon, PhoneIcon, ClockIcon, PlusIcon } from './Icons';
 import { ServiceCategory, BookingRequest } from '../types';
 
 interface BookingViewProps {
@@ -10,6 +10,9 @@ interface BookingViewProps {
   pricingData: ServiceCategory[];
   onSubmitBooking?: (booking: BookingRequest) => void;
   bookings?: BookingRequest[];
+  onUpdateBookingStatus?: (id: string, status: 'pending' | 'confirmed' | 'cancelled') => void;
+  onDeleteBooking?: (id: string) => void;
+  onEditBooking?: (booking: BookingRequest) => void;
 }
 
 const getTodaySydney = () =>
@@ -177,7 +180,7 @@ export const MonthCalendar: React.FC<{
 };
 
 // --- Main BookingView ---
-export const BookingView: React.FC<BookingViewProps> = ({ t, pricingData, onSubmitBooking, bookings = [] }) => {
+export const BookingView: React.FC<BookingViewProps> = ({ t, pricingData, onSubmitBooking, bookings = [], onUpdateBookingStatus, onDeleteBooking, onEditBooking }) => {
     const today = getTodaySydney();
     const [step, setStep] = useState(1);
     const [date, setDate] = useState('');
@@ -187,6 +190,41 @@ export const BookingView: React.FC<BookingViewProps> = ({ t, pricingData, onSubm
     const [phone, setPhone] = useState('');
     const [notes, setNotes] = useState('');
     const [errors, setErrors] = useState<Record<string, string>>({});
+
+    // Day popup state
+    const [dayPopup, setDayPopup] = useState<string | null>(null);
+    const [editingBooking, setEditingBooking] = useState<BookingRequest | null>(null);
+    const [editBkName, setEditBkName] = useState('');
+    const [editBkPhone, setEditBkPhone] = useState('');
+    const [editBkDate, setEditBkDate] = useState('');
+    const [editBkTimeSlot, setEditBkTimeSlot] = useState('');
+    const [editBkNotes, setEditBkNotes] = useState('');
+    const [editBkServices, setEditBkServices] = useState('');
+
+    const openEditBooking = (booking: BookingRequest) => {
+        setEditingBooking(booking);
+        setEditBkName(booking.customerName);
+        setEditBkPhone(booking.customerPhone);
+        setEditBkDate(booking.date);
+        setEditBkTimeSlot(booking.timeSlot);
+        setEditBkNotes(booking.notes || '');
+        setEditBkServices(booking.services.join(', '));
+    };
+
+    const handleSaveEditBooking = () => {
+        if (!editingBooking) return;
+        const updated: BookingRequest = {
+            ...editingBooking,
+            customerName: editBkName,
+            customerPhone: editBkPhone,
+            date: editBkDate,
+            timeSlot: editBkTimeSlot,
+            notes: editBkNotes,
+            services: editBkServices.split(',').map(s => s.trim()).filter(Boolean),
+        };
+        onEditBooking && onEditBooking(updated);
+        setEditingBooking(null);
+    };
 
     const selectedServiceKeys = useMemo(
         () => Object.keys(selectedServices).filter(k => selectedServices[k]),
@@ -292,7 +330,12 @@ export const BookingView: React.FC<BookingViewProps> = ({ t, pricingData, onSubm
                 return (
                     <div className="animate-fade-in">
                         <h3 className="text-2xl font-serif text-charcoal mb-6">{t.step1Title}</h3>
-                        <MonthCalendar selectedDate={date} onSelect={(d) => { setDate(d); setErrors({}); }} bookings={bookings} />
+                        <MonthCalendar selectedDate={date} onSelect={(d) => {
+                            setDate(d);
+                            setErrors({});
+                            const dayBookings = bookings.filter(b => b.date === d);
+                            if (dayBookings.length > 0) setDayPopup(d);
+                        }} bookings={bookings} />
                         {date && (
                             <div className="mt-4 text-center">
                                 <span className="inline-block bg-gold-leaf/10 text-gold-leaf font-bold px-4 py-2 rounded-full text-sm">
@@ -479,6 +522,186 @@ export const BookingView: React.FC<BookingViewProps> = ({ t, pricingData, onSubm
                     </div>
                 )}
             </div>
+
+            {/* Day Bookings Popup */}
+            {dayPopup && (() => {
+                const popupBookings = bookings
+                    .filter(b => b.date === dayPopup)
+                    .sort((a, b) => a.timeSlot.localeCompare(b.timeSlot));
+                const activeCount = popupBookings.filter(b => b.status !== 'cancelled').length;
+                const [popY, popM, popD] = dayPopup.split('-').map(Number);
+                const popupDateLabel = new Date(popY, popM - 1, popD).toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+                return (
+                    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => { setDayPopup(null); setEditingBooking(null); }}>
+                        <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                            {/* Header */}
+                            <div className="p-5 border-b border-gray-100 flex-shrink-0">
+                                <div className="flex items-start justify-between">
+                                    <div>
+                                        <h3 className="font-serif text-xl font-bold text-charcoal">{popupDateLabel}</h3>
+                                        <p className="text-sm text-gray-500 mt-0.5">{activeCount} booking{activeCount !== 1 ? 's' : ''} scheduled</p>
+                                    </div>
+                                    <button onClick={() => { setDayPopup(null); setEditingBooking(null); }} className="p-2 rounded-full hover:bg-gray-100 transition-colors flex-shrink-0">
+                                        <XMarkIcon className="w-5 h-5 text-gray-400" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Bookings list */}
+                            <div className="overflow-y-auto p-5 space-y-3 flex-1">
+                                {popupBookings.map(booking => (
+                                    <div key={booking.id} className={`rounded-xl border relative overflow-hidden ${booking.status === 'cancelled' ? 'border-gray-100 bg-gray-50 opacity-60' : 'border-gray-100 bg-gray-50'}`}>
+                                        <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${booking.status === 'confirmed' ? 'bg-green-500' : booking.status === 'cancelled' ? 'bg-red-300' : 'bg-yellow-400'}`} />
+
+                                        {editingBooking?.id === booking.id ? (
+                                            /* Inline edit form */
+                                            <div className="pl-4 pr-3 py-3 space-y-2">
+                                                <p className="text-xs font-bold text-gray-500 uppercase mb-1">Editing Booking</p>
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <input
+                                                        value={editBkName}
+                                                        onChange={e => setEditBkName(e.target.value)}
+                                                        placeholder="Customer name"
+                                                        className="col-span-2 text-sm p-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-gold-leaf outline-none"
+                                                    />
+                                                    <input
+                                                        value={editBkPhone}
+                                                        onChange={e => setEditBkPhone(e.target.value)}
+                                                        placeholder="Phone"
+                                                        className="text-sm p-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-gold-leaf outline-none"
+                                                    />
+                                                    <select
+                                                        value={editBkTimeSlot}
+                                                        onChange={e => setEditBkTimeSlot(e.target.value)}
+                                                        className="text-sm p-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-gold-leaf outline-none bg-white"
+                                                    >
+                                                        {ALL_TIME_SLOTS.map(s => <option key={s} value={s}>{s}</option>)}
+                                                    </select>
+                                                    <input
+                                                        value={editBkServices}
+                                                        onChange={e => setEditBkServices(e.target.value)}
+                                                        placeholder="Services (comma separated)"
+                                                        className="col-span-2 text-sm p-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-gold-leaf outline-none"
+                                                    />
+                                                    <input
+                                                        value={editBkNotes}
+                                                        onChange={e => setEditBkNotes(e.target.value)}
+                                                        placeholder="Notes"
+                                                        className="col-span-2 text-sm p-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-gold-leaf outline-none"
+                                                    />
+                                                </div>
+                                                <div className="flex gap-2 pt-1">
+                                                    <button onClick={handleSaveEditBooking} className="flex-1 py-1.5 bg-gold-leaf text-white rounded-lg font-bold text-xs hover:bg-charcoal transition-colors">Save</button>
+                                                    <button onClick={() => setEditingBooking(null)} className="flex-1 py-1.5 bg-gray-100 text-gray-600 rounded-lg font-bold text-xs hover:bg-gray-200 transition-colors">Cancel</button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            /* Booking info */
+                                            <div className="pl-4 pr-3 py-3">
+                                                <div className="flex justify-between items-start">
+                                                    <div>
+                                                        <p className="font-bold text-charcoal text-sm">{booking.customerName}</p>
+                                                        <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                                                            <PhoneIcon className="w-3 h-3 text-gold-leaf" />
+                                                            <a href={`tel:${booking.customerPhone}`} className="hover:underline">{booking.customerPhone}</a>
+                                                        </p>
+                                                    </div>
+                                                    <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${booking.status === 'confirmed' ? 'bg-green-100 text-green-700' : booking.status === 'cancelled' ? 'bg-red-100 text-red-500' : 'bg-yellow-100 text-yellow-700'}`}>
+                                                        {booking.status}
+                                                    </span>
+                                                </div>
+                                                <p className="text-xs font-bold text-gold-leaf mt-1.5 flex items-center gap-1">
+                                                    <ClockIcon className="w-3 h-3" />{booking.timeSlot}
+                                                </p>
+                                                {booking.services.length > 0 && (
+                                                    <div className="flex flex-wrap gap-1 mt-1.5">
+                                                        {booking.services.map((s, i) => (
+                                                            <span key={i} className="bg-white border border-gray-200 px-2 py-0.5 rounded-full text-xs text-charcoal">{s}</span>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                                {booking.notes && <p className="text-xs italic text-gray-400 mt-1">"{booking.notes}"</p>}
+                                                <div className="flex gap-1.5 mt-2 flex-wrap">
+                                                    {booking.status === 'pending' && (
+                                                        <button
+                                                            onClick={() => onUpdateBookingStatus && onUpdateBookingStatus(booking.id, 'confirmed')}
+                                                            className="flex-1 py-1.5 bg-green-500 text-white rounded-lg font-bold text-xs hover:bg-green-600 transition-colors"
+                                                        >
+                                                            Confirm
+                                                        </button>
+                                                    )}
+                                                    {booking.status === 'confirmed' && (
+                                                        <button
+                                                            onClick={() => onUpdateBookingStatus && onUpdateBookingStatus(booking.id, 'pending')}
+                                                            className="flex-1 py-1.5 bg-yellow-400 text-white rounded-lg font-bold text-xs hover:bg-yellow-500 transition-colors"
+                                                        >
+                                                            Unconfirm
+                                                        </button>
+                                                    )}
+                                                    {booking.status === 'cancelled' ? (
+                                                        <button
+                                                            onClick={() => onUpdateBookingStatus && onUpdateBookingStatus(booking.id, 'pending')}
+                                                            className="flex-1 py-1.5 bg-yellow-400 text-white rounded-lg font-bold text-xs hover:bg-yellow-500 transition-colors"
+                                                        >
+                                                            Restore
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => onUpdateBookingStatus && onUpdateBookingStatus(booking.id, 'cancelled')}
+                                                            className="flex-1 py-1.5 bg-white border border-gray-200 text-gray-600 rounded-lg font-bold text-xs hover:bg-gray-50 transition-colors"
+                                                        >
+                                                            Cancel
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        onClick={() => openEditBooking(booking)}
+                                                        className="py-1.5 px-3 text-blue-400 hover:text-blue-600 text-xs font-bold transition-colors flex items-center gap-1 border border-blue-100 rounded-lg hover:bg-blue-50"
+                                                    >
+                                                        <PencilIcon className="w-3 h-3" /> Edit
+                                                    </button>
+                                                    <button
+                                                        onClick={() => { onDeleteBooking && onDeleteBooking(booking.id); }}
+                                                        className="py-1.5 px-3 text-red-400 hover:text-red-600 text-xs font-bold transition-colors flex items-center gap-1 border border-red-100 rounded-lg hover:bg-red-50"
+                                                    >
+                                                        <TrashIcon className="w-3 h-3" /> Remove
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Footer */}
+                            <div className="p-4 border-t border-gray-100 flex gap-2 flex-shrink-0">
+                                <button
+                                    onClick={() => {
+                                        setDayPopup(null);
+                                        setEditingBooking(null);
+                                        setDate(dayPopup!);
+                                        setTimeSlot('');
+                                        setSelectedServices({});
+                                        setName('');
+                                        setPhone('');
+                                        setNotes('');
+                                        setErrors({});
+                                        setStep(2);
+                                    }}
+                                    className="flex-1 py-2.5 bg-gold-leaf text-white font-bold rounded-xl hover:bg-charcoal transition-colors text-sm flex items-center justify-center gap-1.5"
+                                >
+                                    <PlusIcon className="w-4 h-4" /> Add New Booking
+                                </button>
+                                <button
+                                    onClick={() => { setDayPopup(null); setEditingBooking(null); }}
+                                    className="py-2.5 px-4 bg-gray-100 text-charcoal font-bold rounded-xl hover:bg-gray-200 transition-colors text-sm"
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
         </div>
     );
 };
