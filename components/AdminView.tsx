@@ -652,19 +652,26 @@ export const AdminView: React.FC<AdminViewProps> = ({
         setEditingTransaction(tx);
         setEditTxName(tx.customerName || '');
         setEditTxPhone(tx.customerPhone || '');
-        setEditTxTotal(tx.total.toString());
+        // Show original (pre-discount) price so the worker can see what was originally entered
+        const discountFactor = tx.discountPercentage ? (1 - tx.discountPercentage / 100) : 1;
+        const originalTotal = discountFactor > 0 ? tx.total / discountFactor : tx.total;
+        setEditTxTotal(originalTotal.toFixed(2));
         setEditTxDiscount(tx.discountPercentage ? tx.discountPercentage.toString() : '0');
         setEditTxItems(JSON.parse(JSON.stringify(tx.items))); // Deep copy items
     };
 
     const handleSaveTransaction = async () => {
         if (!editingTransaction) return;
+        // Recalculate the post-discount total from the original price and discount
+        const originalPrice = parseFloat(editTxTotal) || 0;
+        const discountPct = parseFloat(editTxDiscount) || 0;
+        const finalTotal = originalPrice * (1 - discountPct / 100);
         const updatedTx: Transaction = { 
             ...editingTransaction, 
             customerName: editTxName, 
             customerPhone: editTxPhone, 
-            total: parseFloat(editTxTotal) || 0, 
-            discountPercentage: parseFloat(editTxDiscount) || 0, 
+            total: finalTotal, 
+            discountPercentage: discountPct, 
             items: editTxItems, // Save edited items
             lastUpdated: Date.now() 
         };
@@ -1282,7 +1289,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         <div className="p-6 space-y-4 overflow-y-auto">
                             <div><label className="block text-xs font-bold text-gray-400 uppercase mb-1">Customer Name</label><input type="text" value={editTxName} onChange={e => setEditTxName(e.target.value)} className="w-full p-2 border rounded-lg" /></div>
                             <div><label className="block text-xs font-bold text-gray-400 uppercase mb-1">Phone</label><input type="text" value={editTxPhone} onChange={e => setEditTxPhone(e.target.value)} className="w-full p-2 border rounded-lg" /></div>
-                            <div className="grid grid-cols-2 gap-4"><div><label className="block text-xs font-bold text-gray-400 uppercase mb-1">Total ($)</label><input type="number" value={editTxTotal} onChange={e => setEditTxTotal(e.target.value)} className="w-full p-2 border rounded-lg font-bold" /></div><div><label className="block text-xs font-bold text-gray-400 uppercase mb-1">Discount (%)</label><input type="number" value={editTxDiscount} onChange={e => setEditTxDiscount(e.target.value)} className="w-full p-2 border rounded-lg" /></div></div>
+                            <div className="grid grid-cols-2 gap-4"><div><label className="block text-xs font-bold text-gray-400 uppercase mb-1">Original Price ($)</label><input type="number" value={editTxTotal} onChange={e => setEditTxTotal(e.target.value)} className="w-full p-2 border rounded-lg font-bold" /></div><div><label className="block text-xs font-bold text-gray-400 uppercase mb-1">Discount (%)</label><input type="number" value={editTxDiscount} onChange={e => setEditTxDiscount(e.target.value)} className="w-full p-2 border rounded-lg" /></div></div>
                             <div className="bg-gray-50 p-3 rounded-lg text-xs max-h-64 overflow-y-auto">
                                 <p className="font-bold mb-2 text-gray-700">Items:</p>
                                 <div className="space-y-3">
