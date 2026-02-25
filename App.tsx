@@ -1093,27 +1093,35 @@ const MainApp: React.FC = () => {
                 </div>
             </div>
 
-            <div className="md:hidden flex items-center gap-3 overflow-x-auto pb-2 pt-1 w-full no-scrollbar px-4">
-                 <button onClick={() => { SoundManager.playTap(); setView('pricing'); }} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all ${view === 'pricing' ? 'bg-gold-leaf text-white' : 'bg-white text-charcoal border border-dusty-rose/30'}`}>
-                    <PriceTagIcon className="w-5 h-5"/>
-                    <span className="text-sm font-medium whitespace-nowrap">{t.navPriceList}</span>
-                 </button>
-                 {currentUser && (
-                 <button onClick={() => { SoundManager.playTap(); setView('quick-income'); }} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all ${view === 'quick-income' ? 'bg-gold-leaf text-white' : 'bg-white text-charcoal border border-dusty-rose/30'}`}>
-                    <WalletIcon className="w-5 h-5"/>
-                    <span className="text-sm font-medium whitespace-nowrap">{t.navQuickIncome}</span>
-                 </button>
-                 )}
-                 <button onClick={() => { SoundManager.playTap(); setView('booking'); }} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all ${view === 'booking' ? 'bg-gold-leaf text-white' : 'bg-white text-charcoal border border-dusty-rose/30'}`}>
-                    <CalendarIcon className="w-5 h-5"/>
-                    <span className="text-sm font-medium whitespace-nowrap">{t.navBooking}</span>
-                 </button>
-                 <button onClick={() => { SoundManager.playTap(); setView('team'); }} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all ${view === 'team' ? 'bg-gold-leaf text-white' : 'bg-white text-charcoal border border-dusty-rose/30'}`}>
-                    <UsersIcon className="w-5 h-5"/>
-                    <span className="text-sm font-medium whitespace-nowrap">{t.navTeam}</span>
-                 </button>
-                 {/* MORE MENU DROPDOWN (MOBILE) */}
-                 <div className="relative flex-shrink-0" id="more-menu-mobile">
+            <div className="md:hidden flex items-center w-full">
+                 <div className="flex items-center gap-3 overflow-x-auto pb-2 pt-1 no-scrollbar px-4 flex-1 min-w-0">
+                     <button onClick={() => { SoundManager.playTap(); setView('pricing'); }} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all ${view === 'pricing' ? 'bg-gold-leaf text-white' : 'bg-white text-charcoal border border-dusty-rose/30'}`}>
+                        <PriceTagIcon className="w-5 h-5"/>
+                        <span className="text-sm font-medium whitespace-nowrap">{t.navPriceList}</span>
+                     </button>
+                     {currentUser && (
+                     <button onClick={() => { SoundManager.playTap(); setView('quick-income'); }} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all ${view === 'quick-income' ? 'bg-gold-leaf text-white' : 'bg-white text-charcoal border border-dusty-rose/30'}`}>
+                        <WalletIcon className="w-5 h-5"/>
+                        <span className="text-sm font-medium whitespace-nowrap">{t.navQuickIncome}</span>
+                     </button>
+                     )}
+                     <button onClick={() => { SoundManager.playTap(); setView('booking'); }} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all ${view === 'booking' ? 'bg-gold-leaf text-white' : 'bg-white text-charcoal border border-dusty-rose/30'}`}>
+                        <CalendarIcon className="w-5 h-5"/>
+                        <span className="text-sm font-medium whitespace-nowrap">{t.navBooking}</span>
+                     </button>
+                     <button onClick={() => { SoundManager.playTap(); setView('team'); }} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all ${view === 'team' ? 'bg-gold-leaf text-white' : 'bg-white text-charcoal border border-dusty-rose/30'}`}>
+                        <UsersIcon className="w-5 h-5"/>
+                        <span className="text-sm font-medium whitespace-nowrap">{t.navTeam}</span>
+                     </button>
+                     {canAccessAdmin && (
+                        <button onClick={() => { SoundManager.playTap(); setView('admin'); }} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all ${view === 'admin' ? 'bg-charcoal text-white' : 'bg-gray-100 text-gray-500 border border-gray-200'}`}>
+                            <LockIcon className="w-5 h-5"/>
+                            <span className="text-sm font-medium whitespace-nowrap">{t.adminLogin}</span>
+                        </button>
+                     )}
+                 </div>
+                 {/* MORE MENU DROPDOWN (MOBILE) - pinned to the far right */}
+                 <div className="relative flex-shrink-0 py-2 pr-4 pl-1" id="more-menu-mobile">
                      <button
                          onClick={() => { SoundManager.playTap(); setShowMoreMenu(v => !v); }}
                          className={`flex items-center gap-1.5 px-4 py-2 rounded-full shadow-sm transition-all ${['stylist','gallery','portfolio','promotions'].includes(view) ? 'bg-gold-leaf text-white' : 'bg-white text-charcoal border border-dusty-rose/30'}`}
@@ -1121,7 +1129,7 @@ const MainApp: React.FC = () => {
                          <ListBulletIcon className="w-5 h-5"/>
                      </button>
                      {showMoreMenu && (
-                         <div className="absolute top-full mt-2 left-0 bg-white rounded-xl shadow-lg border border-dusty-rose/20 py-1 z-50 min-w-max">
+                         <div className="absolute top-full mt-2 right-0 bg-white rounded-xl shadow-lg border border-dusty-rose/20 py-1 z-50 min-w-max">
                              <button onClick={() => { SoundManager.playTap(); setView('stylist'); setShowMoreMenu(false); }} className={`flex items-center gap-2 px-4 py-2.5 w-full text-left hover:bg-dusty-rose/10 transition-colors ${view === 'stylist' ? 'text-gold-leaf font-semibold' : 'text-charcoal'}`}>
                                  <SparklesIcon className="w-4 h-4"/><span className="text-sm whitespace-nowrap">{t.navAiStylist}</span>
                              </button>
@@ -1137,12 +1145,6 @@ const MainApp: React.FC = () => {
                          </div>
                      )}
                  </div>
-                 {canAccessAdmin && (
-                    <button onClick={() => { SoundManager.playTap(); setView('admin'); }} className={`flex items-center gap-2 px-4 py-2 rounded-full flex-shrink-0 shadow-sm transition-all ${view === 'admin' ? 'bg-charcoal text-white' : 'bg-gray-100 text-gray-500 border border-gray-200'}`}>
-                        <LockIcon className="w-5 h-5"/>
-                        <span className="text-sm font-medium whitespace-nowrap">{t.adminLogin}</span>
-                    </button>
-                 )}
             </div>
         </div>
       </header>
