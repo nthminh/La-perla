@@ -1175,6 +1175,9 @@ const MainApp: React.FC = () => {
                 pricingData={pricingData}
                 onSubmitBooking={handleSubmitBooking}
                 bookings={bookings}
+                onUpdateBookingStatus={handleUpdateBookingStatus}
+                onDeleteBooking={handleDeleteBooking}
+                onEditBooking={handleEditBooking}
             />
         )}
         {view === 'promotions' && <PromotionsView t={t} />}
