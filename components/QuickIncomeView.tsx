@@ -43,6 +43,7 @@ export const QuickIncomeView: React.FC<QuickIncomeViewProps> = ({
     staffList,
 }) => {
     const [amount, setAmount] = useState('');
+    const [discount, setDiscount] = useState(0);
     const [note, setNote] = useState('');
     const [selectedStaffId, setSelectedStaffId] = useState(currentUser?.id ?? '');
     const [isSaving, setIsSaving] = useState(false);
@@ -99,11 +100,12 @@ export const QuickIncomeView: React.FC<QuickIncomeViewProps> = ({
         setIsSaving(true);
         SoundManager.playTap();
 
+        const discounted = discount > 0 ? parsed * (1 - discount / 100) : parsed;
         const staffMember = staffList.find((s) => s.id === selectedStaffId);
         const item: TransactionItem = {
             nameKey: QUICK_INCOME_SOURCE,
             displayName: note.trim() || 'Quick Income',
-            price: parsed,
+            price: discounted,
             quantity: 1,
             staffId: selectedStaffId,
             staffName: staffMember?.name ?? '',
@@ -111,7 +113,7 @@ export const QuickIncomeView: React.FC<QuickIncomeViewProps> = ({
         const tx: Transaction = {
             id: generateId(),
             date: new Date().toISOString(),
-            total: parsed,
+            total: discounted,
             items: [item],
         };
         const result = await saveTransactionToFirebase(tx);
@@ -119,6 +121,7 @@ export const QuickIncomeView: React.FC<QuickIncomeViewProps> = ({
         if (result.success) {
             setSuccessMsg(t.quickIncomeSuccess);
             setAmount('');
+            setDiscount(0);
             setNote('');
             setTimeout(() => setSuccessMsg(''), 3000);
             amountRef.current?.focus();
@@ -218,24 +221,43 @@ export const QuickIncomeView: React.FC<QuickIncomeViewProps> = ({
                     </select>
                 </div>
 
-                {/* Amount */}
+                {/* Amount + Discount */}
                 <div className="mb-5">
-                    <label className="block text-sm font-medium text-charcoal mb-1">
-                        {t.quickIncomeAmountLabel}
-                    </label>
-                    <input
-                        ref={amountRef}
-                        type="number"
-                        inputMode="decimal"
-                        min="0"
-                        step="0.01"
-                        value={amount}
-                        onChange={(e) => setAmount(e.target.value)}
-                        placeholder={t.quickIncomeAmountPlaceholder}
-                        className="w-full border border-dusty-rose/40 rounded-xl px-4 py-3 text-charcoal text-2xl font-bold bg-pearl-white focus:ring-2 focus:ring-gold-leaf focus:border-gold-leaf outline-none"
-                        required
-                        autoFocus
-                    />
+                    <div className="flex gap-3">
+                        <div className="flex-1">
+                            <label className="block text-sm font-medium text-charcoal mb-1">
+                                {t.quickIncomeAmountLabel}
+                            </label>
+                            <input
+                                ref={amountRef}
+                                type="number"
+                                inputMode="decimal"
+                                min="0"
+                                step="0.01"
+                                value={amount}
+                                onChange={(e) => setAmount(e.target.value)}
+                                placeholder={t.quickIncomeAmountPlaceholder}
+                                className="w-full border border-dusty-rose/40 rounded-xl px-4 py-3 text-charcoal text-2xl font-bold bg-pearl-white focus:ring-2 focus:ring-gold-leaf focus:border-gold-leaf outline-none"
+                                required
+                                autoFocus
+                            />
+                        </div>
+                        <div className="w-36">
+                            <label className="block text-sm font-medium text-charcoal mb-1">
+                                {t.quickIncomeDiscountLabel}
+                            </label>
+                            <select
+                                value={discount}
+                                onChange={(e) => setDiscount(Number(e.target.value))}
+                                className="w-full border border-dusty-rose/40 rounded-xl px-4 py-3 text-charcoal text-2xl font-bold bg-pearl-white focus:ring-2 focus:ring-gold-leaf focus:border-gold-leaf outline-none"
+                            >
+                                <option value={0}>—</option>
+                                {[5, 10, 15, 20, 25, 30].map((v) => (
+                                    <option key={v} value={v}>{v}%</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Note */}

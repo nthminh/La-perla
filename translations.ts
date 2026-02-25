@@ -211,6 +211,7 @@ export interface Translation {
   quickIncomeSelectStaffError: string;
   quickIncomeSaveError: string;
   quickIncomeDeleteConfirm: string;
+  quickIncomeDiscountLabel: string;
 }
 
 const baseTranslations: Omit<Translation, 'name' | 'flag'> = {
@@ -420,6 +421,7 @@ const baseTranslations: Omit<Translation, 'name' | 'flag'> = {
   quickIncomeSelectStaffError: "Please select a staff member.",
   quickIncomeSaveError: "Failed to save. Please try again.",
   quickIncomeDeleteConfirm: "Delete this income entry?",
+  quickIncomeDiscountLabel: "Discount (%)",
   serviceCategories: {
     nails: "Nails",
     ladiesWaxing: "Ladies Waxing",
@@ -639,6 +641,7 @@ export const TRANSLATIONS: Record<string, Translation> = {
     quickIncomeSelectStaffError: "Vui lòng chọn thợ.",
     quickIncomeSaveError: "Lưu thất bại. Vui lòng thử lại.",
     quickIncomeDeleteConfirm: "Xoá mục thu nhập này?",
+    quickIncomeDiscountLabel: "Giảm Giá (%)",
     revenue: "Doanh Thu",
     orders: "Đơn Hàng",
     workers: "Thợ Làm Việc",
