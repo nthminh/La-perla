@@ -537,7 +537,41 @@ const MainApp: React.FC = () => {
       upsertBooking(bookingData);
   };
   
-  const handleUpdateBookingStatus = (id: string, status: 'pending' | 'confirmed' | 'cancelled') => {
+  const handleUpdateBookingStatus = async (id: string, status: 'pending' | 'confirmed' | 'cancelled') => {
+      if (status === 'confirmed') {
+          const booking = bookings.find(b => b.id === id);
+          if (booking) {
+              // Create a transaction from the booking so the customer appears in CRM.
+              // total is 0 because the actual payment is collected at the time of service.
+              const tx: Transaction = {
+                  id: `booking_${booking.id}_${Date.now()}`,
+                  // Use noon on the booking date to avoid timezone-related day shifts
+                  date: new Date(`${booking.date}T12:00:00`).toISOString(),
+                  total: 0,
+                  items: booking.services.map(s => ({
+                      nameKey: s.toLowerCase().replace(/\s+/g, '_'),
+                      displayName: s,
+                      price: 0,
+                      quantity: 1,
+                  })),
+                  discountPercentage: 0,
+                  customerName: booking.customerName,
+                  customerPhone: booking.customerPhone,
+                  customerNotes: booking.notes,
+                  lastUpdated: Date.now(),
+              };
+              const result = await saveTransactionToFirebase(tx);
+              if (!result.success) {
+                  alert('Failed to save customer record. Please check your connection and try again.');
+                  return;
+              }
+              // Remove the booking from the list now that the customer record is saved
+              const newBookings = bookings.filter(b => b.id !== id);
+              setBookings(newBookings);
+              deleteBooking(id);
+          }
+          return;
+      }
       const updatedBookings = bookings.map(b => {
           if (b.id === id) {
               const updated = { ...b, status };
