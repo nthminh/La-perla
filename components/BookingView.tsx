@@ -24,14 +24,13 @@ const parseDateStr = (dateStr: string): Date => {
     return new Date(year, month - 1, day, 12, 0, 0);
 };
 
-// Generate time slots from 9:00 to 18:30 in 30-min increments
+// Generate time slots from 9:00 to 21:00 in 30-min increments
 const ALL_TIME_SLOTS: string[] = (() => {
     const slots: string[] = [];
-    for (let h = 9; h <= 18; h++) {
+    for (let h = 9; h <= 21; h++) {
         slots.push(`${String(h).padStart(2, '0')}:00`);
-        if (h < 18) slots.push(`${String(h).padStart(2, '0')}:30`);
+        if (h < 21) slots.push(`${String(h).padStart(2, '0')}:30`);
     }
-    slots.push('18:30');
     return slots;
 })();
 
