@@ -259,7 +259,7 @@ export const QuickIncomeView: React.FC<QuickIncomeViewProps> = ({
                                 className="w-full border border-dusty-rose/40 rounded-xl px-4 py-3 text-charcoal text-2xl font-bold bg-pearl-white focus:ring-2 focus:ring-gold-leaf focus:border-gold-leaf outline-none"
                             >
                                 <option value={0}>—</option>
-                                {[5, 10, 15, 20, 25, 30].map((v) => (
+                                {[5, 10, 15, 20, 25, 30, 40, 50].map((v) => (
                                     <option key={v} value={v}>{v}%</option>
                                 ))}
                             </select>
@@ -370,7 +370,7 @@ export const QuickIncomeView: React.FC<QuickIncomeViewProps> = ({
                                                 className="w-full border border-dusty-rose/40 rounded-lg px-3 py-2 text-charcoal bg-pearl-white text-sm outline-none focus:ring-2 focus:ring-gold-leaf"
                                             >
                                                 <option value={0}>{t.quickIncomeDiscountLabel}: —</option>
-                                                {[5, 10, 15, 20, 25, 30].map((v) => (
+                                                {[5, 10, 15, 20, 25, 30, 40, 50].map((v) => (
                                                     <option key={v} value={v}>{t.quickIncomeDiscountLabel}: {v}%</option>
                                                 ))}
                                             </select>
